@@ -1,2 +1,7 @@
 .idea/
 *.iml
+
+# Environment files
+.env
+.env.*
+!.env.example
