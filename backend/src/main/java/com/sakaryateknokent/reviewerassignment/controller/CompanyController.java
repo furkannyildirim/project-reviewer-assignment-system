@@ -1,0 +1,63 @@
+package com.sakaryateknokent.reviewerassignment.controller;
+
+import com.sakaryateknokent.reviewerassignment.dto.CompanyResponse;
+import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyRequest;
+import com.sakaryateknokent.reviewerassignment.dto.UpdateCompanyRequest;
+import com.sakaryateknokent.reviewerassignment.service.CompanyService;
+import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+
+@RestController
+@RequestMapping("/api/companies")
+@RequiredArgsConstructor
+public class CompanyController {
+
+    private final CompanyService companyService;
+
+    @PostMapping
+    public ResponseEntity<CompanyResponse> createCompany(
+            @Valid @RequestBody CreateCompanyRequest request
+    ) {
+        CompanyResponse response = companyService.createCompany(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<PageResponse<CompanyResponse>> getCompanies(
+            @RequestParam(defaultValue = "") String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ResponseEntity.ok(
+                companyService.getCompanies(search, page, size)
+        );
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<CompanyResponse> getCompanyById(
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(companyService.getCompanyById(id));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<CompanyResponse> updateCompany(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateCompanyRequest request
+    ) {
+        return ResponseEntity.ok(companyService.updateCompany(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteCompany(
+            @PathVariable Long id
+    ) {
+        companyService.deleteCompany(id);
+        return ResponseEntity.noContent().build();
+    }
+}
