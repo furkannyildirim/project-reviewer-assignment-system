@@ -89,7 +89,6 @@ function LoadingRows() {
 export function CompanyTable({
     data,
     page,
-    size,
     isLoading,
     isAdmin,
     isMutating,
@@ -98,12 +97,7 @@ export function CompanyTable({
     onDelete,
 }: CompanyTableProps) {
     const companies = data?.content ?? [];
-    const totalElements = data?.totalElements ?? 0;
     const totalPages = Math.max(data?.totalPages ?? 1, 1);
-    const rangeStart = totalElements === 0 ? 0 : page * size + 1;
-    const rangeEnd = totalElements === 0
-        ? 0
-        : Math.min((page + 1) * size, totalElements);
 
     return (
         <Paper
@@ -195,19 +189,15 @@ export function CompanyTable({
             </TableContainer>
 
             <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={2}
                 sx={{
+                    display: 'flex',
+                    flexDirection: 'row',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
+                    justifyContent: 'flex-end',
                     px: 2,
                     py: 1.5,
                 }}
             >
-                <Typography color="text.secondary" variant="body2">
-                    {rangeStart}-{rangeEnd} / {totalElements}
-                </Typography>
-
                 <Pagination
                     count={totalPages}
                     page={page + 1}
@@ -220,7 +210,7 @@ export function CompanyTable({
                     sx={{
                         maxWidth: '100%',
                         '& .MuiPagination-ul': {
-                            justifyContent: 'center',
+                            justifyContent: 'flex-end',
                             flexWrap: 'wrap',
                         },
                     }}
