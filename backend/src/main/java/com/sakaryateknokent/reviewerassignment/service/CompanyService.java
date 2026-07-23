@@ -36,17 +36,13 @@ public class CompanyService {
     public CompanyResponse createCompany(CreateCompanyRequest request) {
         String normalizedEmail = normalizeEmail(request.email());
 
-        if (companyRepository.existsByEmail(normalizedEmail)) {
-            throw new DuplicateResourceException(
-                    "Bu e-posta adresiyle kayıtlı bir şirket zaten var"
-            );
-        }
+        validateEmailForCreate(normalizedEmail);
 
         Company company = new Company();
         company.setName(request.name().trim());
         company.setEmail(normalizedEmail);
-        company.setPhone(request.phone().trim());
-        company.setActivityArea(request.activityArea().trim());
+        company.setPhone(normalizeOptionalText(request.phone()));
+        company.setActivityArea(normalizeOptionalText(request.activityArea()));
         company.setLogoUrl(normalizeOptionalText(request.logoUrl()));
 
         return toResponse(companyRepository.save(company));
@@ -97,16 +93,12 @@ public class CompanyService {
         Company company = findCompanyById(id);
         String normalizedEmail = normalizeEmail(request.email());
 
-        if (companyRepository.existsByEmailAndIdNot(normalizedEmail, id)) {
-            throw new DuplicateResourceException(
-                    "Bu e-posta adresiyle kayıtlı başka bir şirket zaten var"
-            );
-        }
+        validateEmailForUpdate(normalizedEmail, id);
 
         company.setName(request.name().trim());
         company.setEmail(normalizedEmail);
-        company.setPhone(request.phone().trim());
-        company.setActivityArea(request.activityArea().trim());
+        company.setPhone(normalizeOptionalText(request.phone()));
+        company.setActivityArea(normalizeOptionalText(request.activityArea()));
         company.setLogoUrl(normalizeOptionalText(request.logoUrl()));
 
         return toResponse(companyRepository.save(company));
@@ -124,8 +116,29 @@ public class CompanyService {
                 ));
     }
 
+    private void validateEmailForCreate(String email) {
+        if (email != null && companyRepository.existsByEmail(email)) {
+            throw new DuplicateResourceException(
+                    "Bu e-posta adresiyle kayıtlı bir şirket zaten var"
+            );
+        }
+    }
+
+    private void validateEmailForUpdate(String email, Long id) {
+        if (email != null
+                && companyRepository.existsByEmailAndIdNot(email, id)) {
+            throw new DuplicateResourceException(
+                    "Bu e-posta adresiyle kayıtlı başka bir şirket zaten var"
+            );
+        }
+    }
+
     private String normalizeEmail(String email) {
-        return email.trim().toLowerCase(Locale.ROOT);
+        String normalizedEmail = normalizeOptionalText(email);
+
+        return normalizedEmail == null
+                ? null
+                : normalizedEmail.toLowerCase(Locale.ROOT);
     }
 
     private String normalizeOptionalText(String value) {

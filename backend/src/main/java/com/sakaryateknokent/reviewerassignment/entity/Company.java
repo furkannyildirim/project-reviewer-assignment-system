@@ -19,13 +19,13 @@ public class Company {
     @Column(nullable = false, length = 200)
     private String name;
 
-    @Column(nullable = false, unique = true, length = 255)
+    @Column(unique = true, length = 255)
     private String email;
 
-    @Column(nullable = false, length = 30)
+    @Column(length = 30)
     private String phone;
 
-    @Column(name = "activity_area", nullable = false, length = 255)
+    @Column(name = "activity_area", length = 255)
     private String activityArea;
 
     @Column(name = "logo_url", length = 500)
