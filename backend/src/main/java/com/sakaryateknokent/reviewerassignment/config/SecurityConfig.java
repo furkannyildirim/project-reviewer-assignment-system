@@ -59,6 +59,12 @@ public class SecurityConfig {
                         ).hasRole("ADMIN")
                         .requestMatchers("/api/companies/**")
                         .hasAnyRole("ADMIN", "USER")
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/academicians/**"
+                        ).hasRole("ADMIN")
+                        .requestMatchers("/api/academicians/**")
+                        .hasAnyRole("ADMIN", "USER")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions

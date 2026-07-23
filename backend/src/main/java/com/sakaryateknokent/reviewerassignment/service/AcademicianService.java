@@ -1,0 +1,228 @@
+package com.sakaryateknokent.reviewerassignment.service;
+
+import com.sakaryateknokent.reviewerassignment.dto.AcademicianResponse;
+import com.sakaryateknokent.reviewerassignment.dto.CreateAcademicianRequest;
+import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
+import com.sakaryateknokent.reviewerassignment.dto.UpdateAcademicianRequest;
+import com.sakaryateknokent.reviewerassignment.entity.Academician;
+import com.sakaryateknokent.reviewerassignment.exception.DuplicateResourceException;
+import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
+import com.sakaryateknokent.reviewerassignment.exception.ResourceNotFoundException;
+import com.sakaryateknokent.reviewerassignment.repository.AcademicianRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+@Service
+@RequiredArgsConstructor
+@Transactional
+public class AcademicianService {
+
+    private static final Set<Integer> ALLOWED_PAGE_SIZES =
+            Set.of(10, 15, 20, 25);
+
+    private static final Sort DEFAULT_ACADEMICIAN_SORT = Sort.by(
+            Sort.Order.asc("firstName"),
+            Sort.Order.asc("lastName")
+    );
+
+    private static final Locale TURKISH_LOCALE =
+            Locale.forLanguageTag("tr");
+
+    private final AcademicianRepository academicianRepository;
+
+    public AcademicianResponse createAcademician(
+            CreateAcademicianRequest request
+    ) {
+        String normalizedEmail = normalizeEmail(request.email());
+        validateEmailForCreate(normalizedEmail);
+
+        Academician academician = new Academician();
+        academician.setFirstName(request.firstName().trim());
+        academician.setLastName(request.lastName().trim());
+        academician.setEmail(normalizedEmail);
+        academician.setPhone(normalizeOptionalText(request.phone()));
+        academician.setTitle(normalizeOptionalText(request.title()));
+        academician.getKeywords().addAll(
+                normalizeKeywords(request.keywords())
+        );
+
+        return toResponse(academicianRepository.save(academician));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<AcademicianResponse> getAcademicians(
+            String search,
+            int page,
+            int size
+    ) {
+        validatePagination(page, size);
+
+        String normalizedSearch = search == null
+                ? ""
+                : search.trim();
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                DEFAULT_ACADEMICIAN_SORT
+        );
+
+        Page<AcademicianResponse> academicianPage =
+                academicianRepository
+                        .search(normalizedSearch, pageable)
+                        .map(this::toResponse);
+
+        return new PageResponse<>(
+                academicianPage.getContent(),
+                academicianPage.getNumber(),
+                academicianPage.getSize(),
+                academicianPage.getTotalElements(),
+                academicianPage.getTotalPages(),
+                academicianPage.isFirst(),
+                academicianPage.isLast()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public AcademicianResponse getAcademicianById(Long id) {
+        return toResponse(findAcademicianById(id));
+    }
+
+    public AcademicianResponse updateAcademician(
+            Long id,
+            UpdateAcademicianRequest request
+    ) {
+        Academician academician = findAcademicianById(id);
+        String normalizedEmail = normalizeEmail(request.email());
+
+        validateEmailForUpdate(normalizedEmail, id);
+
+        academician.setFirstName(request.firstName().trim());
+        academician.setLastName(request.lastName().trim());
+        academician.setEmail(normalizedEmail);
+        academician.setPhone(normalizeOptionalText(request.phone()));
+        academician.setTitle(normalizeOptionalText(request.title()));
+
+        academician.getKeywords().clear();
+        academician.getKeywords().addAll(
+                normalizeKeywords(request.keywords())
+        );
+
+        return toResponse(academicianRepository.save(academician));
+    }
+
+    public void deleteAcademician(Long id) {
+        Academician academician = findAcademicianById(id);
+        academicianRepository.delete(academician);
+    }
+
+    private Academician findAcademicianById(Long id) {
+        return academicianRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Akademisyen bulunamadı: " + id
+                ));
+    }
+
+    private void validateEmailForCreate(String email) {
+        if (email != null && academicianRepository.existsByEmail(email)) {
+            throw new DuplicateResourceException(
+                    "Bu e-posta adresiyle kayıtlı bir akademisyen zaten var"
+            );
+        }
+    }
+
+    private void validateEmailForUpdate(String email, Long id) {
+        if (email != null
+                && academicianRepository.existsByEmailAndIdNot(email, id)) {
+            throw new DuplicateResourceException(
+                    "Bu e-posta adresiyle kayıtlı başka bir akademisyen zaten var"
+            );
+        }
+    }
+
+    private void validatePagination(int page, int size) {
+        if (page < 0) {
+            throw new InvalidRequestException(
+                    "Sayfa numarası 0 veya daha büyük olmalıdır"
+            );
+        }
+
+        if (!ALLOWED_PAGE_SIZES.contains(size)) {
+            throw new InvalidRequestException(
+                    "Sayfa boyutu yalnızca 10, 15, 20 veya 25 olabilir"
+            );
+        }
+    }
+
+    private String normalizeEmail(String email) {
+        String normalizedEmail = normalizeOptionalText(email);
+
+        return normalizedEmail == null
+                ? null
+                : normalizedEmail.toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeOptionalText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        return value.trim();
+    }
+
+    private Set<String> normalizeKeywords(Set<String> keywords) {
+        if (keywords == null || keywords.isEmpty()) {
+            return new LinkedHashSet<>();
+        }
+
+        Map<String, String> uniqueKeywords = new LinkedHashMap<>();
+
+        for (String keyword : keywords) {
+            if (keyword == null || keyword.isBlank()) {
+                continue;
+            }
+
+            String cleanedKeyword = keyword
+                    .trim()
+                    .replaceAll("\\s+", " ");
+
+            String comparisonValue =
+                    cleanedKeyword.toLowerCase(TURKISH_LOCALE);
+
+            uniqueKeywords.putIfAbsent(
+                    comparisonValue,
+                    cleanedKeyword
+            );
+        }
+
+        return new LinkedHashSet<>(uniqueKeywords.values());
+    }
+
+    private AcademicianResponse toResponse(Academician academician) {
+        Set<String> keywords = Collections.unmodifiableSet(
+                new LinkedHashSet<>(academician.getKeywords())
+        );
+
+        return new AcademicianResponse(
+                academician.getId(),
+                academician.getFirstName(),
+                academician.getLastName(),
+                academician.getEmail(),
+                academician.getPhone(),
+                academician.getTitle(),
+                keywords
+        );
+    }
+}
