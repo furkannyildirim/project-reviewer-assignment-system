@@ -1,0 +1,4 @@
+ALTER TABLE companies
+    ALTER COLUMN email DROP NOT NULL,
+ALTER COLUMN phone DROP NOT NULL,
+    ALTER COLUMN activity_area DROP NOT NULL;
