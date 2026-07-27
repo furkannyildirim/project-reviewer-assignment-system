@@ -1,9 +1,13 @@
 package com.sakaryateknokent.reviewerassignment.entity;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "companies")
@@ -30,4 +34,22 @@ public class Company {
 
     @Column(name = "logo_url", length = 500)
     private String logoUrl;
+
+    @OneToMany(
+            mappedBy = "company",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    @Setter(AccessLevel.NONE)
+    private List<CompanyContact> contacts = new ArrayList<>();
+
+    public void addContact(CompanyContact contact) {
+        contacts.add(contact);
+        contact.setCompany(this);
+    }
+
+    public void removeContact(CompanyContact contact) {
+        contacts.remove(contact);
+        contact.setCompany(null);
+    }
 }

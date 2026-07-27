@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
     Avatar,
     Box,
+    Chip,
     IconButton,
     Pagination,
     Paper,
@@ -20,10 +21,10 @@ import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import type { PageResponse } from '../../../types/api';
-import type { Company } from '../company.types';
+import type { Company, CompanyListItem } from '../company.types';
 
 type CompanyTableProps = {
-    data: PageResponse<Company> | undefined;
+    data: PageResponse<CompanyListItem> | undefined;
     page: number;
     size: number;
     isLoading: boolean;
@@ -36,6 +37,75 @@ type CompanyTableProps = {
 
 function displayOptional(value: string | null) {
     return value?.trim() ? value : '—';
+}
+
+function CompanyContactSummary({ company }: { company: CompanyListItem }) {
+    const contact = company.primaryContact;
+
+    if (!contact) {
+        return (
+            <Typography color="text.secondary">
+                Yetkili kişi eklenmemiş
+            </Typography>
+        );
+    }
+
+    const extraContactCount = Math.max(company.contactCount - 1, 0);
+
+    return (
+        <Stack spacing={0.75} sx={{ alignItems: 'flex-start' }}>
+            <Box>
+                <Typography sx={{ fontWeight: 600 }}>
+                    {contact.fullName}
+                </Typography>
+                {contact.position && (
+                    <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ maxWidth: 220 }}
+                        noWrap
+                    >
+                        {contact.position}
+                    </Typography>
+                )}
+            </Box>
+            <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap' }}>
+                <Chip
+                    label="Ana Yetkili"
+                    color="primary"
+                    size="small"
+                    variant="outlined"
+                />
+                {extraContactCount > 0 && (
+                    <Chip
+                        label={`+${extraContactCount} kişi`}
+                        size="small"
+                        variant="outlined"
+                    />
+                )}
+            </Stack>
+        </Stack>
+    );
+}
+
+function CompanyCommunication({ company }: { company: CompanyListItem }) {
+    const hasEmail = Boolean(company.email?.trim());
+    const hasPhone = Boolean(company.phone?.trim());
+
+    if (!hasEmail && !hasPhone) {
+        return <Typography color="text.secondary">—</Typography>;
+    }
+
+    return (
+        <Stack spacing={0.25}>
+            {hasEmail && (
+                <Typography>{company.email}</Typography>
+            )}
+            {hasPhone && (
+                <Typography>{company.phone}</Typography>
+            )}
+        </Stack>
+    );
 }
 
 function CompanyLogo({ company }: { company: Company }) {
@@ -115,8 +185,8 @@ export function CompanyTable({
                         <TableRow>
                             <TableCell>Logo</TableCell>
                             <TableCell>Şirket adı</TableCell>
-                            <TableCell>E-posta</TableCell>
-                            <TableCell>Telefon</TableCell>
+                            <TableCell>Yetkili Kişi</TableCell>
+                            <TableCell>Şirket iletişimi</TableCell>
                             <TableCell>Faaliyet alanı</TableCell>
                             <TableCell align="right">İşlemler</TableCell>
                         </TableRow>
@@ -136,10 +206,10 @@ export function CompanyTable({
                                         </Typography>
                                     </TableCell>
                                     <TableCell>
-                                        {displayOptional(company.email)}
+                                        <CompanyContactSummary company={company} />
                                     </TableCell>
                                     <TableCell>
-                                        {displayOptional(company.phone)}
+                                        <CompanyCommunication company={company} />
                                     </TableCell>
                                     <TableCell>
                                         <Box sx={{ maxWidth: 260 }}>

@@ -1,5 +1,6 @@
 package com.sakaryateknokent.reviewerassignment.controller;
 
+import com.sakaryateknokent.reviewerassignment.dto.CompanyListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateCompanyRequest;
@@ -28,7 +29,7 @@ public class CompanyController {
     }
 
     @GetMapping
-    public ResponseEntity<PageResponse<CompanyResponse>> getCompanies(
+    public ResponseEntity<PageResponse<CompanyListResponse>> getCompanies(
             @RequestParam(defaultValue = "") String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size

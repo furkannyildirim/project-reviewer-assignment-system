@@ -7,4 +7,9 @@ export const companyQueryKeys = {
         'list',
         params,
     ] as const,
+    detail: (id: number) => [
+        ...companyQueryKeys.all,
+        'detail',
+        id,
+    ] as const,
 };
