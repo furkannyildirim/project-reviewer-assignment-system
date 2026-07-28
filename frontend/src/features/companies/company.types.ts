@@ -1,10 +1,45 @@
-export type Company = {
+export type CompanyContact = {
+    id: number;
+    fullName: string;
+    position: string | null;
+    email: string | null;
+    phone: string | null;
+    primary: boolean;
+};
+
+export type CompanyListItem = {
     id: number;
     name: string;
     email: string | null;
     phone: string | null;
     activityArea: string | null;
     logoUrl: string | null;
+    primaryContact: CompanyContact | null;
+    contactCount: number;
+};
+
+export type CompanyDetail = {
+    id: number;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    activityArea: string | null;
+    logoUrl: string | null;
+    contacts: CompanyContact[];
+};
+
+export type Company = CompanyListItem;
+
+export type CreateCompanyContactRequest = {
+    fullName: string;
+    position: string | null;
+    email: string | null;
+    phone: string | null;
+    primary: boolean;
+};
+
+export type UpdateCompanyContactRequest = CreateCompanyContactRequest & {
+    id: number | null;
 };
 
 export type CreateCompanyRequest = {
@@ -13,9 +48,12 @@ export type CreateCompanyRequest = {
     phone: string | null;
     activityArea: string | null;
     logoUrl: string | null;
+    contacts: CreateCompanyContactRequest[];
 };
 
-export type UpdateCompanyRequest = CreateCompanyRequest;
+export type UpdateCompanyRequest = Omit<CreateCompanyRequest, 'contacts'> & {
+    contacts: UpdateCompanyContactRequest[];
+};
 
 export type CompanyPageParams = {
     search: string;
@@ -29,6 +67,16 @@ export type CompanyFormValues = {
     phone: string;
     activityArea: string;
     logoUrl: string;
+    contacts: CompanyContactFormValues[];
+};
+
+export type CompanyContactFormValues = {
+    id: number | null;
+    fullName: string;
+    position: string;
+    email: string;
+    phone: string;
+    primary: boolean;
 };
 
 export const companyPageSizes = [10, 15, 20, 25] as const;

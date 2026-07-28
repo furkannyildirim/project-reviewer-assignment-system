@@ -1,8 +1,13 @@
 package com.sakaryateknokent.reviewerassignment.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+
+import java.util.List;
 
 public record UpdateCompanyRequest(
 
@@ -21,6 +26,9 @@ public record UpdateCompanyRequest(
         String activityArea,
 
         @Size(max = 500, message = "Logo adresi en fazla 500 karakter olabilir")
-        String logoUrl
+        String logoUrl,
+
+        @NotEmpty(message = "En az bir muhatap kişi eklenmelidir")
+        List<@Valid @NotNull(message = "Muhatap bilgisi boş olamaz") UpdateCompanyContactRequest> contacts
 ) {
 }

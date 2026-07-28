@@ -223,6 +223,27 @@ export function AcademiciansPage() {
                         </MenuItem>
                     ))}
                 </TextField>
+
+                {academiciansQuery.data && (
+                    <Box
+                        sx={{
+                            alignItems: 'center',
+                            bgcolor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: 2.5,
+                            color: 'text.secondary',
+                            display: 'flex',
+                            minHeight: 40,
+                            px: 1.75,
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            Toplam {academiciansQuery.data.totalElements} kayıt
+                        </Typography>
+                    </Box>
+                )}
             </Stack>
 
             {academiciansQuery.isError && (
@@ -245,11 +266,6 @@ export function AcademiciansPage() {
                 </Alert>
             )}
 
-            {academiciansQuery.data && (
-                <Typography color="text.secondary">
-                    Toplam {academiciansQuery.data.totalElements} kayıt
-                </Typography>
-            )}
 
             {showEmptyState ? (
                 <EmptyState

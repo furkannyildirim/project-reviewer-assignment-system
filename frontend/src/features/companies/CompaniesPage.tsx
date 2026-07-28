@@ -20,11 +20,16 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import {
     createCompany,
     deleteCompany,
+    getCompanyById,
     getCompanies,
     updateCompany,
 } from './companyApi';
 import { companyQueryKeys } from './companyQueryKeys';
-import type { Company, CreateCompanyRequest } from './company.types';
+import type {
+    Company,
+    CreateCompanyRequest,
+    UpdateCompanyRequest,
+} from './company.types';
 import { companyPageSizes } from './company.types';
 import { CompanyFormDialog } from './components/CompanyFormDialog';
 import { CompanyTable } from './components/CompanyTable';
@@ -64,6 +69,15 @@ export function CompaniesPage() {
         placeholderData: keepPreviousData,
     });
 
+    const editCompanyId =
+        formMode?.type === 'edit' ? formMode.company?.id : undefined;
+
+    const companyDetailQuery = useQuery({
+        queryKey: companyQueryKeys.detail(editCompanyId ?? 0),
+        queryFn: () => getCompanyById(editCompanyId ?? 0),
+        enabled: Boolean(formMode) && formMode?.type === 'edit' && Boolean(editCompanyId),
+    });
+
     const invalidateCompanies = () =>
         queryClient.invalidateQueries({
             queryKey: companyQueryKeys.all,
@@ -88,9 +102,15 @@ export function CompaniesPage() {
             request,
         }: {
             id: number;
-            request: CreateCompanyRequest;
+            request: UpdateCompanyRequest;
         }) => updateCompany(id, request),
         onSuccess: async () => {
+            if (formMode?.company) {
+                queryClient.removeQueries({
+                    queryKey: companyQueryKeys.detail(formMode.company.id),
+                });
+            }
+
             setFormMode(null);
             setSnackbar({
                 message: 'Şirket başarıyla güncellendi.',
@@ -136,20 +156,22 @@ export function CompaniesPage() {
         && !companiesQuery.isError
         && companies.length === 0;
 
-    async function handleFormSubmit(request: CreateCompanyRequest) {
+    async function handleFormSubmit(
+        request: CreateCompanyRequest | UpdateCompanyRequest,
+    ) {
         if (!formMode || isSaving) {
             return;
         }
 
         if (formMode.type === 'create') {
-            await createMutation.mutateAsync(request);
+            await createMutation.mutateAsync(request as CreateCompanyRequest);
             return;
         }
 
         if (formMode.company) {
             await updateMutation.mutateAsync({
                 id: formMode.company.id,
-                request,
+                request: request as UpdateCompanyRequest,
             });
         }
     }
@@ -214,6 +236,27 @@ export function CompaniesPage() {
                         </MenuItem>
                     ))}
                 </TextField>
+
+                {companiesQuery.data && (
+                    <Box
+                        sx={{
+                            alignItems: 'center',
+                            bgcolor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: 2.5,
+                            color: 'text.secondary',
+                            display: 'flex',
+                            minHeight: 40,
+                            px: 1.75,
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            Toplam {companiesQuery.data.totalElements} kayıt
+                        </Typography>
+                    </Box>
+                )}
             </Stack>
 
             {companiesQuery.isError && (
@@ -225,11 +268,6 @@ export function CompaniesPage() {
                 </Alert>
             )}
 
-            {companiesQuery.data && (
-                <Typography color="text.secondary">
-                    Toplam {companiesQuery.data.totalElements} kayıt
-                </Typography>
-            )}
 
             {showEmptyState ? (
                 <EmptyState
@@ -262,11 +300,25 @@ export function CompaniesPage() {
             <CompanyFormDialog
                 key={
                     formMode
-                        ? `${formMode.type}-${formMode.company?.id ?? 'new'}`
+                        ? `${formMode.type}-${formMode.company?.id ?? 'new'}-${companyDetailQuery.data?.id ?? 'pending'}`
                         : 'closed'
                 }
                 open={Boolean(formMode)}
                 company={formMode?.company ?? null}
+                companyDetail={
+                    formMode?.type === 'edit' ? companyDetailQuery.data ?? null : null
+                }
+                isDetailLoading={
+                    formMode?.type === 'edit' && companyDetailQuery.isLoading
+                }
+                detailError={
+                    formMode?.type === 'edit' && companyDetailQuery.isError
+                        ? getApiErrorMessage(
+                            companyDetailQuery.error,
+                            'Şirket detayı alınamadı',
+                        )
+                        : null
+                }
                 isSaving={isSaving}
                 onClose={() => {
                     if (!isSaving) {

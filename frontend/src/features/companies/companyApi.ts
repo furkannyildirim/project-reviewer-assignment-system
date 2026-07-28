@@ -1,7 +1,8 @@
 import { httpClient } from '../../api/httpClient';
 import type { PageResponse } from '../../types/api';
 import type {
-    Company,
+    CompanyDetail,
+    CompanyListItem,
     CompanyPageParams,
     CreateCompanyRequest,
     UpdateCompanyRequest,
@@ -9,18 +10,25 @@ import type {
 
 export async function getCompanies(
     params: CompanyPageParams,
-): Promise<PageResponse<Company>> {
-    const response = await httpClient.get<PageResponse<Company>>('/companies', {
-        params,
-    });
+): Promise<PageResponse<CompanyListItem>> {
+    const response = await httpClient.get<PageResponse<CompanyListItem>>(
+        '/companies',
+        { params },
+    );
+
+    return response.data;
+}
+
+export async function getCompanyById(id: number): Promise<CompanyDetail> {
+    const response = await httpClient.get<CompanyDetail>(`/companies/${id}`);
 
     return response.data;
 }
 
 export async function createCompany(
     request: CreateCompanyRequest,
-): Promise<Company> {
-    const response = await httpClient.post<Company>('/companies', request);
+): Promise<CompanyDetail> {
+    const response = await httpClient.post<CompanyDetail>('/companies', request);
 
     return response.data;
 }
@@ -28,8 +36,11 @@ export async function createCompany(
 export async function updateCompany(
     id: number,
     request: UpdateCompanyRequest,
-): Promise<Company> {
-    const response = await httpClient.put<Company>(`/companies/${id}`, request);
+): Promise<CompanyDetail> {
+    const response = await httpClient.put<CompanyDetail>(
+        `/companies/${id}`,
+        request,
+    );
 
     return response.data;
 }
