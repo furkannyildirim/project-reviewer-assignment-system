@@ -236,6 +236,27 @@ export function CompaniesPage() {
                         </MenuItem>
                     ))}
                 </TextField>
+
+                {companiesQuery.data && (
+                    <Box
+                        sx={{
+                            alignItems: 'center',
+                            bgcolor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: 2.5,
+                            color: 'text.secondary',
+                            display: 'flex',
+                            minHeight: 40,
+                            px: 1.75,
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            Toplam {companiesQuery.data.totalElements} kayıt
+                        </Typography>
+                    </Box>
+                )}
             </Stack>
 
             {companiesQuery.isError && (
@@ -247,11 +268,6 @@ export function CompaniesPage() {
                 </Alert>
             )}
 
-            {companiesQuery.data && (
-                <Typography color="text.secondary">
-                    Toplam {companiesQuery.data.totalElements} kayıt
-                </Typography>
-            )}
 
             {showEmptyState ? (
                 <EmptyState

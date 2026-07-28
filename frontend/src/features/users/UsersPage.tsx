@@ -246,6 +246,27 @@ export function UsersPage() {
                         </MenuItem>
                     ))}
                 </TextField>
+
+                {!usersQuery.isError && (
+                    <Box
+                        sx={{
+                            alignItems: 'center',
+                            bgcolor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: 2.5,
+                            color: 'text.secondary',
+                            display: 'flex',
+                            minHeight: 40,
+                            px: 1.75,
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            Toplam {filteredUsers.length} kayıt
+                        </Typography>
+                    </Box>
+                )}
             </Stack>
 
             {usersQuery.isError && (
@@ -268,11 +289,6 @@ export function UsersPage() {
                 </Alert>
             )}
 
-            {!usersQuery.isError && (
-                <Typography color="text.secondary">
-                    Toplam {filteredUsers.length} kayıt
-                </Typography>
-            )}
 
             {showEmptyState ? (
                 <EmptyState

@@ -212,6 +212,31 @@ function CompanyCommunication({ company }: { company: CompanyListItem }) {
     );
 }
 
+function ActivityAreaCell({ activityArea }: { activityArea: string | null }) {
+    const activityAreaText = activityArea?.trim();
+
+    if (!activityAreaText) {
+        return <Typography color="text.secondary">{displayOptional(activityArea)}</Typography>;
+    }
+
+    return (
+        <Typography
+            sx={{
+                WebkitBoxOrient: 'vertical',
+                WebkitLineClamp: 2,
+                display: '-webkit-box',
+                lineHeight: 1.45,
+                maxHeight: '2.9em',
+                maxWidth: 330,
+                overflow: 'hidden',
+                overflowWrap: 'anywhere',
+            }}
+        >
+            {activityAreaText}
+        </Typography>
+    );
+}
+
 function CompanyLogo({ company }: { company: Company }) {
     const [hasError, setHasError] = useState(false);
     const logoUrl = company.logoUrl?.trim();
@@ -316,10 +341,10 @@ export function CompanyTable({
                                         <CompanyCommunication company={company} />
                                     </TableCell>
                                     <TableCell>
-                                        <Box sx={{ maxWidth: 260 }}>
-                                            <Typography noWrap>
-                                                {displayOptional(company.activityArea)}
-                                            </Typography>
+                                        <Box sx={{ maxWidth: 340, minWidth: 300 }}>
+                                            <ActivityAreaCell
+                                                activityArea={company.activityArea}
+                                            />
                                         </Box>
                                     </TableCell>
                                     <TableCell align="right">
