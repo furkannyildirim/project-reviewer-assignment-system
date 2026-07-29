@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
@@ -202,7 +203,7 @@ class AcademicianImportServiceTest {
     }
 
     @Test
-    void createsValidRowsWithParserWarnings() {
+    void createsValidRowsWithCombinedNameGeneralWarning() {
         AcademicianImportResultResponse response = importService.importCreateOnly(
                 workbook("akademisyenler.xlsx", sheet -> {
                     writeRow(sheet, 0, "ADI SOYADI");
@@ -212,11 +213,14 @@ class AcademicianImportServiceTest {
 
         assertEquals(1, response.createdCount());
         assertEquals(1, response.warningCount());
-        assertFalse(response.generalWarnings().isEmpty());
+        assertTrue(response.generalWarnings().contains(
+                "Birleşik ad soyad alanları otomatik ayrıştırılmıştır. "
+                        + "Gerekirse aktarımdan sonra düzenleyebilirsiniz."
+        ));
     }
 
     @Test
-    void doesNotSaveWhenInvalidRowExists() {
+    void doesNotSaveWhenAllRowsAreInvalid() {
         InvalidRequestException exception = assertThrows(
                 InvalidRequestException.class,
                 () -> importService.importCreateOnly(
@@ -227,24 +231,65 @@ class AcademicianImportServiceTest {
                 )
         );
 
-        assertFalse(exception.getMessage().contains("PROJE"));
+        assertEquals(
+                "Dosyada aktarılabilir geçerli kayıt bulunamadı",
+                exception.getMessage()
+        );
         verify(academicianRepository, never()).saveAllAndFlush(any());
     }
 
     @Test
-    void doesNotCreatePartialRecordsWhenValidAndInvalidRowsAreMixed() {
-        assertThrows(
-                InvalidRequestException.class,
-                () -> importService.importCreateOnly(
-                        workbook("akademisyenler.xlsx", sheet -> {
-                            writeRow(sheet, 0, "AD", "SOYAD");
-                            writeRow(sheet, 1, "Ayse", "Yilmaz");
-                            writeRow(sheet, 2, "Ali", "");
-                        })
-                )
+    void savesOnlyValidRowsWhenValidAndInvalidRowsAreMixed() {
+        AcademicianImportResultResponse response = importService.importCreateOnly(
+                workbook("akademisyenler.xlsx", sheet -> {
+                    writeRow(sheet, 0, "AD", "SOYAD");
+                    writeRow(sheet, 1, "Ayse", "Yilmaz");
+                    writeRow(sheet, 2, "Ali", "");
+                })
         );
 
-        verify(academicianRepository, never()).saveAllAndFlush(any());
+        assertEquals(2, response.totalDetectedRows());
+        assertEquals(1, response.createdCount());
+        assertEquals(0, response.skippedDuplicateCount());
+        assertEquals(1, response.skippedInvalidCount());
+        assertEquals("SKIPPED_INVALID", response.invalidRows().getFirst().status());
+        assertEquals("Ayse", savedAcademicians().getFirst().getFirstName());
+    }
+
+    @Test
+    void keepsInvalidRowsOutOfSaveAllCandidateList() {
+        importService.importCreateOnly(workbook("akademisyenler.xlsx", sheet -> {
+            writeRow(sheet, 0, "AD", "SOYAD");
+            writeRow(sheet, 1, "Ayse", "Yilmaz");
+            writeRow(sheet, 2, "Ali", "");
+        }));
+
+        List<Academician> saved = savedAcademicians();
+        assertEquals(1, saved.size());
+        assertEquals("Ayse", saved.getFirst().getFirstName());
+    }
+
+    @Test
+    void classifiesValidDuplicateAndInvalidRowsSeparately() {
+        when(academicianRepository.findExistingEmails(anyCollection()))
+                .thenReturn(Set.of("existing@example.com"));
+
+        AcademicianImportResultResponse response = importService.importCreateOnly(
+                workbook("akademisyenler.xlsx", sheet -> {
+                    writeRow(sheet, 0, "AD", "SOYAD", "EMAIL");
+                    writeRow(sheet, 1, "Ayse", "Yilmaz", "new@example.com");
+                    writeRow(sheet, 2, "Mehmet", "Demir", "existing@example.com");
+                    writeRow(sheet, 3, "", "Eksik", "");
+                })
+        );
+
+        assertEquals(3, response.totalDetectedRows());
+        assertEquals(1, response.createdCount());
+        assertEquals(1, response.skippedDuplicateCount());
+        assertEquals(1, response.skippedInvalidCount());
+        assertEquals("SKIPPED_DUPLICATE", response.skippedRows().getFirst().status());
+        assertEquals("SKIPPED_INVALID", response.invalidRows().getFirst().status());
+        assertEquals(1, savedAcademicians().size());
     }
 
     @Test

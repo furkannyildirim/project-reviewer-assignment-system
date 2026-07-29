@@ -12,6 +12,7 @@ public class AcademicianImportPreview {
     private final Set<String> detectedHeaders = new LinkedHashSet<>();
     private final Set<String> ignoredHeaders = new LinkedHashSet<>();
     private final List<String> generalWarnings = new ArrayList<>();
+    private final List<String> generalInformationMessages = new ArrayList<>();
     private final List<AcademicianImportRow> rows = new ArrayList<>();
 
     public String getFileName() {
@@ -40,6 +41,10 @@ public class AcademicianImportPreview {
 
     public List<String> getGeneralWarnings() {
         return generalWarnings;
+    }
+
+    public List<String> getGeneralInformationMessages() {
+        return generalInformationMessages;
     }
 
     public List<AcademicianImportRow> getRows() {

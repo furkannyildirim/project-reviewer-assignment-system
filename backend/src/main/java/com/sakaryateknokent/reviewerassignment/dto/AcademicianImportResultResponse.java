@@ -7,9 +7,11 @@ public record AcademicianImportResultResponse(
         int totalDetectedRows,
         int createdCount,
         int skippedDuplicateCount,
+        int skippedInvalidCount,
         int warningCount,
         List<AcademicianImportResultRowResponse> createdRows,
         List<AcademicianImportResultRowResponse> skippedRows,
+        List<AcademicianImportResultRowResponse> invalidRows,
         List<String> generalWarnings
 ) {
 }

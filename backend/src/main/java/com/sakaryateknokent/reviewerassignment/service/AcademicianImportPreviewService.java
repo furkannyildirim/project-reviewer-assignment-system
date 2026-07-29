@@ -6,7 +6,6 @@ import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException
 import com.sakaryateknokent.reviewerassignment.importing.AcademicianExcelImportParser;
 import com.sakaryateknokent.reviewerassignment.importing.AcademicianImportPreview;
 import com.sakaryateknokent.reviewerassignment.importing.AcademicianImportRow;
-import com.sakaryateknokent.reviewerassignment.repository.AcademicianRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +27,6 @@ import java.util.Set;
 public class AcademicianImportPreviewService {
 
     private final AcademicianExcelImportParser parser;
-    private final AcademicianRepository academicianRepository;
 
     public AcademicianImportPreviewResponse preview(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -42,7 +40,7 @@ public class AcademicianImportPreviewService {
                     file.getOriginalFilename(),
                     inputStream
             );
-            validateEmailDuplicates(preview.getRows());
+            validateEmailDuplicatesInsideFile(preview.getRows());
             return toResponse(preview);
         } catch (IOException exception) {
             throw new InvalidRequestException(
@@ -51,7 +49,9 @@ public class AcademicianImportPreviewService {
         }
     }
 
-    private void validateEmailDuplicates(List<AcademicianImportRow> rows) {
+    private void validateEmailDuplicatesInsideFile(
+            List<AcademicianImportRow> rows
+    ) {
         Map<String, Integer> emailCounts = new LinkedHashMap<>();
 
         for (AcademicianImportRow row : rows) {
@@ -63,17 +63,11 @@ public class AcademicianImportPreviewService {
         }
 
         Set<String> duplicateEmails = new LinkedHashSet<>();
-        Set<String> lookupEmails = new LinkedHashSet<>();
         for (Map.Entry<String, Integer> entry : emailCounts.entrySet()) {
-            lookupEmails.add(entry.getKey());
             if (entry.getValue() > 1) {
                 duplicateEmails.add(entry.getKey());
             }
         }
-
-        Set<String> existingEmails = lookupEmails.isEmpty()
-                ? Set.of()
-                : academicianRepository.findExistingEmails(lookupEmails);
 
         for (AcademicianImportRow row : rows) {
             String email = row.getEmail();
@@ -84,12 +78,6 @@ public class AcademicianImportPreviewService {
             if (duplicateEmails.contains(email)) {
                 row.getErrors().add(
                         "Dosya icinde ayni e-posta birden fazla kullanilmis"
-                );
-            }
-
-            if (existingEmails.contains(email)) {
-                row.getErrors().add(
-                        "Bu e-posta adresiyle kayitli bir akademisyen zaten var"
                 );
             }
         }
@@ -140,6 +128,7 @@ public class AcademicianImportPreviewService {
                         new LinkedHashSet<>(preview.getIgnoredHeaders())
                 ),
                 List.copyOf(preview.getGeneralWarnings()),
+                List.copyOf(preview.getGeneralInformationMessages()),
                 rowResponses
         );
     }

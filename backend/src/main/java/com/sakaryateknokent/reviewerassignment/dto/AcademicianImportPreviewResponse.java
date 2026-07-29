@@ -13,6 +13,7 @@ public record AcademicianImportPreviewResponse(
         Set<String> detectedHeaders,
         Set<String> ignoredHeaders,
         List<String> generalWarnings,
+        List<String> generalInformationMessages,
         List<AcademicianImportPreviewRowResponse> rows
 ) {
 }

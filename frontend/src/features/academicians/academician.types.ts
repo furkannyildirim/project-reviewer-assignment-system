@@ -43,10 +43,14 @@ export type AcademicianImportPreviewResponse = {
     detectedHeaders: string[];
     ignoredHeaders: string[];
     generalWarnings: string[];
+    generalInformationMessages: string[];
     rows: AcademicianImportPreviewRow[];
 };
 
-export type AcademicianImportResultRowStatus = 'CREATED' | 'SKIPPED_DUPLICATE';
+export type AcademicianImportResultRowStatus =
+    | 'CREATED'
+    | 'SKIPPED_DUPLICATE'
+    | 'SKIPPED_INVALID';
 
 export type AcademicianImportResultRow = {
     sheetName: string;
@@ -64,9 +68,11 @@ export type AcademicianImportResultResponse = {
     totalDetectedRows: number;
     createdCount: number;
     skippedDuplicateCount: number;
+    skippedInvalidCount: number;
     warningCount: number;
     createdRows: AcademicianImportResultRow[];
     skippedRows: AcademicianImportResultRow[];
+    invalidRows: AcademicianImportResultRow[];
     generalWarnings: string[];
 };
 

@@ -281,6 +281,16 @@ function PreviewSummary({ preview }: { preview: AcademicianImportPreviewResponse
                 </Alert>
             )}
 
+            {preview.generalInformationMessages.length > 0 && (
+                <Alert severity="info">
+                    <Stack component="ul" sx={{ m: 0, pl: 2 }}>
+                        {preview.generalInformationMessages.map((message) => (
+                            <li key={message}>{message}</li>
+                        ))}
+                    </Stack>
+                </Alert>
+            )}
+
             {hasProjectsHeader(preview.ignoredHeaders) && (
                 <Alert severity="info">
                     Projeler sütunu bu aktarımda kullanılmayacak.
@@ -314,7 +324,9 @@ function getImportErrorMessage(error: unknown) {
 function ResultRowLine({ row }: { row: AcademicianImportResultRow }) {
     const messages = row.messages.length > 0
         ? row.messages.join(', ')
-        : 'Tekrar eden kayıt atlandı';
+        : row.status === 'SKIPPED_INVALID'
+            ? 'Hatalı kayıt aktarılmadı'
+            : 'Tekrar eden kayıt atlandı';
 
     return (
         <Stack spacing={0.25}>
@@ -342,11 +354,6 @@ function ImportResultSummary({
     result: AcademicianImportResultResponse;
     resultSectionRef: RefObject<HTMLDivElement | null>;
 }) {
-    const failedCount = Math.max(
-        result.totalDetectedRows - result.createdCount - result.skippedDuplicateCount,
-        0,
-    );
-
     return (
         <Paper
             ref={resultSectionRef}
@@ -376,9 +383,9 @@ function ImportResultSummary({
                         color="warning.main"
                     />
                     <SummaryMetric
-                        label="Başarısız kayıt"
-                        value={failedCount}
-                        color={failedCount > 0 ? 'error.main' : 'text.primary'}
+                        label="Hatalı / aktarılmayan kayıt"
+                        value={result.skippedInvalidCount}
+                        color={result.skippedInvalidCount > 0 ? 'error.main' : 'text.primary'}
                     />
                     <SummaryMetric
                         label="Uyarı sayısı"
@@ -400,7 +407,7 @@ function ImportResultSummary({
                 {result.skippedRows.length > 0 && (
                     <Stack spacing={1}>
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                            Atlanan kayıtlar
+                            Duplicate olduğu için atlanan kayıtlar
                         </Typography>
                         <Paper
                             elevation={0}
@@ -414,6 +421,33 @@ function ImportResultSummary({
                         >
                             <Stack divider={<Divider flexItem />} spacing={1}>
                                 {result.skippedRows.map((row) => (
+                                    <ResultRowLine
+                                        key={`${row.sheetName}-${row.rowNumber}-${row.status}`}
+                                        row={row}
+                                    />
+                                ))}
+                            </Stack>
+                        </Paper>
+                    </Stack>
+                )}
+
+                {result.invalidRows.length > 0 && (
+                    <Stack spacing={1}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            Hatalı olduğu için aktarılmayan kayıtlar
+                        </Typography>
+                        <Paper
+                            elevation={0}
+                            sx={{
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                maxHeight: 220,
+                                overflowY: 'auto',
+                                p: 1.25,
+                            }}
+                        >
+                            <Stack divider={<Divider flexItem />} spacing={1}>
+                                {result.invalidRows.map((row) => (
                                     <ResultRowLine
                                         key={`${row.sheetName}-${row.rowNumber}-${row.status}`}
                                         row={row}
@@ -584,7 +618,9 @@ function PreviewTable({
                             <TableRow>
                                 <TableCell colSpan={9}>
                                     <Typography color="text.secondary" sx={{ py: 2 }}>
-                                        Bu filtrede gösterilecek satır yok.
+                                        {filter === 'warning' && preview.generalWarnings.length > 0
+                                            ? 'Satır bazlı uyarı bulunmuyor. Genel dosya uyarıları yukarıda gösteriliyor.'
+                                            : 'Bu filtrede gösterilecek satır yok.'}
                                     </Typography>
                                 </TableCell>
                             </TableRow>
@@ -671,7 +707,6 @@ export function AcademicianImportDialog({
         && previewedFile
         && selectedFile === previewedFile
         && preview.validRowCount > 0
-        && preview.invalidRowCount === 0
         && !isBusy,
     );
 
@@ -842,8 +877,10 @@ export function AcademicianImportDialog({
                     )}
 
                     {preview && preview.invalidRowCount > 0 && (
-                        <Alert severity="error">
-                            Dosyada hatalı satırlar bulunduğu için aktarım başlatılamaz.
+                        <Alert severity="warning">
+                            {preview.invalidRowCount} hatalı kayıt aktarılmayacak.
+                            {' '}
+                            {preview.validRowCount} geçerli kayıt aktarılabilir.
                         </Alert>
                     )}
 
@@ -928,9 +965,11 @@ export function AcademicianImportDialog({
                 <DialogContent dividers>
                     <Typography color="text.secondary">
                         Dosyadaki {preview?.validRowCount ?? 0} geçerli kayıt
-                        aktarım için gönderilecek. Sistemde veya dosya içinde
-                        tekrar eden kayıtlar atlanacaktır. Projeler sütunu
-                        kaydedilmeyecektir. Devam etmek istiyor musunuz?
+                        aktarım için gönderilecek. {preview?.invalidRowCount ?? 0}
+                        {' '}
+                        hatalı kayıt aktarılmayacaktır. Sistemde veya dosya
+                        içinde tekrar eden kayıtlar ayrıca atlanacaktır. Projeler
+                        sütunu kaydedilmeyecektir. Devam etmek istiyor musunuz?
                     </Typography>
                 </DialogContent>
                 <DialogActions>

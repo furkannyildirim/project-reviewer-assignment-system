@@ -66,7 +66,27 @@ class AcademicianExcelImportParserTest {
         assertEquals("Ali Veli", row.getFirstName());
         assertEquals("Demir", row.getLastName());
         assertEquals("Prof. Dr.", row.getTitle());
-        assertFalse(preview.getGeneralWarnings().isEmpty());
+        assertTrue(preview.getGeneralWarnings().contains(
+                "Birleşik ad soyad alanları otomatik ayrıştırılmıştır. "
+                        + "Gerekirse aktarımdan sonra düzenleyebilirsiniz."
+        ));
+        assertFalse(preview.getGeneralInformationMessages().contains(
+                "Birleşik ad soyad alanları otomatik ayrıştırılmıştır. "
+                        + "Gerekirse aktarımdan sonra düzenleyebilirsiniz."
+        ));
+    }
+
+    @Test
+    void keepsUnparseableCombinedNameInvalid() {
+        AcademicianImportPreview preview = parse(workbook -> {
+            Sheet sheet = workbook.createSheet("Akademisyenler");
+            writeRow(sheet, 0, "ADI SOYADI");
+            writeRow(sheet, 1, "Prof. Dr. Selin");
+        });
+
+        AcademicianImportRow row = preview.getRows().getFirst();
+        assertFalse(row.isValid());
+        assertTrue(row.getErrors().contains("Ad soyad bilgisi ayrisitirilamadi"));
     }
 
     @Test

@@ -39,6 +39,9 @@ public class AcademicianExcelImportParser {
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
             "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
     );
+    private static final String COMBINED_NAME_WARNING_MESSAGE =
+            "Birleşik ad soyad alanları otomatik ayrıştırılmıştır. "
+                    + "Gerekirse aktarımdan sonra düzenleyebilirsiniz.";
 
     private static final Map<String, HeaderType> HEADER_ALIASES =
             createHeaderAliases();
@@ -283,9 +286,12 @@ public class AcademicianExcelImportParser {
             importRow.setTitle(parsedName.title());
         }
 
-        String warning = "Birlesik ad soyad alanlari otomatik ayrisitirildi";
-        if (!preview.getGeneralWarnings().contains(warning)) {
-            preview.getGeneralWarnings().add(warning);
+        if (!preview.getGeneralWarnings().contains(
+                COMBINED_NAME_WARNING_MESSAGE
+        )) {
+            preview.getGeneralWarnings().add(
+                    COMBINED_NAME_WARNING_MESSAGE
+            );
         }
     }
 

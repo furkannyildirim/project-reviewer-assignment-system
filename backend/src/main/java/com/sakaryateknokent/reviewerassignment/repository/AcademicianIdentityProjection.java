@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.repository;
 
-public interface AcademicianIdentityProjection {
+public interface
+AcademicianIdentityProjection {
 
     String getFirstName();
 

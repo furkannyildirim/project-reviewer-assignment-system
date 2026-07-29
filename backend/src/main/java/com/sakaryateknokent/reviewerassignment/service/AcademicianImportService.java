@@ -33,6 +33,8 @@ public class AcademicianImportService {
     private static final String STATUS_CREATED = "CREATED";
     private static final String STATUS_SKIPPED_DUPLICATE =
             "SKIPPED_DUPLICATE";
+    private static final String STATUS_SKIPPED_INVALID =
+            "SKIPPED_INVALID";
 
     private final AcademicianExcelImportParser parser;
     private final AcademicianRepository academicianRepository;
@@ -42,14 +44,25 @@ public class AcademicianImportService {
             MultipartFile file
     ) {
         AcademicianImportPreview preview = parse(file);
-        rejectInvalidRows(preview.getRows());
+        List<AcademicianImportRow> validRows = preview.getRows().stream()
+                .filter(AcademicianImportRow::isValid)
+                .toList();
+        List<AcademicianImportRow> invalidRows = preview.getRows().stream()
+                .filter(row -> !row.isValid())
+                .toList();
 
-        Set<String> emailLookup = collectEmails(preview.getRows());
+        if (validRows.isEmpty()) {
+            throw new InvalidRequestException(
+                    "Dosyada aktarılabilir geçerli kayıt bulunamadı"
+            );
+        }
+
+        Set<String> emailLookup = collectEmails(validRows);
         Set<String> existingEmails = emailLookup.isEmpty()
                 ? Set.of()
                 : academicianRepository.findExistingEmails(emailLookup);
         Set<CanonicalIdentity> existingIdentities =
-                loadExistingIdentities(preview.getRows());
+                loadExistingIdentities(validRows);
 
         Set<String> seenEmails = new LinkedHashSet<>();
         Set<CanonicalIdentity> seenNoEmailIdentities = new LinkedHashSet<>();
@@ -58,8 +71,16 @@ public class AcademicianImportService {
                 new ArrayList<>();
         List<AcademicianImportResultRowResponse> skippedRows =
                 new ArrayList<>();
+        List<AcademicianImportResultRowResponse> skippedInvalidRows =
+                invalidRows.stream()
+                        .map(row -> toResultRow(
+                                row,
+                                STATUS_SKIPPED_INVALID,
+                                row.getErrors()
+                        ))
+                        .toList();
 
-        for (AcademicianImportRow row : preview.getRows()) {
+        for (AcademicianImportRow row : validRows) {
             DuplicateCheck duplicateCheck = duplicateCheck(
                     row,
                     existingEmails,
@@ -107,9 +128,11 @@ public class AcademicianImportService {
                 preview.getRows().size(),
                 createdRows.size(),
                 skippedRows.size(),
+                skippedInvalidRows.size(),
                 warningCount,
                 List.copyOf(createdRows),
                 List.copyOf(skippedRows),
+                List.copyOf(skippedInvalidRows),
                 List.copyOf(preview.getGeneralWarnings())
         );
     }
@@ -126,23 +149,6 @@ public class AcademicianImportService {
         } catch (IOException exception) {
             throw new InvalidRequestException(
                     "Excel dosyasi okunamadi"
-            );
-        }
-    }
-
-    private void rejectInvalidRows(List<AcademicianImportRow> rows) {
-        List<String> messages = rows.stream()
-                .filter(row -> !row.isValid())
-                .flatMap(row -> row.getErrors().stream()
-                        .map(error -> "Sayfa '" + row.getSheetName()
-                                + "', Excel satiri " + row.getRowNumber()
-                                + ": " + error))
-                .toList();
-
-        if (!messages.isEmpty()) {
-            throw new InvalidRequestException(
-                    "Excel dosyasinda hatali satirlar var. "
-                            + String.join(" | ", messages)
             );
         }
     }
