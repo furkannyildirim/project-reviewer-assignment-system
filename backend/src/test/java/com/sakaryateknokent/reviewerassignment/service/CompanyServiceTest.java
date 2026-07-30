@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -45,12 +46,14 @@ class CompanyServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CompanyResponse response = companyService.createCompany(
-                createRequest(CompanyType.TGB, "TGB Sirket")
+                createRequest(CompanyType.TGB, "TGB Sirket", " 222 ")
         );
 
         Company savedCompany = savedCompany();
         assertEquals(CompanyType.TGB, savedCompany.getCompanyType());
+        assertEquals("222", savedCompany.getSecondaryPhone());
         assertEquals(CompanyType.TGB, response.companyType());
+        assertEquals("222", response.secondaryPhone());
         assertEquals("contact@example.com",
                 savedCompany.getContacts().getFirst().getEmail());
     }
@@ -61,7 +64,7 @@ class CompanyServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CompanyResponse response = companyService.createCompany(
-                createRequest(CompanyType.EXTERNAL, "Dis Sirket")
+                createRequest(CompanyType.EXTERNAL, "Dis Sirket", null)
         );
 
         Company savedCompany = savedCompany();
@@ -70,8 +73,24 @@ class CompanyServiceTest {
     }
 
     @Test
+    void createsCompanyWithNullSecondaryPhoneWhenBlank() {
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CompanyResponse response = companyService.createCompany(
+                createRequest(CompanyType.TGB, "TGB Sirket", "   ")
+        );
+
+        Company savedCompany = savedCompany();
+        assertEquals(CompanyType.TGB, savedCompany.getCompanyType());
+        assertNull(savedCompany.getSecondaryPhone());
+        assertNull(response.secondaryPhone());
+    }
+
+    @Test
     void listsCompaniesByCompanyTypeAndReturnsCompanyType() {
         Company company = company(1L, "Dis Sirket", CompanyType.EXTERNAL);
+        company.setSecondaryPhone("222");
         CompanyContact contact = contact(10L, company, true);
 
         when(companyRepository.search(
@@ -92,6 +111,7 @@ class CompanyServiceTest {
 
         CompanyListResponse companyResponse = response.content().getFirst();
         assertEquals(CompanyType.EXTERNAL, companyResponse.companyType());
+        assertEquals("222", companyResponse.secondaryPhone());
         assertEquals(1, companyResponse.contactCount());
         assertEquals("Yetkili Kisi", companyResponse.primaryContact().fullName());
         verify(companyRepository).search(
@@ -115,6 +135,7 @@ class CompanyServiceTest {
                         "Yeni Sirket",
                         "new@example.com",
                         "555",
+                        " 444 ",
                         "Yazilim",
                         null,
                         List.of(new UpdateCompanyContactRequest(
@@ -131,18 +152,22 @@ class CompanyServiceTest {
         assertEquals(CompanyType.EXTERNAL, company.getCompanyType());
         assertEquals(CompanyType.EXTERNAL, response.companyType());
         assertEquals("new@example.com", company.getEmail());
+        assertEquals("444", company.getSecondaryPhone());
+        assertEquals("444", response.secondaryPhone());
         assertEquals("Guncel Yetkili",
                 company.getContacts().getFirst().getFullName());
     }
 
     private CreateCompanyRequest createRequest(
             CompanyType companyType,
-            String name
+            String name,
+            String secondaryPhone
     ) {
         return new CreateCompanyRequest(
                 name,
                 "company@example.com",
                 "555",
+                secondaryPhone,
                 "Yazilim",
                 null,
                 companyType,

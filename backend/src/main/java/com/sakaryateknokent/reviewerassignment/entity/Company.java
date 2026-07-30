@@ -30,6 +30,9 @@ public class Company {
     @Column(length = 30)
     private String phone;
 
+    @Column(name = "secondary_phone", length = 30)
+    private String secondaryPhone;
+
     @Column(name = "activity_area", length = 255)
     private String activityArea;
 

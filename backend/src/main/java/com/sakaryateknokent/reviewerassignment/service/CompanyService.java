@@ -61,6 +61,7 @@ public class CompanyService {
         company.setName(request.name().trim());
         company.setEmail(normalizedEmail);
         company.setPhone(normalizeOptionalText(request.phone()));
+        company.setSecondaryPhone(normalizeOptionalText(request.secondaryPhone()));
         company.setActivityArea(normalizeOptionalText(request.activityArea()));
         company.setLogoUrl(normalizeOptionalText(request.logoUrl()));
         company.setCompanyType(request.companyType());
@@ -141,6 +142,7 @@ public class CompanyService {
         company.setName(request.name().trim());
         company.setEmail(normalizedEmail);
         company.setPhone(normalizeOptionalText(request.phone()));
+        company.setSecondaryPhone(normalizeOptionalText(request.secondaryPhone()));
         company.setActivityArea(normalizeOptionalText(request.activityArea()));
         company.setLogoUrl(normalizeOptionalText(request.logoUrl()));
 
@@ -430,6 +432,7 @@ public class CompanyService {
                 company.getName(),
                 company.getEmail(),
                 company.getPhone(),
+                company.getSecondaryPhone(),
                 company.getActivityArea(),
                 company.getLogoUrl(),
                 company.getCompanyType(),
@@ -444,6 +447,7 @@ public class CompanyService {
                 company.getName(),
                 company.getEmail(),
                 company.getPhone(),
+                company.getSecondaryPhone(),
                 company.getActivityArea(),
                 company.getLogoUrl(),
                 company.getCompanyType(),

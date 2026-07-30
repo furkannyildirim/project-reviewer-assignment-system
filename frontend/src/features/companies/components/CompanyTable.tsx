@@ -195,8 +195,9 @@ function CompanyContactSummary({ company }: { company: CompanyListItem }) {
 function CompanyCommunication({ company }: { company: CompanyListItem }) {
     const hasEmail = Boolean(company.email?.trim());
     const hasPhone = Boolean(company.phone?.trim());
+    const secondaryPhone = company.secondaryPhone?.trim();
 
-    if (!hasEmail && !hasPhone) {
+    if (!hasEmail && !hasPhone && !secondaryPhone) {
         return <Typography color="text.secondary">—</Typography>;
     }
 
@@ -207,6 +208,9 @@ function CompanyCommunication({ company }: { company: CompanyListItem }) {
             )}
             {hasPhone && (
                 <Typography>{company.phone}</Typography>
+            )}
+            {secondaryPhone && (
+                <Typography>{`Tel 2: ${secondaryPhone}`}</Typography>
             )}
         </Stack>
     );

@@ -59,6 +59,7 @@ const emptyValues: CompanyFormValues = {
     name: '',
     email: '',
     phone: '',
+    secondaryPhone: '',
     activityArea: '',
     logoUrl: '',
     contacts: [emptyContact],
@@ -68,6 +69,7 @@ const fieldLabels = {
     name: 'Şirket adı',
     email: 'E-posta',
     phone: 'Telefon',
+    secondaryPhone: 'Telefon 2',
     activityArea: 'Faaliyet alanı',
     logoUrl: 'Logo URL',
 } satisfies Record<Exclude<keyof CompanyFormValues, 'contacts'>, string>;
@@ -102,6 +104,7 @@ function toFormValues(company: CompanyDetail | null): CompanyFormValues {
         name: company.name,
         email: company.email ?? '',
         phone: company.phone ?? '',
+        secondaryPhone: company.secondaryPhone ?? '',
         activityArea: company.activityArea ?? '',
         logoUrl: company.logoUrl ?? '',
         contacts,
@@ -123,6 +126,7 @@ function buildRequest(
         name: values.name.trim(),
         email: normalizeOptional(values.email),
         phone: normalizeOptional(values.phone),
+        secondaryPhone: normalizeOptional(values.secondaryPhone),
         activityArea: normalizeOptional(values.activityArea),
         logoUrl: normalizeOptional(values.logoUrl),
     };
@@ -178,6 +182,10 @@ function validate(values: CompanyFormValues): FormErrors {
 
     if (values.phone.trim().length > 30) {
         errors.phone = 'Telefon en fazla 30 karakter olabilir';
+    }
+
+    if (values.secondaryPhone.trim().length > 30) {
+        errors.secondaryPhone = 'İkinci telefon en fazla 30 karakter olabilir';
     }
 
     if (values.activityArea.trim().length > 255) {
@@ -476,6 +484,20 @@ export function CompanyFormDialog({
                             onChange={(event) => handleChange('phone', event.target.value)}
                             error={Boolean(errors.phone)}
                             helperText={errors.phone}
+                            fullWidth
+                            disabled={isFormDisabled}
+                            slotProps={{
+                                htmlInput: { maxLength: 30 },
+                            }}
+                        />
+
+                        <TextField
+                            label={fieldLabels.secondaryPhone}
+                            value={values.secondaryPhone}
+                            onChange={(event) =>
+                                handleChange('secondaryPhone', event.target.value)}
+                            error={Boolean(errors.secondaryPhone)}
+                            helperText={errors.secondaryPhone}
                             fullWidth
                             disabled={isFormDisabled}
                             slotProps={{

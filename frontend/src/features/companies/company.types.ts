@@ -14,6 +14,7 @@ export type CompanyListItem = {
     name: string;
     email: string | null;
     phone: string | null;
+    secondaryPhone: string | null;
     activityArea: string | null;
     logoUrl: string | null;
     companyType: CompanyType;
@@ -26,6 +27,7 @@ export type CompanyDetail = {
     name: string;
     email: string | null;
     phone: string | null;
+    secondaryPhone: string | null;
     activityArea: string | null;
     logoUrl: string | null;
     companyType: CompanyType;
@@ -50,6 +52,7 @@ export type CreateCompanyRequest = {
     name: string;
     email: string | null;
     phone: string | null;
+    secondaryPhone: string | null;
     activityArea: string | null;
     logoUrl: string | null;
     companyType: CompanyType;
@@ -74,6 +77,7 @@ export type CompanyFormValues = {
     name: string;
     email: string;
     phone: string;
+    secondaryPhone: string;
     activityArea: string;
     logoUrl: string;
     contacts: CompanyContactFormValues[];

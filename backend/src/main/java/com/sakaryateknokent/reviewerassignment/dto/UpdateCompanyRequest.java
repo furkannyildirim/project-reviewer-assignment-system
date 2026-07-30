@@ -22,6 +22,9 @@ public record UpdateCompanyRequest(
         @Size(max = 30, message = "Telefon en fazla 30 karakter olabilir")
         String phone,
 
+        @Size(max = 30, message = "İkinci telefon en fazla 30 karakter olabilir")
+        String secondaryPhone,
+
         @Size(max = 255, message = "Faaliyet alanı en fazla 255 karakter olabilir")
         String activityArea,
 

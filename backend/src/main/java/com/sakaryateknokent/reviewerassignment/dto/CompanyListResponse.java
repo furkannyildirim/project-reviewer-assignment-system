@@ -7,6 +7,7 @@ public record CompanyListResponse(
         String name,
         String email,
         String phone,
+        String secondaryPhone,
         String activityArea,
         String logoUrl,
         CompanyType companyType,
