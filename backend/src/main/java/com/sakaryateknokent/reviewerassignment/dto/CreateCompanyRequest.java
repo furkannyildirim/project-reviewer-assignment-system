@@ -1,5 +1,6 @@
 package com.sakaryateknokent.reviewerassignment.dto;
 
+import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -28,7 +29,10 @@ public record CreateCompanyRequest(
         @Size(max = 500, message = "Logo adresi en fazla 500 karakter olabilir")
         String logoUrl,
 
-        @NotEmpty(message = "En az bir muhatap kişi eklenmelidir")
-        List<@Valid @NotNull(message = "Muhatap bilgisi boş olamaz") CreateCompanyContactRequest> contacts
+        @NotNull(message = "Şirket türü zorunludur")
+        CompanyType companyType,
+
+        @NotEmpty(message = "En az bir yetkili kişi eklenmelidir")
+        List<@Valid @NotNull(message = "Yetkili kişi bilgisi boş olamaz") CreateCompanyContactRequest> contacts
 ) {
 }

@@ -43,8 +43,13 @@ const navigationItems: NavigationItem[] = [
         icon: <SchoolOutlinedIcon />,
     },
     {
-        label: 'Şirketler',
-        path: '/companies',
+        label: 'TGB Şirketleri',
+        path: '/companies/tgb',
+        icon: <BusinessOutlinedIcon />,
+    },
+    {
+        label: 'Dış Şirketler',
+        path: '/companies/external',
         icon: <BusinessOutlinedIcon />,
     },
     {

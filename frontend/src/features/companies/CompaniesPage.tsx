@@ -27,6 +27,7 @@ import {
 import { companyQueryKeys } from './companyQueryKeys';
 import type {
     Company,
+    CompanyType,
     CreateCompanyRequest,
     UpdateCompanyRequest,
 } from './company.types';
@@ -44,7 +45,19 @@ type SnackbarState = {
     severity: 'success' | 'error';
 } | null;
 
-export function CompaniesPage() {
+type CompaniesPageProps = {
+    companyType: CompanyType;
+    title: string;
+    description: string;
+    emptyTitle: string;
+};
+
+export function CompaniesPage({
+    companyType,
+    title,
+    description,
+    emptyTitle,
+}: CompaniesPageProps) {
     const { role } = useAuth();
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
@@ -58,6 +71,7 @@ export function CompaniesPage() {
     const isAdmin = role === 'ADMIN';
 
     const queryParams = {
+        companyType,
         search: debouncedSearch,
         page,
         size,
@@ -197,15 +211,15 @@ export function CompaniesPage() {
     return (
         <Stack spacing={3}>
             <PageHeader
-                title="Şirket Yönetimi"
-                description="Şirket kayıtlarını arayın, sayfalayın, oluşturun ve güncelleyin."
+                title={title}
+                description={description}
                 action={(
                     <Button
                         variant="contained"
                         startIcon={<AddBusinessOutlinedIcon />}
                         onClick={() => setFormMode({ type: 'create', company: null })}
                     >
-                        Yeni Şirket
+                        Şirket Ekle
                     </Button>
                 )}
             />
@@ -271,7 +285,7 @@ export function CompaniesPage() {
 
             {showEmptyState ? (
                 <EmptyState
-                    title="Şirket kaydı bulunamadı"
+                    title={emptyTitle}
                     description={
                         debouncedSearch
                             ? 'Arama ölçütlerini değiştirerek tekrar deneyin.'
@@ -320,6 +334,7 @@ export function CompaniesPage() {
                         : null
                 }
                 isSaving={isSaving}
+                companyType={companyType}
                 onClose={() => {
                     if (!isSaving) {
                         setFormMode(null);

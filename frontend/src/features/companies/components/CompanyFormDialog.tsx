@@ -25,6 +25,7 @@ import type {
     CompanyContactFormValues,
     CompanyDetail,
     CompanyFormValues,
+    CompanyType,
     CreateCompanyRequest,
     UpdateCompanyRequest,
 } from '../company.types';
@@ -36,6 +37,7 @@ type CompanyFormDialogProps = {
     isDetailLoading: boolean;
     detailError: string | null;
     isSaving: boolean;
+    companyType: CompanyType;
     onClose: () => void;
     onSubmit: (
         request: CreateCompanyRequest | UpdateCompanyRequest,
@@ -115,6 +117,7 @@ function normalizeOptional(value: string): string | null {
 function buildRequest(
     values: CompanyFormValues,
     isEdit: boolean,
+    companyType: CompanyType,
 ): CreateCompanyRequest | UpdateCompanyRequest {
     const companyFields = {
         name: values.name.trim(),
@@ -140,6 +143,7 @@ function buildRequest(
 
     return {
         ...companyFields,
+        companyType,
         contacts: values.contacts.map((contact) => ({
             fullName: contact.fullName.trim(),
             position: normalizeOptional(contact.position),
@@ -273,6 +277,7 @@ export function CompanyFormDialog({
     isDetailLoading,
     detailError,
     isSaving,
+    companyType,
     onClose,
     onSubmit,
 }: CompanyFormDialogProps) {
@@ -283,6 +288,9 @@ export function CompanyFormDialog({
     const [generalError, setGeneralError] = useState<string | null>(null);
     const isEdit = Boolean(company);
     const title = isEdit ? 'Şirketi Düzenle' : 'Yeni Şirket';
+    const createTypeMessage = companyType === 'TGB'
+        ? 'Bu kayıt TGB şirketi olarak oluşturulacaktır.'
+        : 'Bu kayıt dış şirket olarak oluşturulacaktır.';
     const detailReady = !isEdit || Boolean(companyDetail);
     const isFormDisabled = isSaving || isDetailLoading || !detailReady || Boolean(detailError);
 
@@ -398,7 +406,7 @@ export function CompanyFormDialog({
         }
 
         try {
-            await onSubmit(buildRequest(values, isEdit));
+            await onSubmit(buildRequest(values, isEdit, companyType));
         } catch (error) {
             const apiFieldErrors = getFieldErrors(error);
 
@@ -427,6 +435,10 @@ export function CompanyFormDialog({
 
                     {isDetailLoading && (
                         <Alert severity="info">Şirket detayı yükleniyor...</Alert>
+                    )}
+
+                    {!isEdit && (
+                        <Alert severity="info">{createTypeMessage}</Alert>
                     )}
 
                     <TextField

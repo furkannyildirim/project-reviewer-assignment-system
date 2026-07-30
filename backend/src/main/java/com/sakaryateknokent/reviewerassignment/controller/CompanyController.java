@@ -4,6 +4,7 @@ import com.sakaryateknokent.reviewerassignment.dto.CompanyListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateCompanyRequest;
+import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.service.CompanyService;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
 import jakarta.validation.Valid;
@@ -30,12 +31,13 @@ public class CompanyController {
 
     @GetMapping
     public ResponseEntity<PageResponse<CompanyListResponse>> getCompanies(
+            @RequestParam CompanyType companyType,
             @RequestParam(defaultValue = "") String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         return ResponseEntity.ok(
-                companyService.getCompanies(search, page, size)
+                companyService.getCompanies(companyType, search, page, size)
         );
     }
 

@@ -10,6 +10,7 @@ import com.sakaryateknokent.reviewerassignment.dto.UpdateCompanyContactRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateCompanyRequest;
 import com.sakaryateknokent.reviewerassignment.entity.Company;
 import com.sakaryateknokent.reviewerassignment.entity.CompanyContact;
+import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.exception.DuplicateResourceException;
 import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.exception.ResourceNotFoundException;
@@ -62,6 +63,7 @@ public class CompanyService {
         company.setPhone(normalizeOptionalText(request.phone()));
         company.setActivityArea(normalizeOptionalText(request.activityArea()));
         company.setLogoUrl(normalizeOptionalText(request.logoUrl()));
+        company.setCompanyType(request.companyType());
 
         for (NormalizedContactRequest contact : contacts) {
             CompanyContact companyContact = new CompanyContact();
@@ -74,6 +76,7 @@ public class CompanyService {
 
     @Transactional(readOnly = true)
     public PageResponse<CompanyListResponse> getCompanies(
+            CompanyType companyType,
             String search,
             int page,
             int size
@@ -91,7 +94,7 @@ public class CompanyService {
         );
 
         Page<Company> companyPage = companyRepository
-                .search(normalizedSearch, pageable);
+                .search(companyType, normalizedSearch, pageable);
 
         List<Company> companies = companyPage.getContent();
         Map<Long, List<CompanyContact>> contactsByCompanyId =
@@ -429,6 +432,7 @@ public class CompanyService {
                 company.getPhone(),
                 company.getActivityArea(),
                 company.getLogoUrl(),
+                company.getCompanyType(),
                 primaryContact,
                 sortedContacts.size()
         );
@@ -442,6 +446,7 @@ public class CompanyService {
                 company.getPhone(),
                 company.getActivityArea(),
                 company.getLogoUrl(),
+                company.getCompanyType(),
                 sortContacts(company.getContacts()).stream()
                         .map(this::toContactResponse)
                         .toList()

@@ -1,3 +1,5 @@
+export type CompanyType = 'TGB' | 'EXTERNAL';
+
 export type CompanyContact = {
     id: number;
     fullName: string;
@@ -14,6 +16,7 @@ export type CompanyListItem = {
     phone: string | null;
     activityArea: string | null;
     logoUrl: string | null;
+    companyType: CompanyType;
     primaryContact: CompanyContact | null;
     contactCount: number;
 };
@@ -25,6 +28,7 @@ export type CompanyDetail = {
     phone: string | null;
     activityArea: string | null;
     logoUrl: string | null;
+    companyType: CompanyType;
     contacts: CompanyContact[];
 };
 
@@ -48,14 +52,19 @@ export type CreateCompanyRequest = {
     phone: string | null;
     activityArea: string | null;
     logoUrl: string | null;
+    companyType: CompanyType;
     contacts: CreateCompanyContactRequest[];
 };
 
-export type UpdateCompanyRequest = Omit<CreateCompanyRequest, 'contacts'> & {
+export type UpdateCompanyRequest = Omit<
+    CreateCompanyRequest,
+    'companyType' | 'contacts'
+> & {
     contacts: UpdateCompanyContactRequest[];
 };
 
 export type CompanyPageParams = {
+    companyType: CompanyType;
     search: string;
     page: number;
     size: number;
