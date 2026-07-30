@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
+import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import {
     Alert,
     Box,
@@ -27,6 +28,7 @@ import { academicianQueryKeys } from './academicianQueryKeys';
 import type { Academician, CreateAcademicianRequest } from './academician.types';
 import { academicianPageSizes } from './academician.types';
 import { AcademicianFormDialog } from './components/AcademicianFormDialog';
+import { AcademicianImportDialog } from './components/AcademicianImportDialog';
 import { AcademicianTable } from './components/AcademicianTable';
 
 type FormMode = {
@@ -50,6 +52,7 @@ export function AcademiciansPage() {
     const [page, setPage] = useState(0);
     const [size, setSize] = useState(10);
     const [formMode, setFormMode] = useState<FormMode>(null);
+    const [isImportDialogOpen, setImportDialogOpen] = useState(false);
     const [academicianToDelete, setAcademicianToDelete] =
         useState<Academician | null>(null);
     const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -184,16 +187,29 @@ export function AcademiciansPage() {
                 title="Akademisyen Yönetimi"
                 description="Akademisyen kayıtlarını arayın, sayfalayın, oluşturun ve güncelleyin."
                 action={(
-                    <Button
-                        variant="contained"
-                        startIcon={<PersonAddAltOutlinedIcon />}
-                        onClick={() => setFormMode({
-                            type: 'create',
-                            academician: null,
-                        })}
+                    <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={1}
+                        sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}
                     >
-                        Yeni Akademisyen
-                    </Button>
+                        <Button
+                            variant="outlined"
+                            startIcon={<UploadFileOutlinedIcon />}
+                            onClick={() => setImportDialogOpen(true)}
+                        >
+                            Excel'den Aktar
+                        </Button>
+                        <Button
+                            variant="contained"
+                            startIcon={<PersonAddAltOutlinedIcon />}
+                            onClick={() => setFormMode({
+                                type: 'create',
+                                academician: null,
+                            })}
+                        >
+                            Yeni Akademisyen
+                        </Button>
+                    </Stack>
                 )}
             />
 
@@ -313,6 +329,11 @@ export function AcademiciansPage() {
                     }
                 }}
                 onSubmit={handleFormSubmit}
+            />
+
+            <AcademicianImportDialog
+                open={isImportDialogOpen}
+                onClose={() => setImportDialogOpen(false)}
             />
 
             <ConfirmDialog

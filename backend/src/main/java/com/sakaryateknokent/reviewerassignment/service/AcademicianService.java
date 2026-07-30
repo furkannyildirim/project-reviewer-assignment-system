@@ -18,10 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -37,25 +34,33 @@ public class AcademicianService {
             Sort.Order.asc("lastName")
     );
 
-    private static final Locale TURKISH_LOCALE =
-            Locale.forLanguageTag("tr");
-
     private final AcademicianRepository academicianRepository;
 
     public AcademicianResponse createAcademician(
             CreateAcademicianRequest request
     ) {
-        String normalizedEmail = normalizeEmail(request.email());
+        String normalizedEmail =
+                AcademicianTextNormalizer.normalizeEmail(request.email());
         validateEmailForCreate(normalizedEmail);
 
         Academician academician = new Academician();
         academician.setFirstName(request.firstName().trim());
         academician.setLastName(request.lastName().trim());
         academician.setEmail(normalizedEmail);
-        academician.setPhone(normalizeOptionalText(request.phone()));
-        academician.setTitle(normalizeOptionalText(request.title()));
+        academician.setPhone(
+                AcademicianTextNormalizer.normalizeOptionalText(
+                        request.phone()
+                )
+        );
+        academician.setTitle(
+                AcademicianTextNormalizer.normalizeOptionalText(
+                        request.title()
+                )
+        );
         academician.getKeywords().addAll(
-                normalizeKeywords(request.keywords())
+                AcademicianTextNormalizer.normalizeKeywords(
+                        request.keywords()
+                )
         );
 
         return toResponse(academicianRepository.save(academician));
@@ -105,19 +110,30 @@ public class AcademicianService {
             UpdateAcademicianRequest request
     ) {
         Academician academician = findAcademicianById(id);
-        String normalizedEmail = normalizeEmail(request.email());
+        String normalizedEmail =
+                AcademicianTextNormalizer.normalizeEmail(request.email());
 
         validateEmailForUpdate(normalizedEmail, id);
 
         academician.setFirstName(request.firstName().trim());
         academician.setLastName(request.lastName().trim());
         academician.setEmail(normalizedEmail);
-        academician.setPhone(normalizeOptionalText(request.phone()));
-        academician.setTitle(normalizeOptionalText(request.title()));
+        academician.setPhone(
+                AcademicianTextNormalizer.normalizeOptionalText(
+                        request.phone()
+                )
+        );
+        academician.setTitle(
+                AcademicianTextNormalizer.normalizeOptionalText(
+                        request.title()
+                )
+        );
 
         academician.getKeywords().clear();
         academician.getKeywords().addAll(
-                normalizeKeywords(request.keywords())
+                AcademicianTextNormalizer.normalizeKeywords(
+                        request.keywords()
+                )
         );
 
         return toResponse(academicianRepository.save(academician));
@@ -164,50 +180,6 @@ public class AcademicianService {
                     "Sayfa boyutu yalnızca 10, 15, 20 veya 25 olabilir"
             );
         }
-    }
-
-    private String normalizeEmail(String email) {
-        String normalizedEmail = normalizeOptionalText(email);
-
-        return normalizedEmail == null
-                ? null
-                : normalizedEmail.toLowerCase(Locale.ROOT);
-    }
-
-    private String normalizeOptionalText(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-
-        return value.trim();
-    }
-
-    private Set<String> normalizeKeywords(Set<String> keywords) {
-        if (keywords == null || keywords.isEmpty()) {
-            return new LinkedHashSet<>();
-        }
-
-        Map<String, String> uniqueKeywords = new LinkedHashMap<>();
-
-        for (String keyword : keywords) {
-            if (keyword == null || keyword.isBlank()) {
-                continue;
-            }
-
-            String cleanedKeyword = keyword
-                    .trim()
-                    .replaceAll("\\s+", " ");
-
-            String comparisonValue =
-                    cleanedKeyword.toLowerCase(TURKISH_LOCALE);
-
-            uniqueKeywords.putIfAbsent(
-                    comparisonValue,
-                    cleanedKeyword
-            );
-        }
-
-        return new LinkedHashSet<>(uniqueKeywords.values());
     }
 
     private AcademicianResponse toResponse(Academician academician) {

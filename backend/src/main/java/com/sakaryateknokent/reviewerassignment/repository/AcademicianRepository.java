@@ -7,12 +7,32 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+
 public interface AcademicianRepository
         extends JpaRepository<Academician, Long> {
 
     boolean existsByEmail(String email);
 
     boolean existsByEmailAndIdNot(String email, Long id);
+
+    @Query("""
+            SELECT LOWER(academician.email)
+            FROM Academician academician
+            WHERE academician.email IS NOT NULL
+              AND LOWER(academician.email) IN :emails
+            """)
+    Set<String> findExistingEmails(@Param("emails") Collection<String> emails);
+
+    @Query("""
+            SELECT academician.firstName AS firstName,
+                   academician.lastName AS lastName,
+                   academician.title AS title
+            FROM Academician academician
+            """)
+    List<AcademicianIdentityProjection> findIdentities();
 
     @Query(
             value = """

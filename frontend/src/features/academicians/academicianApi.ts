@@ -2,6 +2,8 @@ import { httpClient } from '../../api/httpClient';
 import type { PageResponse } from '../../types/api';
 import type {
     Academician,
+    AcademicianImportPreviewResponse,
+    AcademicianImportResultResponse,
     AcademicianPageParams,
     CreateAcademicianRequest,
     UpdateAcademicianRequest,
@@ -13,6 +15,20 @@ export async function getAcademicians(
     const response = await httpClient.get<PageResponse<Academician>>(
         '/academicians',
         { params },
+    );
+
+    return response.data;
+}
+
+export async function importAcademicians(
+    file: File,
+): Promise<AcademicianImportResultResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await httpClient.post<AcademicianImportResultResponse>(
+        '/academicians/import',
+        formData,
     );
 
     return response.data;
@@ -43,4 +59,18 @@ export async function updateAcademician(
 
 export async function deleteAcademician(id: number): Promise<void> {
     await httpClient.delete(`/academicians/${id}`);
+}
+
+export async function previewAcademicianImport(
+    file: File,
+): Promise<AcademicianImportPreviewResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await httpClient.post<AcademicianImportPreviewResponse>(
+        '/academicians/import/preview',
+        formData,
+    );
+
+    return response.data;
 }

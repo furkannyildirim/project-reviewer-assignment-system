@@ -1,15 +1,20 @@
 package com.sakaryateknokent.reviewerassignment.controller;
 
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianResponse;
+import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportPreviewResponse;
+import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportResultResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateAcademicianRequest;
+import com.sakaryateknokent.reviewerassignment.service.AcademicianImportService;
+import com.sakaryateknokent.reviewerassignment.service.AcademicianImportPreviewService;
 import com.sakaryateknokent.reviewerassignment.service.AcademicianService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/academicians")
@@ -17,6 +22,8 @@ import org.springframework.web.bind.annotation.*;
 public class AcademicianController {
 
     private final AcademicianService academicianService;
+    private final AcademicianImportPreviewService importPreviewService;
+    private final AcademicianImportService importService;
 
     @PostMapping
     public ResponseEntity<AcademicianResponse> createAcademician(
@@ -28,6 +35,20 @@ public class AcademicianController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    @PostMapping("/import/preview")
+    public ResponseEntity<AcademicianImportPreviewResponse> previewImport(
+            @RequestParam("file") MultipartFile file
+    ) {
+        return ResponseEntity.ok(importPreviewService.preview(file));
+    }
+
+    @PostMapping("/import")
+    public ResponseEntity<AcademicianImportResultResponse> importAcademicians(
+            @RequestParam("file") MultipartFile file
+    ) {
+        return ResponseEntity.ok(importService.importCreateOnly(file));
     }
 
     @GetMapping
