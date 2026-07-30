@@ -1,11 +1,13 @@
 package com.sakaryateknokent.reviewerassignment.controller;
 
 import com.sakaryateknokent.reviewerassignment.dto.CompanyListResponse;
+import com.sakaryateknokent.reviewerassignment.dto.CompanyImportResultResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyImportPreviewResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateCompanyRequest;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
+import com.sakaryateknokent.reviewerassignment.service.CompanyImportService;
 import com.sakaryateknokent.reviewerassignment.service.CompanyImportPreviewService;
 import com.sakaryateknokent.reviewerassignment.service.CompanyService;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
@@ -24,6 +26,7 @@ public class CompanyController {
 
     private final CompanyService companyService;
     private final CompanyImportPreviewService importPreviewService;
+    private final CompanyImportService importService;
 
     @PostMapping
     public ResponseEntity<CompanyResponse> createCompany(
@@ -38,6 +41,13 @@ public class CompanyController {
             @RequestParam("file") MultipartFile file
     ) {
         return ResponseEntity.ok(importPreviewService.preview(file));
+    }
+
+    @PostMapping("/import")
+    public ResponseEntity<CompanyImportResultResponse> importCompanies(
+            @RequestParam("file") MultipartFile file
+    ) {
+        return ResponseEntity.ok(importService.importTgbCompanies(file));
     }
 
     @GetMapping

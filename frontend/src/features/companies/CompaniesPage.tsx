@@ -366,6 +366,7 @@ export function CompaniesPage({
                 <CompanyImportPreviewDialog
                     open={isImportDialogOpen}
                     onClose={() => setImportDialogOpen(false)}
+                    onImported={invalidateCompanies}
                 />
             )}
 

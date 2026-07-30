@@ -8,6 +8,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -148,34 +149,46 @@ public class CompanyExcelImportParser {
     }
 
     private HeaderMapping readHeaderMapping(Row row) {
-        Map<HeaderType, Integer> columns = new LinkedHashMap<>();
-        Set<Integer> ignoredColumns = new LinkedHashSet<>();
+        Map<HeaderType, ColumnRange> columns = new LinkedHashMap<>();
+        Set<ColumnRange> ignoredColumns = new LinkedHashSet<>();
         Set<String> detectedHeaders = new LinkedHashSet<>();
         Set<String> ignoredHeaders = new LinkedHashSet<>();
+        Set<String> processedMergedRegions = new LinkedHashSet<>();
         boolean knownHeaderFound = false;
 
         for (Cell cell : row) {
+            CellRangeAddress mergedRegion = mergedRegionContaining(
+                    row.getSheet(),
+                    row.getRowNum(),
+                    cell.getColumnIndex()
+            );
+            if (mergedRegion != null
+                    && !processedMergedRegions.add(regionKey(mergedRegion))) {
+                continue;
+            }
+
             String value = formattedCellValue(cell);
             if (value == null) {
                 continue;
             }
 
+            ColumnRange columnRange = headerColumnRange(cell, mergedRegion);
             HeaderType headerType = HEADER_ALIASES.get(normalizeHeader(value));
             if (headerType == null) {
                 ignoredHeaders.add(value.trim());
-                ignoredColumns.add(cell.getColumnIndex());
+                ignoredColumns.add(columnRange);
                 continue;
             }
 
             knownHeaderFound = true;
             if (IGNORED_KNOWN_HEADER_TYPES.contains(headerType)) {
                 ignoredHeaders.add(value.trim());
-                ignoredColumns.add(cell.getColumnIndex());
+                ignoredColumns.add(columnRange);
                 continue;
             }
 
             detectedHeaders.add(value.trim());
-            columns.putIfAbsent(headerType, cell.getColumnIndex());
+            columns.putIfAbsent(headerType, columnRange);
         }
 
         return new HeaderMapping(
@@ -216,18 +229,18 @@ public class CompanyExcelImportParser {
                     new CompanyImportRow(sheetName, rowIndex + 1);
 
             importRow.setName(AcademicianTextNormalizer.normalizeOptionalText(
-                    cellValue(row, mapping.column(HeaderType.NAME))
+                    cellValue(row, mapping.columnRange(HeaderType.NAME))
             ));
             importRow.setPhone(AcademicianTextNormalizer.normalizeOptionalText(
-                    cellValue(row, mapping.column(HeaderType.PHONE))
+                    cellValue(row, mapping.columnRange(HeaderType.PHONE))
             ));
             importRow.setSecondaryPhone(
                     AcademicianTextNormalizer.normalizeOptionalText(
-                            cellValue(row, mapping.column(HeaderType.SECONDARY_PHONE))
+                            cellValue(row, mapping.columnRange(HeaderType.SECONDARY_PHONE))
                     )
             );
             importRow.setEmail(AcademicianTextNormalizer.normalizeEmail(
-                    cellValue(row, mapping.column(HeaderType.EMAIL))
+                    cellValue(row, mapping.columnRange(HeaderType.EMAIL))
             ));
             importRow.setActivityArea(resolveActivityArea(row, mapping));
 
@@ -238,14 +251,14 @@ public class CompanyExcelImportParser {
 
     private String resolveActivityArea(Row row, HeaderMapping mapping) {
         String activityArea = AcademicianTextNormalizer.normalizeOptionalText(
-                cellValue(row, mapping.column(HeaderType.ACTIVITY_AREA))
+                cellValue(row, mapping.columnRange(HeaderType.ACTIVITY_AREA))
         );
         if (activityArea != null) {
             return activityArea;
         }
 
         return AcademicianTextNormalizer.normalizeOptionalText(
-                cellValue(row, mapping.column(HeaderType.SECTOR))
+                cellValue(row, mapping.columnRange(HeaderType.SECTOR))
         );
     }
 
@@ -316,9 +329,8 @@ public class CompanyExcelImportParser {
     }
 
     private boolean isRowBlank(Row row, HeaderMapping mapping) {
-        for (Integer columnIndex : mapping.allColumns()) {
-            Cell cell = row.getCell(columnIndex);
-            if (formattedCellValue(cell) != null) {
+        for (ColumnRange columnRange : mapping.allColumnRanges()) {
+            if (cellValue(row, columnRange) != null) {
                 return false;
             }
         }
@@ -326,15 +338,60 @@ public class CompanyExcelImportParser {
         return true;
     }
 
-    private String cellValue(Row row, Integer columnIndex) {
-        if (row == null || columnIndex == null) {
+    private String cellValue(Row row, ColumnRange columnRange) {
+        if (row == null || columnRange == null) {
             return null;
         }
 
-        return formattedCellValue(row.getCell(columnIndex));
+        int anchorColumn = columnRange.startColumn();
+        String directValue = directFormattedCellValue(row.getCell(anchorColumn));
+        if (directValue != null) {
+            return directValue;
+        }
+
+        CellRangeAddress mergedRegion = mergedRegionContaining(
+                row.getSheet(),
+                row.getRowNum(),
+                anchorColumn
+        );
+        if (mergedRegion == null) {
+            return null;
+        }
+
+        Row firstRow = row.getSheet().getRow(mergedRegion.getFirstRow());
+        Cell firstCell = firstRow == null
+                ? null
+                : firstRow.getCell(mergedRegion.getFirstColumn());
+        return directFormattedCellValue(firstCell);
     }
 
     private String formattedCellValue(Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+
+        String directValue = directFormattedCellValue(cell);
+        if (directValue != null) {
+            return directValue;
+        }
+
+        CellRangeAddress mergedRegion = mergedRegionContaining(
+                cell.getSheet(),
+                cell.getRowIndex(),
+                cell.getColumnIndex()
+        );
+        if (mergedRegion == null) {
+            return null;
+        }
+
+        Row firstRow = cell.getSheet().getRow(mergedRegion.getFirstRow());
+        Cell firstCell = firstRow == null
+                ? null
+                : firstRow.getCell(mergedRegion.getFirstColumn());
+        return directFormattedCellValue(firstCell);
+    }
+
+    private String directFormattedCellValue(Cell cell) {
         if (cell == null) {
             return null;
         }
@@ -343,6 +400,50 @@ public class CompanyExcelImportParser {
         return value == null || value.isBlank()
                 ? null
                 : value.trim();
+    }
+
+    private ColumnRange headerColumnRange(
+            Cell cell,
+            CellRangeAddress mergedRegion
+    ) {
+        if (mergedRegion == null
+                || !mergedRegionContainsRow(mergedRegion, cell.getRowIndex())) {
+            return new ColumnRange(cell.getColumnIndex(), cell.getColumnIndex());
+        }
+
+        return new ColumnRange(
+                mergedRegion.getFirstColumn(),
+                mergedRegion.getLastColumn()
+        );
+    }
+
+    private CellRangeAddress mergedRegionContaining(
+            Sheet sheet,
+            int rowIndex,
+            int columnIndex
+    ) {
+        for (CellRangeAddress mergedRegion : sheet.getMergedRegions()) {
+            if (mergedRegion.isInRange(rowIndex, columnIndex)) {
+                return mergedRegion;
+            }
+        }
+
+        return null;
+    }
+
+    private boolean mergedRegionContainsRow(
+            CellRangeAddress mergedRegion,
+            int rowIndex
+    ) {
+        return mergedRegion.getFirstRow() <= rowIndex
+                && rowIndex <= mergedRegion.getLastRow();
+    }
+
+    private String regionKey(CellRangeAddress mergedRegion) {
+        return mergedRegion.getFirstRow() + ":"
+                + mergedRegion.getLastRow() + ":"
+                + mergedRegion.getFirstColumn() + ":"
+                + mergedRegion.getLastColumn();
     }
 
     private static Map<String, HeaderType> createHeaderAliases() {
@@ -465,8 +566,8 @@ public class CompanyExcelImportParser {
 
     private record HeaderMapping(
             int headerRowIndex,
-            Map<HeaderType, Integer> columns,
-            Set<Integer> ignoredColumns,
+            Map<HeaderType, ColumnRange> columns,
+            Set<ColumnRange> ignoredColumns,
             Set<String> detectedHeaders,
             Set<String> ignoredHeaders,
             boolean knownHeaderFound
@@ -480,18 +581,22 @@ public class CompanyExcelImportParser {
             return columns.containsKey(HeaderType.NAME);
         }
 
-        private Integer column(HeaderType type) {
+        private ColumnRange columnRange(HeaderType type) {
             return columns.get(type);
         }
 
-        private Set<Integer> dataColumns() {
-            return new LinkedHashSet<>(columns.values());
+        private Set<ColumnRange> allColumnRanges() {
+            Set<ColumnRange> allColumnRanges =
+                    new LinkedHashSet<>(columns.values());
+            allColumnRanges.addAll(ignoredColumns);
+            return allColumnRanges;
         }
+    }
 
-        private Set<Integer> allColumns() {
-            Set<Integer> allColumns = new LinkedHashSet<>(columns.values());
-            allColumns.addAll(ignoredColumns);
-            return allColumns;
-        }
+    private record ColumnRange(
+            int startColumn,
+            int endColumn
+    ) {
+
     }
 }

@@ -3,6 +3,7 @@ import type { PageResponse } from '../../types/api';
 import type {
     CompanyDetail,
     CompanyImportPreviewResponse,
+    CompanyImportResultResponse,
     CompanyListItem,
     CompanyPageParams,
     CreateCompanyRequest,
@@ -34,6 +35,20 @@ export async function previewCompanyImport(
 
     const response = await httpClient.post<CompanyImportPreviewResponse>(
         '/companies/import/preview',
+        formData,
+    );
+
+    return response.data;
+}
+
+export async function importCompaniesFromExcel(
+    file: File,
+): Promise<CompanyImportResultResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await httpClient.post<CompanyImportResultResponse>(
+        '/companies/import',
         formData,
     );
 

@@ -3,6 +3,7 @@ package com.sakaryateknokent.reviewerassignment.importing;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 
@@ -233,6 +234,86 @@ class CompanyExcelImportParserTest {
     }
 
     @Test
+    void parsesMergedHeadersAndMergedDataCells() {
+        CompanyImportPreview preview = parse(workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            mergeWithValue(sheet, 0, 0, 0, 18, "TGB Sirket Raporu");
+            mergeWithValue(sheet, 2, 3, 2, 4, "Firma Unvan\u0131");
+            mergeWithValue(sheet, 2, 5, 2, 6, "Sektor");
+            mergeWithValue(sheet, 2, 12, 2, 13, "Telefon 1");
+            mergeWithValue(sheet, 2, 14, 2, 15, "Telefon 2");
+            mergeWithValue(sheet, 2, 16, 2, 18, "Email");
+
+            mergeWithValue(sheet, 3, 2, 3, 3, "Anonim Teknoloji");
+            mergeWithValue(sheet, 3, 4, 3, 5, "Yazilim");
+            mergeWithValue(sheet, 3, 11, 3, 12, "111");
+            mergeWithValue(sheet, 3, 13, 3, 14, "222");
+            mergeWithValue(sheet, 3, 16, 3, 17, "INFO@EXAMPLE.COM");
+        });
+
+        CompanyImportRow row = preview.getRows().getFirst();
+        assertEquals(1, preview.getRows().size());
+        assertEquals("Anonim Teknoloji", row.getName());
+        assertEquals("Yazilim", row.getActivityArea());
+        assertEquals("111", row.getPhone());
+        assertEquals("222", row.getSecondaryPhone());
+        assertEquals("info@example.com", row.getEmail());
+        assertEquals(
+                List.of("Firma Unvan\u0131", "Sektor", "Telefon 1", "Telefon 2", "Email"),
+                List.copyOf(preview.getDetectedHeaders())
+        );
+        assertFalse(preview.getDetectedHeaders().contains("TGB Sirket Raporu"));
+        assertFalse(preview.getIgnoredHeaders().contains("TGB Sirket Raporu"));
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void resolvesDataMergeWhenHeaderAndDataRangesDoNotExactlyMatch() {
+        CompanyImportRow row = parseFirstRow(workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            mergeWithValue(sheet, 0, 2, 0, 4, "Firma Unvan\u0131");
+            mergeWithValue(sheet, 0, 6, 0, 7, "Email");
+            mergeWithValue(sheet, 1, 1, 1, 2, "Aralik Kaymis Teknoloji");
+            mergeWithValue(sheet, 1, 6, 1, 7, "kaymis@example.com");
+        });
+
+        assertEquals("Aralik Kaymis Teknoloji", row.getName());
+        assertEquals("kaymis@example.com", row.getEmail());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void resolvesOverlappingDataMergeWhenTopLeftCellIsOutsideHeaderRange() {
+        CompanyImportRow row = parseFirstRow(workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            mergeWithValue(sheet, 0, 2, 0, 4, "Firma Unvan\u0131");
+            mergeWithValue(sheet, 0, 5, 0, 6, "Telefon 1");
+            mergeWithValue(sheet, 1, 1, 1, 2, "Dis Anchor Teknoloji");
+            mergeWithValue(sheet, 1, 5, 1, 6, "555");
+        });
+
+        assertEquals("Dis Anchor Teknoloji", row.getName());
+        assertEquals("555", row.getPhone());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void skipsCompletelyBlankMergedRows() {
+        CompanyImportPreview preview = parse(workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            mergeWithValue(sheet, 0, 0, 0, 2, "Firma Unvan\u0131");
+            mergeWithValue(sheet, 0, 3, 0, 4, "Telefon 1");
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 2));
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 3, 4));
+            mergeWithValue(sheet, 2, 0, 2, 2, "Dolu Teknoloji");
+            mergeWithValue(sheet, 2, 3, 2, 4, "555");
+        });
+
+        assertEquals(1, preview.getRows().size());
+        assertEquals("Dolu Teknoloji", preview.getRows().getFirst().getName());
+    }
+
+    @Test
     void parsesMultipleVisibleSheets() {
         CompanyImportPreview preview = parse(workbook -> {
             Sheet first = workbook.createSheet("Bir");
@@ -304,6 +385,27 @@ class CompanyExcelImportParserTest {
         for (int i = 0; i < values.length; i++) {
             row.createCell(i).setCellValue(values[i]);
         }
+    }
+
+    private void mergeWithValue(
+            Sheet sheet,
+            int firstRow,
+            int firstColumn,
+            int lastRow,
+            int lastColumn,
+            String value
+    ) {
+        Row row = sheet.getRow(firstRow);
+        if (row == null) {
+            row = sheet.createRow(firstRow);
+        }
+        row.createCell(firstColumn).setCellValue(value);
+        sheet.addMergedRegion(new CellRangeAddress(
+                firstRow,
+                lastRow,
+                firstColumn,
+                lastColumn
+        ));
     }
 
     @FunctionalInterface

@@ -26,8 +26,6 @@ import {
     TableHead,
     TablePagination,
     TableRow,
-    ToggleButton,
-    ToggleButtonGroup,
     Tooltip,
     Typography,
     alpha,
@@ -48,8 +46,6 @@ type AcademicianImportDialogProps = {
     open: boolean;
     onClose: () => void;
 };
-
-type RowFilter = 'all' | 'invalid' | 'warning';
 
 const defaultRowsPerPage = 25;
 const optionalFallback = '—';
@@ -693,6 +689,12 @@ function ImportResultSummary({
                     />
                 </Stack>
 
+                {result.skippedRows.length === 0 && result.invalidRows.length === 0 && (
+                    <Alert severity="success" sx={{ borderRadius: '8px' }}>
+                        Tüm geçerli kayıtlar başarıyla aktarıldı.
+                    </Alert>
+                )}
+
                 {(result.skippedRows.length > 0 || result.invalidRows.length > 0) && (
                     <Box
                         sx={{
@@ -726,27 +728,29 @@ function PreviewTable({
 }: {
     preview: AcademicianImportPreviewResponse;
 }) {
-    const [filter, setFilter] = useState<RowFilter>('all');
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
 
-    const filteredRows = useMemo(() => {
-        if (filter === 'invalid') {
-            return preview.rows.filter((row) => !row.valid);
-        }
+    const hiddenValidRowCount = useMemo(
+        () => preview.rows.filter((row) =>
+            row.valid && row.warnings.length === 0).length,
+        [preview.rows],
+    );
+    const problemRows = useMemo(
+        () => preview.rows.filter((row) =>
+            !row.valid || row.warnings.length > 0),
+        [preview.rows],
+    );
 
-        if (filter === 'warning') {
-            return preview.rows.filter((row) => row.valid && row.warnings.length > 0);
-        }
-
-        return preview.rows;
-    }, [filter, preview.rows]);
+    const rowCountText = problemRows.length === preview.invalidRowCount
+        ? `${problemRows.length} hatalı kayıt gösteriliyor`
+        : `${problemRows.length} problemli kayıt gösteriliyor`;
 
     const safePage = Math.min(
         page,
-        Math.max(Math.ceil(filteredRows.length / rowsPerPage) - 1, 0),
+        Math.max(Math.ceil(problemRows.length / rowsPerPage) - 1, 0),
     );
-    const visibleRows = filteredRows.slice(
+    const visibleRows = problemRows.slice(
         safePage * rowsPerPage,
         safePage * rowsPerPage + rowsPerPage,
     );
@@ -763,12 +767,9 @@ function PreviewTable({
             }}
         >
             <Stack
-                direction={{ xs: 'column', sm: 'row' }}
                 spacing={1.5}
                 sx={{
-                    alignItems: { xs: 'stretch', sm: 'center' },
                     bgcolor: 'background.paper',
-                    justifyContent: 'space-between',
                     p: 1.75,
                 }}
             >
@@ -777,46 +778,17 @@ function PreviewTable({
                         Satır önizleme
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                        {filteredRows.length} satır gösteriliyor
+                        {rowCountText}
                     </Typography>
                 </Stack>
-                <ToggleButtonGroup
-                    exclusive
-                    size="small"
-                    value={filter}
-                    onChange={(_, nextFilter: RowFilter | null) => {
-                        if (nextFilter) {
-                            setFilter(nextFilter);
-                            setPage(0);
-                        }
-                    }}
-                    sx={{
-                        alignSelf: { xs: 'stretch', sm: 'center' },
-                        bgcolor: 'background.default',
-                        borderRadius: '8px',
-                        p: 0.25,
-                        '& .MuiToggleButtonGroup-grouped': {
-                            border: 0,
-                            borderRadius: '7px',
-                            mx: 0.125,
-                        },
-                        '& .MuiToggleButton-root': {
-                            flex: { xs: 1, sm: 'initial' },
-                            fontWeight: 700,
-                            px: 1.4,
-                        },
-                        '& .Mui-selected': {
-                            bgcolor: 'background.paper',
-                            boxShadow: '0 1px 6px rgba(15, 23, 42, 0.10)',
-                        },
-                    }}
-                >
-                    <ToggleButton value="all">Tümü</ToggleButton>
-                    <ToggleButton value="invalid">Hatalılar</ToggleButton>
-                    <ToggleButton value="warning">Uyarılılar</ToggleButton>
-                </ToggleButtonGroup>
             </Stack>
             <Divider />
+
+            {hiddenValidRowCount > 0 && problemRows.length === 0 && (
+                <Alert severity="success" sx={{ borderRadius: 0 }}>
+                    {`Tüm kayıtlar geçerli. ${hiddenValidRowCount} kayıt aktarılmaya hazır.`}
+                </Alert>
+            )}
 
             <TableContainer sx={{ maxWidth: '100%', overflowX: 'auto' }}>
                 <Table
@@ -905,9 +877,9 @@ function PreviewTable({
                             <TableRow>
                                 <TableCell colSpan={6}>
                                     <Typography color="text.secondary" sx={{ py: 2 }}>
-                                        {filter === 'warning' && preview.generalWarnings.length > 0
-                                            ? 'Satır bazlı uyarı bulunmuyor. Genel dosya uyarıları yukarıda gösteriliyor.'
-                                            : 'Bu filtrede gösterilecek satır yok.'}
+                                        {problemRows.length === 0
+                                            ? `Tüm kayıtlar geçerli. ${hiddenValidRowCount} kayıt aktarılmaya hazır.`
+                                            : 'Gösterilecek problemli kayıt yok.'}
                                     </Typography>
                                 </TableCell>
                             </TableRow>
@@ -918,7 +890,7 @@ function PreviewTable({
 
             <TablePagination
                 component="div"
-                count={filteredRows.length}
+                count={problemRows.length}
                 page={safePage}
                 rowsPerPage={rowsPerPage}
                 rowsPerPageOptions={[25, 50, 100]}

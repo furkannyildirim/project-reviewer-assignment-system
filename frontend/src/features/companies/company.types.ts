@@ -93,6 +93,29 @@ export type CompanyImportPreviewResponse = {
     rows: CompanyImportPreviewRow[];
 };
 
+export type CompanyImportResultStatus = 'IMPORTED' | 'DUPLICATE' | 'INVALID';
+
+export type CompanyImportResultRow = {
+    sheetName: string;
+    rowNumber: number;
+    name: string | null;
+    activityArea: string | null;
+    phone: string | null;
+    secondaryPhone: string | null;
+    email: string | null;
+    status: CompanyImportResultStatus;
+    messages: string[];
+};
+
+export type CompanyImportResultResponse = {
+    fileName: string;
+    totalRowCount: number;
+    importedCount: number;
+    duplicateCount: number;
+    invalidCount: number;
+    rows: CompanyImportResultRow[];
+};
+
 export type CompanyPageParams = {
     companyType: CompanyType;
     search: string;
