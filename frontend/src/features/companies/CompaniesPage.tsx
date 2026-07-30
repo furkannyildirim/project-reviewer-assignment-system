@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
+import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import {
     Alert,
     Box,
@@ -33,6 +34,7 @@ import type {
 } from './company.types';
 import { companyPageSizes } from './company.types';
 import { CompanyFormDialog } from './components/CompanyFormDialog';
+import { CompanyImportPreviewDialog } from './components/CompanyImportPreviewDialog';
 import { CompanyTable } from './components/CompanyTable';
 
 type FormMode = {
@@ -65,6 +67,7 @@ export function CompaniesPage({
     const [size, setSize] = useState(10);
     const [formMode, setFormMode] = useState<FormMode>(null);
     const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
+    const [isImportDialogOpen, setImportDialogOpen] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [snackbar, setSnackbar] = useState<SnackbarState>(null);
     const debouncedSearch = useDebouncedValue(search.trim(), 400);
@@ -214,13 +217,29 @@ export function CompaniesPage({
                 title={title}
                 description={description}
                 action={(
-                    <Button
-                        variant="contained"
-                        startIcon={<AddBusinessOutlinedIcon />}
-                        onClick={() => setFormMode({ type: 'create', company: null })}
+                    <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={1}
+                        sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}
                     >
+                        {companyType === 'TGB' && (
+                            <Button
+                                variant="outlined"
+                                startIcon={<UploadFileOutlinedIcon />}
+                                onClick={() => setImportDialogOpen(true)}
+                            >
+                                Excel'den Aktar
+                            </Button>
+                        )}
+
+                        <Button
+                            variant="contained"
+                            startIcon={<AddBusinessOutlinedIcon />}
+                            onClick={() => setFormMode({ type: 'create', company: null })}
+                        >
                         Şirket Ekle
-                    </Button>
+                        </Button>
+                    </Stack>
                 )}
             />
 
@@ -342,6 +361,13 @@ export function CompaniesPage({
                 }}
                 onSubmit={handleFormSubmit}
             />
+
+            {companyType === 'TGB' && (
+                <CompanyImportPreviewDialog
+                    open={isImportDialogOpen}
+                    onClose={() => setImportDialogOpen(false)}
+                />
+            )}
 
             <ConfirmDialog
                 open={Boolean(companyToDelete)}

@@ -66,6 +66,33 @@ export type UpdateCompanyRequest = Omit<
     contacts: UpdateCompanyContactRequest[];
 };
 
+export type CompanyImportPreviewRow = {
+    sheetName: string;
+    rowNumber: number;
+    name: string | null;
+    activityArea: string | null;
+    phone: string | null;
+    secondaryPhone: string | null;
+    email: string | null;
+    errors: string[];
+    warnings: string[];
+    valid: boolean;
+};
+
+export type CompanyImportPreviewResponse = {
+    fileName: string;
+    sheetCount: number;
+    totalRowCount: number;
+    validRowCount: number;
+    invalidRowCount: number;
+    warningCount: number;
+    detectedHeaders: string[];
+    ignoredHeaders: string[];
+    generalWarnings: string[];
+    generalInformationMessages: string[];
+    rows: CompanyImportPreviewRow[];
+};
+
 export type CompanyPageParams = {
     companyType: CompanyType;
     search: string;

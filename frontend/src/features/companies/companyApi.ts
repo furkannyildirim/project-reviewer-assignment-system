@@ -2,6 +2,7 @@ import { httpClient } from '../../api/httpClient';
 import type { PageResponse } from '../../types/api';
 import type {
     CompanyDetail,
+    CompanyImportPreviewResponse,
     CompanyListItem,
     CompanyPageParams,
     CreateCompanyRequest,
@@ -21,6 +22,20 @@ export async function getCompanies(
 
 export async function getCompanyById(id: number): Promise<CompanyDetail> {
     const response = await httpClient.get<CompanyDetail>(`/companies/${id}`);
+
+    return response.data;
+}
+
+export async function previewCompanyImport(
+    file: File,
+): Promise<CompanyImportPreviewResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await httpClient.post<CompanyImportPreviewResponse>(
+        '/companies/import/preview',
+        formData,
+    );
 
     return response.data;
 }

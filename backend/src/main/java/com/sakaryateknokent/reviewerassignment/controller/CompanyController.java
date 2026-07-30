@@ -2,9 +2,11 @@ package com.sakaryateknokent.reviewerassignment.controller;
 
 import com.sakaryateknokent.reviewerassignment.dto.CompanyListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyResponse;
+import com.sakaryateknokent.reviewerassignment.dto.CompanyImportPreviewResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateCompanyRequest;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
+import com.sakaryateknokent.reviewerassignment.service.CompanyImportPreviewService;
 import com.sakaryateknokent.reviewerassignment.service.CompanyService;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
 import jakarta.validation.Valid;
@@ -12,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 
 @RestController
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class CompanyController {
 
     private final CompanyService companyService;
+    private final CompanyImportPreviewService importPreviewService;
 
     @PostMapping
     public ResponseEntity<CompanyResponse> createCompany(
@@ -27,6 +31,13 @@ public class CompanyController {
     ) {
         CompanyResponse response = companyService.createCompany(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/import/preview")
+    public ResponseEntity<CompanyImportPreviewResponse> previewImport(
+            @RequestParam("file") MultipartFile file
+    ) {
+        return ResponseEntity.ok(importPreviewService.preview(file));
     }
 
     @GetMapping
