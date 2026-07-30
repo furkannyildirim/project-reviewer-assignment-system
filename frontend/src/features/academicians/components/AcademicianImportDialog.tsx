@@ -85,29 +85,68 @@ function SummaryMetric({
     label,
     value,
     color = 'text.primary',
+    tone = 'default',
 }: {
     label: string;
     value: number | string;
     color?: string;
+    tone?: 'default' | 'success' | 'error' | 'warning' | 'info';
 }) {
     return (
         <Paper
             elevation={0}
-            sx={{
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: '8px',
-                minWidth: 132,
-                px: 1.5,
-                py: 1.25,
+            sx={(theme) => {
+                const toneColors = {
+                    default: theme.palette.grey[500],
+                    success: theme.palette.success.main,
+                    error: theme.palette.error.main,
+                    warning: theme.palette.warning.main,
+                    info: theme.palette.info.main,
+                };
+                const accentColor = toneColors[tone];
+
+                return {
+                    position: 'relative',
+                    border: '1px solid',
+                    borderColor: alpha(accentColor, tone === 'default' ? 0.18 : 0.28),
+                    borderRadius: '8px',
+                    minWidth: 132,
+                    maxWidth: label === 'Dosya adı' ? 360 : undefined,
+                    overflow: 'hidden',
+                    px: 1.75,
+                    py: 1.45,
+                    bgcolor: alpha(accentColor, tone === 'default' ? 0.025 : 0.06),
+                    boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, 0.75)}`,
+                    '&::before': {
+                        bgcolor: accentColor,
+                        bottom: 0,
+                        content: '""',
+                        left: 0,
+                        position: 'absolute',
+                        top: 0,
+                        width: 4,
+                    },
+                };
             }}
         >
-            <Typography variant="caption" color="text.secondary">
+            <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', fontWeight: 700 }}
+            >
                 {label}
             </Typography>
             <Typography
                 variant="h6"
-                sx={{ color, fontWeight: 700, lineHeight: 1.25, mt: 0.25 }}
+                sx={{
+                    color,
+                    fontWeight: 800,
+                    lineHeight: 1.2,
+                    mt: 0.35,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                }}
             >
                 {value}
             </Typography>
@@ -118,19 +157,51 @@ function SummaryMetric({
 function HeaderChips({
     title,
     headers,
+    color = 'primary',
 }: {
     title: string;
     headers: string[];
+    color?: 'primary' | 'warning';
 }) {
     return (
-        <Stack spacing={0.75} sx={{ minWidth: 0 }}>
-            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                {title}
-            </Typography>
+        <Paper
+            elevation={0}
+            sx={(theme) => ({
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: '8px',
+                flex: 1,
+                minWidth: 0,
+                p: 1.5,
+                bgcolor: alpha(theme.palette.background.default, 0.62),
+            })}
+        >
+            <Stack
+                direction="row"
+                spacing={1}
+                sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}
+            >
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                    {title}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                    {headers.length}
+                </Typography>
+            </Stack>
             {headers.length > 0 ? (
                 <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap' }}>
                     {headers.map((header) => (
-                        <Chip key={header} label={header} size="small" variant="outlined" />
+                        <Chip
+                            key={header}
+                            label={header}
+                            size="small"
+                            color={color}
+                            variant="outlined"
+                            sx={{
+                                bgcolor: 'background.paper',
+                                fontWeight: 700,
+                            }}
+                        />
                     ))}
                 </Stack>
             ) : (
@@ -138,7 +209,7 @@ function HeaderChips({
                     {optionalFallback}
                 </Typography>
             )}
-        </Stack>
+        </Paper>
     );
 }
 
@@ -250,29 +321,48 @@ function RowMessages({ row }: { row: AcademicianImportPreviewRow }) {
 function PreviewSummary({ preview }: { preview: AcademicianImportPreviewResponse }) {
     return (
         <Stack spacing={2}>
-            <Stack direction="row" spacing={1.25} useFlexGap sx={{ flexWrap: 'wrap' }}>
-                <SummaryMetric label="Dosya adı" value={preview.fileName} />
+            <Stack
+                sx={{
+                    display: 'grid',
+                    gap: 1.25,
+                    gridTemplateColumns: {
+                        xs: '1fr',
+                        sm: 'repeat(2, minmax(0, 1fr))',
+                        md: 'minmax(220px, 2fr) repeat(5, minmax(132px, 1fr))',
+                    },
+                }}
+            >
+                <SummaryMetric label="Dosya adı" value={preview.fileName} tone="info" />
                 <SummaryMetric label="Sayfa sayısı" value={preview.sheetCount} />
                 <SummaryMetric label="Toplam kayıt" value={preview.totalDetectedRows} />
                 <SummaryMetric
                     label="Geçerli kayıt"
                     value={preview.validRowCount}
                     color="success.main"
+                    tone="success"
                 />
                 <SummaryMetric
                     label="Hatalı kayıt"
                     value={preview.invalidRowCount}
                     color="error.main"
+                    tone="error"
                 />
                 <SummaryMetric
                     label="Uyarı sayısı"
                     value={preview.warningCount}
                     color="warning.main"
+                    tone="warning"
                 />
             </Stack>
 
             {preview.generalWarnings.length > 0 && (
-                <Alert severity="warning">
+                <Alert
+                    severity="warning"
+                    sx={{
+                        borderRadius: '8px',
+                        '& .MuiAlert-message': { width: '100%' },
+                    }}
+                >
                     <Stack component="ul" sx={{ m: 0, pl: 2 }}>
                         {preview.generalWarnings.map((warning) => (
                             <li key={warning}>{warning}</li>
@@ -282,7 +372,13 @@ function PreviewSummary({ preview }: { preview: AcademicianImportPreviewResponse
             )}
 
             {preview.generalInformationMessages.length > 0 && (
-                <Alert severity="info">
+                <Alert
+                    severity="info"
+                    sx={{
+                        borderRadius: '8px',
+                        '& .MuiAlert-message': { width: '100%' },
+                    }}
+                >
                     <Stack component="ul" sx={{ m: 0, pl: 2 }}>
                         {preview.generalInformationMessages.map((message) => (
                             <li key={message}>{message}</li>
@@ -292,12 +388,12 @@ function PreviewSummary({ preview }: { preview: AcademicianImportPreviewResponse
             )}
 
             {hasProjectsHeader(preview.ignoredHeaders) && (
-                <Alert severity="info">
+                <Alert severity="info" sx={{ borderRadius: '8px' }}>
                     Projeler sütunu bu aktarımda kullanılmayacak.
                 </Alert>
             )}
 
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
                 <HeaderChips
                     title="Algılanan sütunlar"
                     headers={preview.detectedHeaders}
@@ -305,6 +401,7 @@ function PreviewSummary({ preview }: { preview: AcademicianImportPreviewResponse
                 <HeaderChips
                     title="Kullanılmayan sütunlar"
                     headers={preview.ignoredHeaders}
+                    color="warning"
                 />
             </Stack>
         </Stack>
@@ -321,7 +418,13 @@ function getImportErrorMessage(error: unknown) {
     return message;
 }
 
-function ResultRowLine({ row }: { row: AcademicianImportResultRow }) {
+function ResultRowLine({
+    row,
+    tone,
+}: {
+    row: AcademicianImportResultRow;
+    tone: 'warning' | 'error';
+}) {
     const messages = row.messages.length > 0
         ? row.messages.join(', ')
         : row.status === 'SKIPPED_INVALID'
@@ -329,21 +432,141 @@ function ResultRowLine({ row }: { row: AcademicianImportResultRow }) {
             : 'Tekrar eden kayıt atlandı';
 
     return (
-        <Stack spacing={0.25}>
-            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                {displayOptional(row.sheetName)} / Excel satırı {row.rowNumber}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-                {displayOptional(row.firstName)} {displayOptional(row.lastName)}
-                {' · '}
-                {displayOptional(row.title)}
-                {' · '}
-                {displayOptional(row.email)}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-                {messages}
-            </Typography>
-        </Stack>
+        <Paper
+            elevation={0}
+            sx={(theme) => {
+                const accent = tone === 'error'
+                    ? theme.palette.error.main
+                    : theme.palette.warning.main;
+
+                return {
+                    border: '1px solid',
+                    borderColor: alpha(accent, 0.22),
+                    borderRadius: '8px',
+                    bgcolor: alpha(accent, 0.035),
+                    p: 1.25,
+                };
+            }}
+        >
+            <Stack spacing={0.75}>
+                <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: 'center', justifyContent: 'space-between' }}
+                >
+                    <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap>
+                        {displayOptional(row.sheetName)}
+                    </Typography>
+                    <Chip
+                        label={`Excel satırı ${row.rowNumber}`}
+                        size="small"
+                        color={tone}
+                        variant="outlined"
+                        sx={{ bgcolor: 'background.paper', fontWeight: 700 }}
+                    />
+                </Stack>
+                <Typography variant="body2" color="text.secondary" noWrap>
+                    {displayOptional(row.firstName)} {displayOptional(row.lastName)}
+                    {' · '}
+                    {displayOptional(row.title)}
+                    {' · '}
+                    {displayOptional(row.email)}
+                </Typography>
+                <Typography
+                    variant="caption"
+                    sx={{
+                        color: tone === 'error' ? 'error.main' : 'warning.dark',
+                        display: '-webkit-box',
+                        overflow: 'hidden',
+                        WebkitBoxOrient: 'vertical',
+                        WebkitLineClamp: 2,
+                    }}
+                >
+                    {messages}
+                </Typography>
+            </Stack>
+        </Paper>
+    );
+}
+
+function ResultRowsPanel({
+    title,
+    rows,
+    tone,
+}: {
+    title: string;
+    rows: AcademicianImportResultRow[];
+    tone: 'warning' | 'error';
+}) {
+    if (rows.length === 0) {
+        return null;
+    }
+
+    return (
+        <Paper
+            elevation={0}
+            sx={(theme) => {
+                const accent = tone === 'error'
+                    ? theme.palette.error.main
+                    : theme.palette.warning.main;
+
+                return {
+                    border: '1px solid',
+                    borderColor: alpha(accent, 0.20),
+                    borderRadius: '8px',
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    bgcolor: 'background.paper',
+                };
+            }}
+        >
+            <Stack
+                direction="row"
+                spacing={1}
+                sx={(theme) => {
+                    const accent = tone === 'error'
+                        ? theme.palette.error.main
+                        : theme.palette.warning.main;
+
+                    return {
+                        alignItems: 'center',
+                        bgcolor: alpha(accent, 0.07),
+                        borderBottom: '1px solid',
+                        borderBottomColor: alpha(accent, 0.16),
+                        justifyContent: 'space-between',
+                        px: 1.5,
+                        py: 1.25,
+                    };
+                }}
+            >
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                    {title}
+                </Typography>
+                <Chip
+                    label={rows.length}
+                    size="small"
+                    color={tone}
+                    sx={{ fontWeight: 800, minWidth: 34 }}
+                />
+            </Stack>
+            <Box
+                sx={{
+                    maxHeight: 260,
+                    overflowY: 'auto',
+                    p: 1.25,
+                }}
+            >
+                <Stack spacing={1}>
+                    {rows.map((row) => (
+                        <ResultRowLine
+                            key={`${row.sheetName}-${row.rowNumber}-${row.status}`}
+                            row={row}
+                            tone={tone}
+                        />
+                    ))}
+                </Stack>
+            </Box>
+        </Paper>
     );
 }
 
@@ -404,58 +627,28 @@ function ImportResultSummary({
                     </Alert>
                 )}
 
-                {result.skippedRows.length > 0 && (
-                    <Stack spacing={1}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                            Duplicate olduğu için atlanan kayıtlar
-                        </Typography>
-                        <Paper
-                            elevation={0}
-                            sx={{
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                maxHeight: 220,
-                                overflowY: 'auto',
-                                p: 1.25,
-                            }}
-                        >
-                            <Stack divider={<Divider flexItem />} spacing={1}>
-                                {result.skippedRows.map((row) => (
-                                    <ResultRowLine
-                                        key={`${row.sheetName}-${row.rowNumber}-${row.status}`}
-                                        row={row}
-                                    />
-                                ))}
-                            </Stack>
-                        </Paper>
-                    </Stack>
-                )}
-
-                {result.invalidRows.length > 0 && (
-                    <Stack spacing={1}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                            Hatalı olduğu için aktarılmayan kayıtlar
-                        </Typography>
-                        <Paper
-                            elevation={0}
-                            sx={{
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                maxHeight: 220,
-                                overflowY: 'auto',
-                                p: 1.25,
-                            }}
-                        >
-                            <Stack divider={<Divider flexItem />} spacing={1}>
-                                {result.invalidRows.map((row) => (
-                                    <ResultRowLine
-                                        key={`${row.sheetName}-${row.rowNumber}-${row.status}`}
-                                        row={row}
-                                    />
-                                ))}
-                            </Stack>
-                        </Paper>
-                    </Stack>
+                {(result.skippedRows.length > 0 || result.invalidRows.length > 0) && (
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            gap: 1.5,
+                            gridTemplateColumns: {
+                                xs: '1fr',
+                                md: 'repeat(2, minmax(0, 1fr))',
+                            },
+                        }}
+                    >
+                        <ResultRowsPanel
+                            title="Duplicate olduğu için atlanan kayıtlar"
+                            rows={result.skippedRows}
+                            tone="warning"
+                        />
+                        <ResultRowsPanel
+                            title="Hatalı olduğu için aktarılmayan kayıtlar"
+                            rows={result.invalidRows}
+                            tone="error"
+                        />
+                    </Box>
                 )}
             </Stack>
         </Paper>
@@ -500,6 +693,7 @@ function PreviewTable({
                 borderColor: 'divider',
                 borderRadius: '8px',
                 overflow: 'hidden',
+                boxShadow: '0 10px 30px rgba(15, 23, 42, 0.06)',
             }}
         >
             <Stack
@@ -507,13 +701,19 @@ function PreviewTable({
                 spacing={1.5}
                 sx={{
                     alignItems: { xs: 'stretch', sm: 'center' },
+                    bgcolor: 'background.paper',
                     justifyContent: 'space-between',
-                    p: 1.5,
+                    p: 1.75,
                 }}
             >
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                    Satır önizleme
-                </Typography>
+                <Stack spacing={0.25}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                        Satır önizleme
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        {filteredRows.length} satır gösteriliyor
+                    </Typography>
+                </Stack>
                 <ToggleButtonGroup
                     exclusive
                     size="small"
@@ -526,7 +726,23 @@ function PreviewTable({
                     }}
                     sx={{
                         alignSelf: { xs: 'stretch', sm: 'center' },
-                        '& .MuiToggleButton-root': { flex: { xs: 1, sm: 'initial' } },
+                        bgcolor: 'background.default',
+                        borderRadius: '8px',
+                        p: 0.25,
+                        '& .MuiToggleButtonGroup-grouped': {
+                            border: 0,
+                            borderRadius: '7px',
+                            mx: 0.125,
+                        },
+                        '& .MuiToggleButton-root': {
+                            flex: { xs: 1, sm: 'initial' },
+                            fontWeight: 700,
+                            px: 1.4,
+                        },
+                        '& .Mui-selected': {
+                            bgcolor: 'background.paper',
+                            boxShadow: '0 1px 6px rgba(15, 23, 42, 0.10)',
+                        },
                     }}
                 >
                     <ToggleButton value="all">Tümü</ToggleButton>
@@ -543,7 +759,18 @@ function PreviewTable({
                     aria-label="Excel önizleme tablosu"
                 >
                     <TableHead>
-                        <TableRow>
+                        <TableRow
+                            sx={(theme) => ({
+                                '& .MuiTableCell-head': {
+                                    bgcolor: alpha(theme.palette.primary.main, 0.04),
+                                    borderBottomColor: alpha(theme.palette.primary.main, 0.16),
+                                    color: 'text.secondary',
+                                    fontSize: 12,
+                                    fontWeight: 800,
+                                    textTransform: 'uppercase',
+                                },
+                            })}
+                        >
                             <TableCell sx={{ width: 132 }}>Durum</TableCell>
                             <TableCell sx={{ width: 156 }}>Kaynak</TableCell>
                             <TableCell sx={{ width: 140 }}>Ad</TableCell>
