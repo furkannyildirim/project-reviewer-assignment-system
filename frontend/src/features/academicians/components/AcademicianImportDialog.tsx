@@ -318,90 +318,166 @@ function RowMessages({ row }: { row: AcademicianImportPreviewRow }) {
     );
 }
 
-function PreviewSummary({ preview }: { preview: AcademicianImportPreviewResponse }) {
+function PreviewNoticePanel({
+    preview,
+    showNoSaveInfo,
+}: {
+    preview: AcademicianImportPreviewResponse;
+    showNoSaveInfo: boolean;
+}) {
+    const hasNotices = preview.invalidRowCount > 0
+        || preview.generalWarnings.length > 0
+        || preview.generalInformationMessages.length > 0
+        || hasProjectsHeader(preview.ignoredHeaders)
+        || showNoSaveInfo;
+
+    if (!hasNotices) {
+        return null;
+    }
+
+    return (
+        <Paper
+            elevation={0}
+            sx={{
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: '8px',
+                flex: { lg: '0 0 380px' },
+                minWidth: 0,
+                overflow: 'hidden',
+            }}
+        >
+            <Stack
+                direction="row"
+                sx={{
+                    alignItems: 'center',
+                    bgcolor: 'background.default',
+                    borderBottom: '1px solid',
+                    borderBottomColor: 'divider',
+                    justifyContent: 'space-between',
+                    px: 1.5,
+                    py: 1.1,
+                }}
+            >
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                    Önizleme notları
+                </Typography>
+                <Chip
+                    label="Kontrol"
+                    size="small"
+                    variant="outlined"
+                    sx={{ bgcolor: 'background.paper', fontWeight: 700 }}
+                />
+            </Stack>
+            <Stack spacing={1} sx={{ p: 1.25 }}>
+                {preview.invalidRowCount > 0 && (
+                    <Alert severity="warning" sx={{ borderRadius: '8px', py: 0.5 }}>
+                        {preview.invalidRowCount} hatalı kayıt aktarılmayacak.
+                        {' '}
+                        {preview.validRowCount} geçerli kayıt aktarılabilir.
+                    </Alert>
+                )}
+
+                {preview.generalWarnings.map((warning) => (
+                    <Alert
+                        key={warning}
+                        severity="warning"
+                        sx={{ borderRadius: '8px', py: 0.5 }}
+                    >
+                        {warning}
+                    </Alert>
+                ))}
+
+                {preview.generalInformationMessages.map((message) => (
+                    <Alert
+                        key={message}
+                        severity="info"
+                        sx={{ borderRadius: '8px', py: 0.5 }}
+                    >
+                        {message}
+                    </Alert>
+                ))}
+
+                {hasProjectsHeader(preview.ignoredHeaders) && (
+                    <Alert severity="info" sx={{ borderRadius: '8px', py: 0.5 }}>
+                        Projeler sütunu bu aktarımda kullanılmayacak.
+                    </Alert>
+                )}
+
+                {showNoSaveInfo && (
+                    <Alert severity="info" sx={{ borderRadius: '8px', py: 0.5 }}>
+                        Bu aşamada veritabanına kayıt yapılmaz.
+                    </Alert>
+                )}
+            </Stack>
+        </Paper>
+    );
+}
+
+function PreviewSummary({
+    preview,
+    showNoSaveInfo,
+}: {
+    preview: AcademicianImportPreviewResponse;
+    showNoSaveInfo: boolean;
+}) {
     return (
         <Stack spacing={2}>
             <Stack
-                sx={{
-                    display: 'grid',
-                    gap: 1.25,
-                    gridTemplateColumns: {
-                        xs: '1fr',
-                        sm: 'repeat(2, minmax(0, 1fr))',
-                        md: 'minmax(220px, 2fr) repeat(5, minmax(132px, 1fr))',
-                    },
-                }}
+                direction={{ xs: 'column', lg: 'row' }}
+                spacing={1.5}
+                sx={{ alignItems: 'flex-start' }}
             >
-                <SummaryMetric label="Dosya adı" value={preview.fileName} tone="info" />
-                <SummaryMetric label="Sayfa sayısı" value={preview.sheetCount} />
-                <SummaryMetric label="Toplam kayıt" value={preview.totalDetectedRows} />
-                <SummaryMetric
-                    label="Geçerli kayıt"
-                    value={preview.validRowCount}
-                    color="success.main"
-                    tone="success"
-                />
-                <SummaryMetric
-                    label="Hatalı kayıt"
-                    value={preview.invalidRowCount}
-                    color="error.main"
-                    tone="error"
-                />
-                <SummaryMetric
-                    label="Uyarı sayısı"
-                    value={preview.warningCount}
-                    color="warning.main"
-                    tone="warning"
-                />
-            </Stack>
-
-            {preview.generalWarnings.length > 0 && (
-                <Alert
-                    severity="warning"
-                    sx={{
-                        borderRadius: '8px',
-                        '& .MuiAlert-message': { width: '100%' },
-                    }}
-                >
-                    <Stack component="ul" sx={{ m: 0, pl: 2 }}>
-                        {preview.generalWarnings.map((warning) => (
-                            <li key={warning}>{warning}</li>
-                        ))}
+                <Stack spacing={2} sx={{ flex: 1, minWidth: 0 }}>
+                    <Stack
+                        sx={{
+                            display: 'grid',
+                            gap: 1.25,
+                            gridTemplateColumns: {
+                                xs: '1fr',
+                                sm: 'repeat(2, minmax(0, 1fr))',
+                                md: 'repeat(3, minmax(0, 1fr))',
+                            },
+                        }}
+                    >
+                        <SummaryMetric label="Dosya adı" value={preview.fileName} tone="info" />
+                        <SummaryMetric label="Sayfa sayısı" value={preview.sheetCount} />
+                        <SummaryMetric label="Toplam kayıt" value={preview.totalDetectedRows} />
+                        <SummaryMetric
+                            label="Geçerli kayıt"
+                            value={preview.validRowCount}
+                            color="success.main"
+                            tone="success"
+                        />
+                        <SummaryMetric
+                            label="Hatalı kayıt"
+                            value={preview.invalidRowCount}
+                            color="error.main"
+                            tone="error"
+                        />
+                        <SummaryMetric
+                            label="Uyarı sayısı"
+                            value={preview.warningCount}
+                            color="warning.main"
+                            tone="warning"
+                        />
                     </Stack>
-                </Alert>
-            )}
 
-            {preview.generalInformationMessages.length > 0 && (
-                <Alert
-                    severity="info"
-                    sx={{
-                        borderRadius: '8px',
-                        '& .MuiAlert-message': { width: '100%' },
-                    }}
-                >
-                    <Stack component="ul" sx={{ m: 0, pl: 2 }}>
-                        {preview.generalInformationMessages.map((message) => (
-                            <li key={message}>{message}</li>
-                        ))}
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                        <HeaderChips
+                            title="Algılanan sütunlar"
+                            headers={preview.detectedHeaders}
+                        />
+                        <HeaderChips
+                            title="Kullanılmayan sütunlar"
+                            headers={preview.ignoredHeaders}
+                            color="warning"
+                        />
                     </Stack>
-                </Alert>
-            )}
-
-            {hasProjectsHeader(preview.ignoredHeaders) && (
-                <Alert severity="info" sx={{ borderRadius: '8px' }}>
-                    Projeler sütunu bu aktarımda kullanılmayacak.
-                </Alert>
-            )}
-
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-                <HeaderChips
-                    title="Algılanan sütunlar"
-                    headers={preview.detectedHeaders}
-                />
-                <HeaderChips
-                    title="Kullanılmayan sütunlar"
-                    headers={preview.ignoredHeaders}
-                    color="warning"
+                </Stack>
+                <PreviewNoticePanel
+                    preview={preview}
+                    showNoSaveInfo={showNoSaveInfo}
                 />
             </Stack>
         </Stack>
@@ -551,7 +627,7 @@ function ResultRowsPanel({
             </Stack>
             <Box
                 sx={{
-                    maxHeight: 260,
+                    maxHeight: 360,
                     overflowY: 'auto',
                     p: 1.25,
                 }}
@@ -616,16 +692,6 @@ function ImportResultSummary({
                         color="warning.main"
                     />
                 </Stack>
-
-                {result.generalWarnings.length > 0 && (
-                    <Alert severity="warning">
-                        <Stack component="ul" sx={{ m: 0, pl: 2 }}>
-                            {result.generalWarnings.map((warning) => (
-                                <li key={warning}>{warning}</li>
-                            ))}
-                        </Stack>
-                    </Alert>
-                )}
 
                 {(result.skippedRows.length > 0 || result.invalidRows.length > 0) && (
                     <Box
@@ -755,7 +821,7 @@ function PreviewTable({
             <TableContainer sx={{ maxWidth: '100%', overflowX: 'auto' }}>
                 <Table
                     size="small"
-                    sx={{ minWidth: 1240, tableLayout: 'fixed' }}
+                    sx={{ minWidth: 1040, tableLayout: 'fixed' }}
                     aria-label="Excel önizleme tablosu"
                 >
                     <TableHead>
@@ -773,13 +839,10 @@ function PreviewTable({
                         >
                             <TableCell sx={{ width: 132 }}>Durum</TableCell>
                             <TableCell sx={{ width: 156 }}>Kaynak</TableCell>
-                            <TableCell sx={{ width: 140 }}>Ad</TableCell>
-                            <TableCell sx={{ width: 140 }}>Soyad</TableCell>
-                            <TableCell sx={{ width: 148 }}>Ünvan</TableCell>
-                            <TableCell sx={{ width: 210 }}>E-posta</TableCell>
-                            <TableCell sx={{ width: 136 }}>Telefon</TableCell>
-                            <TableCell sx={{ width: 222 }}>Anahtar Kelimeler</TableCell>
-                            <TableCell sx={{ width: 280 }}>Uyarı/Hata</TableCell>
+                            <TableCell sx={{ width: 260 }}>Kaydedilecek Akademisyen</TableCell>
+                            <TableCell sx={{ width: 260 }}>İletişim</TableCell>
+                            <TableCell sx={{ width: 230 }}>Anahtar Kelimeler</TableCell>
+                            <TableCell sx={{ width: 300 }}>Uyarı/Hata</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -809,29 +872,26 @@ function PreviewTable({
                                     </Stack>
                                 </TableCell>
                                 <TableCell>
-                                    <Typography sx={{ fontWeight: 600 }} noWrap>
-                                        {displayOptional(row.firstName)}
-                                    </Typography>
+                                    <Stack spacing={0.35} sx={{ minWidth: 0 }}>
+                                        <Typography sx={{ fontWeight: 800 }} noWrap>
+                                            {displayOptional(row.firstName)}
+                                            {' '}
+                                            {displayOptional(row.lastName)}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary" noWrap>
+                                            {displayOptional(row.title)}
+                                        </Typography>
+                                    </Stack>
                                 </TableCell>
                                 <TableCell>
-                                    <Typography sx={{ fontWeight: 600 }} noWrap>
-                                        {displayOptional(row.lastName)}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell>
-                                    <Typography noWrap sx={{ maxWidth: 160 }}>
-                                        {displayOptional(row.title)}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell>
-                                    <Typography noWrap sx={{ maxWidth: 220 }}>
-                                        {displayOptional(row.email)}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell>
-                                    <Typography noWrap sx={{ maxWidth: 140 }}>
-                                        {displayOptional(row.phone)}
-                                    </Typography>
+                                    <Stack spacing={0.35} sx={{ minWidth: 0 }}>
+                                        <Typography variant="body2" noWrap>
+                                            {displayOptional(row.email)}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary" noWrap>
+                                            {displayOptional(row.phone)}
+                                        </Typography>
+                                    </Stack>
                                 </TableCell>
                                 <TableCell>
                                     <KeywordPreview keywords={row.keywords} />
@@ -843,7 +903,7 @@ function PreviewTable({
                         ))}
                         {visibleRows.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={9}>
+                                <TableCell colSpan={6}>
                                     <Typography color="text.secondary" sx={{ py: 2 }}>
                                         {filter === 'warning' && preview.generalWarnings.length > 0
                                             ? 'Satır bazlı uyarı bulunmuyor. Genel dosya uyarıları yukarıda gösteriliyor.'
@@ -1103,14 +1163,6 @@ export function AcademicianImportDialog({
                         <Alert severity="error">{importError}</Alert>
                     )}
 
-                    {preview && preview.invalidRowCount > 0 && (
-                        <Alert severity="warning">
-                            {preview.invalidRowCount} hatalı kayıt aktarılmayacak.
-                            {' '}
-                            {preview.validRowCount} geçerli kayıt aktarılabilir.
-                        </Alert>
-                    )}
-
                     {previewMutation.isPending && (
                         <Stack spacing={1}>
                             <LinearProgress />
@@ -1131,13 +1183,11 @@ export function AcademicianImportDialog({
 
                     {preview && (
                         <>
-                            <PreviewSummary preview={preview} />
+                            <PreviewSummary
+                                preview={preview}
+                                showNoSaveInfo={!importResult}
+                            />
                             <PreviewTable preview={preview} />
-                            {!importResult && (
-                                <Alert severity="info">
-                                    Bu aşamada veritabanına kayıt yapılmaz.
-                                </Alert>
-                            )}
                         </>
                     )}
 
