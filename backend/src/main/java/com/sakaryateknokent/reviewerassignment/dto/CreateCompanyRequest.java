@@ -26,7 +26,7 @@ public record CreateCompanyRequest(
         @Size(max = 30, message = "İkinci telefon en fazla 30 karakter olabilir")
         String secondaryPhone,
 
-        @Size(max = 255, message = "Faaliyet alanı en fazla 255 karakter olabilir")
+        @Size(max = 2000, message = "Faaliyet alanı en fazla 2000 karakter olabilir")
         String activityArea,
 
         @Size(max = 500, message = "Logo adresi en fazla 500 karakter olabilir")

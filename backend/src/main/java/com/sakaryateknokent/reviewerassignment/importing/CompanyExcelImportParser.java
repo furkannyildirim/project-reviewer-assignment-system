@@ -1,5 +1,6 @@
 package com.sakaryateknokent.reviewerassignment.importing;
 
+import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.service.AcademicianTextNormalizer;
 import org.apache.poi.ss.usermodel.Cell;
@@ -31,12 +32,23 @@ public class CompanyExcelImportParser {
     private static final int MAX_NAME_LENGTH = 200;
     private static final int MAX_EMAIL_LENGTH = 255;
     private static final int MAX_PHONE_LENGTH = 30;
-    private static final int MAX_ACTIVITY_AREA_LENGTH = 255;
+    private static final int MAX_ACTIVITY_AREA_LENGTH = 2000;
+    private static final int MAX_CONTACT_POSITION_LENGTH = 150;
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
             "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
     );
+    private static final Set<String> OPTIONAL_PLACEHOLDER_KEYS =
+            createOptionalPlaceholderKeys();
     private static final Set<HeaderType> IGNORED_KNOWN_HEADER_TYPES =
-            Set.of(HeaderType.NO, HeaderType.BUILDING, HeaderType.WEB);
+            Set.of(
+                    HeaderType.NO,
+                    HeaderType.BUILDING,
+                    HeaderType.WEB,
+                    HeaderType.CITY,
+                    HeaderType.DISTRICT,
+                    HeaderType.OSB,
+                    HeaderType.ADDRESS
+            );
     private static final String UNUSED_COMPANY_COLUMNS_MESSAGE =
             "No, Bina ve Web sutunlari bu aktarimda kullanilmayacaktir.";
     private static final Map<String, HeaderType> HEADER_ALIASES =
@@ -47,6 +59,14 @@ public class CompanyExcelImportParser {
     public CompanyImportPreview parse(
             String fileName,
             InputStream inputStream
+    ) {
+        return parse(fileName, inputStream, CompanyType.TGB);
+    }
+
+    public CompanyImportPreview parse(
+            String fileName,
+            InputStream inputStream,
+            CompanyType companyType
     ) {
         if (fileName == null
                 || !fileName.toLowerCase(Locale.ROOT).endsWith(".xlsx")) {
@@ -60,7 +80,7 @@ public class CompanyExcelImportParser {
 
         try (InputStream stream = inputStream;
              Workbook workbook = WorkbookFactory.create(stream)) {
-            parseWorkbook(workbook, preview);
+            parseWorkbook(workbook, preview, companyType);
         } catch (IOException | RuntimeException exception) {
             if (exception instanceof InvalidRequestException invalidRequest) {
                 throw invalidRequest;
@@ -83,7 +103,8 @@ public class CompanyExcelImportParser {
 
     private void parseWorkbook(
             Workbook workbook,
-            CompanyImportPreview preview
+            CompanyImportPreview preview,
+            CompanyType companyType
     ) {
         boolean headerFound = false;
         int visibleSheetCount = 0;
@@ -105,7 +126,7 @@ public class CompanyExcelImportParser {
             }
 
             headerFound = true;
-            parseRows(sheet, headerMapping.get(), preview);
+            parseRows(sheet, headerMapping.get(), preview, companyType);
         }
 
         preview.setSheetCount(visibleSheetCount);
@@ -212,7 +233,8 @@ public class CompanyExcelImportParser {
     private void parseRows(
             Sheet sheet,
             HeaderMapping mapping,
-            CompanyImportPreview preview
+            CompanyImportPreview preview,
+            CompanyType companyType
     ) {
         String sheetName = sheet.getSheetName() == null
                 ? ""
@@ -228,41 +250,86 @@ public class CompanyExcelImportParser {
             CompanyImportRow importRow =
                     new CompanyImportRow(sheetName, rowIndex + 1);
 
-            importRow.setName(AcademicianTextNormalizer.normalizeOptionalText(
+            importRow.setName(normalizeOptionalImportText(
                     cellValue(row, mapping.columnRange(HeaderType.NAME))
             ));
-            importRow.setPhone(AcademicianTextNormalizer.normalizeOptionalText(
+            importRow.setPhone(normalizeOptionalImportText(
                     cellValue(row, mapping.columnRange(HeaderType.PHONE))
             ));
             importRow.setSecondaryPhone(
-                    AcademicianTextNormalizer.normalizeOptionalText(
+                    normalizeOptionalImportText(
                             cellValue(row, mapping.columnRange(HeaderType.SECONDARY_PHONE))
                     )
             );
-            importRow.setEmail(AcademicianTextNormalizer.normalizeEmail(
+            importRow.setEmail(normalizeImportEmail(
                     cellValue(row, mapping.columnRange(HeaderType.EMAIL))
             ));
             importRow.setActivityArea(resolveActivityArea(row, mapping));
+            importRow.setContactFullName(
+                    normalizeOptionalImportText(
+                            cellValue(row, mapping.columnRange(HeaderType.CONTACT_NAME))
+                    )
+            );
+            importRow.setContactPosition(
+                    normalizeOptionalImportText(
+                            cellValue(row, mapping.columnRange(HeaderType.CONTACT_POSITION))
+                    )
+            );
+            importRow.setContactPhone(
+                    normalizeOptionalImportText(
+                            cellValue(row, mapping.columnRange(HeaderType.CONTACT_PHONE))
+                    )
+            );
+            importRow.setContactEmail(normalizeImportEmail(
+                    cellValue(row, mapping.columnRange(HeaderType.CONTACT_EMAIL))
+            ));
 
-            validateRow(importRow);
+            validateRow(importRow, companyType);
             preview.getRows().add(importRow);
         }
     }
 
     private String resolveActivityArea(Row row, HeaderMapping mapping) {
-        String activityArea = AcademicianTextNormalizer.normalizeOptionalText(
+        String activityArea = normalizeOptionalImportText(
                 cellValue(row, mapping.columnRange(HeaderType.ACTIVITY_AREA))
         );
         if (activityArea != null) {
             return activityArea;
         }
 
-        return AcademicianTextNormalizer.normalizeOptionalText(
+        return normalizeOptionalImportText(
                 cellValue(row, mapping.columnRange(HeaderType.SECTOR))
         );
     }
 
-    private void validateRow(CompanyImportRow row) {
+    private String normalizeOptionalImportText(String value) {
+        String normalized = AcademicianTextNormalizer.normalizeOptionalText(value);
+        if (normalized == null || isOptionalPlaceholder(normalized)) {
+            return null;
+        }
+
+        return normalized;
+    }
+
+    private String normalizeImportEmail(String value) {
+        String normalized = normalizeOptionalImportText(value);
+        if (normalized == null) {
+            return null;
+        }
+
+        return AcademicianTextNormalizer.normalizeEmail(normalized);
+    }
+
+    private boolean isOptionalPlaceholder(String value) {
+        String trimmed = value.trim();
+        if (trimmed.equals("-") || trimmed.equals("--")) {
+            return true;
+        }
+
+        return OPTIONAL_PLACEHOLDER_KEYS.contains(normalizeHeader(trimmed));
+    }
+
+    private void validateRow(CompanyImportRow row, CompanyType companyType) {
         validateRequiredLength(
                 row.getName(),
                 "Firma unvani zorunludur",
@@ -294,10 +361,51 @@ public class CompanyExcelImportParser {
         );
         validateOptionalLength(
                 row.getActivityArea(),
-                "Faaliyet alani en fazla 255 karakter olabilir",
+                "Faaliyet alanı en fazla 2000 karakter olabilir.",
                 MAX_ACTIVITY_AREA_LENGTH,
                 row
         );
+        validateOptionalLength(
+                row.getContactFullName(),
+                "Yetkili adi soyadi en fazla 200 karakter olabilir",
+                MAX_NAME_LENGTH,
+                row
+        );
+        validateOptionalLength(
+                row.getContactPosition(),
+                "Yetkili unvani en fazla 150 karakter olabilir",
+                MAX_CONTACT_POSITION_LENGTH,
+                row
+        );
+        validateOptionalLength(
+                row.getContactPhone(),
+                "Yetkili telefonu en fazla 30 karakter olabilir",
+                MAX_PHONE_LENGTH,
+                row
+        );
+        validateOptionalLength(
+                row.getContactEmail(),
+                "Yetkili e-postasi en fazla 255 karakter olabilir",
+                MAX_EMAIL_LENGTH,
+                row
+        );
+        if (row.getContactEmail() != null
+                && !EMAIL_PATTERN.matcher(row.getContactEmail()).matches()) {
+            row.getErrors().add("Yetkili e-postasi formati gecersiz");
+        }
+        if (CompanyType.EXTERNAL.equals(companyType)
+                && row.getContactFullName() == null
+                && hasAnyContactDetail(row)) {
+            row.getWarnings().add(
+                    "Yetkili adi soyadi bos oldugu icin yetkili bilgileri aktarilmayacak"
+            );
+        }
+    }
+
+    private boolean hasAnyContactDetail(CompanyImportRow row) {
+        return row.getContactPosition() != null
+                || row.getContactPhone() != null
+                || row.getContactEmail() != null;
     }
 
     private void validateRequiredLength(
@@ -455,7 +563,15 @@ public class CompanyExcelImportParser {
                 "Firma Ünvanı",
                 "Firma Unvanı"
         );
-        addAliases(aliases, HeaderType.PHONE, "Telefon 1");
+        addAliases(
+                aliases,
+                HeaderType.PHONE,
+                "Telefon 1",
+                "Sirket Telefon",
+                "Şirket Telefon",
+                "Telefon"
+        );
+        addAliases(aliases, HeaderType.NAME, "Firma");
         addAliases(aliases, HeaderType.SECONDARY_PHONE, "Telefon 2");
         addAliases(
                 aliases,
@@ -463,6 +579,12 @@ public class CompanyExcelImportParser {
                 "E-Posta",
                 "Eposta",
                 "Email"
+        );
+        addAliases(
+                aliases,
+                HeaderType.EMAIL,
+                "Sirket E-Posta",
+                "Şirket E-Posta"
         );
         addAliases(
                 aliases,
@@ -480,7 +602,37 @@ public class CompanyExcelImportParser {
         );
         addAliases(aliases, HeaderType.BUILDING, "Bina");
         addAliases(aliases, HeaderType.WEB, "Web");
+        addAliases(aliases, HeaderType.WEB, "Web Sitesi");
+        addAliases(aliases, HeaderType.CITY, "Il", "İl");
+        addAliases(aliases, HeaderType.DISTRICT, "Ilce", "İlçe");
+        addAliases(aliases, HeaderType.OSB, "OSB");
+        addAliases(aliases, HeaderType.ADDRESS, "Acik Adres", "Açık Adres");
+        addAliases(aliases, HeaderType.CONTACT_NAME, "Yetkili Ad Soyad");
+        addAliases(
+                aliases,
+                HeaderType.CONTACT_POSITION,
+                "Yetkili Unvan",
+                "Yetkili Ünvan"
+        );
+        addAliases(aliases, HeaderType.CONTACT_PHONE, "Yetkili Telefon");
+        addAliases(aliases, HeaderType.CONTACT_EMAIL, "Yetkili E-Posta");
         return aliases;
+    }
+
+    private static Set<String> createOptionalPlaceholderKeys() {
+        Set<String> placeholders = new LinkedHashSet<>();
+        addPlaceholder(placeholders, "Bilgi Yok");
+        addPlaceholder(placeholders, "Yok");
+        addPlaceholder(placeholders, "Bilinmiyor");
+        addPlaceholder(placeholders, "Belirtilmemiş");
+        addPlaceholder(placeholders, "Mevcut Değil");
+        addPlaceholder(placeholders, "N/A");
+        addPlaceholder(placeholders, "NA");
+        return Set.copyOf(placeholders);
+    }
+
+    private static void addPlaceholder(Set<String> placeholders, String value) {
+        placeholders.add(normalizeHeader(value));
     }
 
     private void validateDuplicateEmailsInsideFile(
@@ -561,7 +713,15 @@ public class CompanyExcelImportParser {
         SECTOR,
         ACTIVITY_AREA,
         BUILDING,
-        WEB
+        WEB,
+        CITY,
+        DISTRICT,
+        OSB,
+        ADDRESS,
+        CONTACT_NAME,
+        CONTACT_POSITION,
+        CONTACT_PHONE,
+        CONTACT_EMAIL
     }
 
     private record HeaderMapping(

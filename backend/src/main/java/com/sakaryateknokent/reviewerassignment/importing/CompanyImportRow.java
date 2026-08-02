@@ -12,6 +12,10 @@ public class CompanyImportRow {
     private String secondaryPhone;
     private String email;
     private String activityArea;
+    private String contactFullName;
+    private String contactPosition;
+    private String contactPhone;
+    private String contactEmail;
     private final List<String> warnings = new ArrayList<>();
     private final List<String> errors = new ArrayList<>();
 
@@ -66,6 +70,38 @@ public class CompanyImportRow {
 
     public void setActivityArea(String activityArea) {
         this.activityArea = activityArea;
+    }
+
+    public String getContactFullName() {
+        return contactFullName;
+    }
+
+    public void setContactFullName(String contactFullName) {
+        this.contactFullName = contactFullName;
+    }
+
+    public String getContactPosition() {
+        return contactPosition;
+    }
+
+    public void setContactPosition(String contactPosition) {
+        this.contactPosition = contactPosition;
+    }
+
+    public String getContactPhone() {
+        return contactPhone;
+    }
+
+    public void setContactPhone(String contactPhone) {
+        this.contactPhone = contactPhone;
+    }
+
+    public String getContactEmail() {
+        return contactEmail;
+    }
+
+    public void setContactEmail(String contactEmail) {
+        this.contactEmail = contactEmail;
     }
 
     public List<String> getErrors() {

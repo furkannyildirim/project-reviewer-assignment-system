@@ -6,6 +6,7 @@ import type {
     CompanyImportResultResponse,
     CompanyListItem,
     CompanyPageParams,
+    CompanyType,
     CreateCompanyRequest,
     UpdateCompanyRequest,
 } from './company.types';
@@ -29,12 +30,17 @@ export async function getCompanyById(id: number): Promise<CompanyDetail> {
 
 export async function previewCompanyImport(
     file: File,
+    companyType: CompanyType = 'TGB',
 ): Promise<CompanyImportPreviewResponse> {
     const formData = new FormData();
     formData.append('file', file);
 
+    const endpoint = companyType === 'EXTERNAL'
+        ? '/companies/external/import/preview'
+        : '/companies/import/preview';
+
     const response = await httpClient.post<CompanyImportPreviewResponse>(
-        '/companies/import/preview',
+        endpoint,
         formData,
     );
 
@@ -43,12 +49,17 @@ export async function previewCompanyImport(
 
 export async function importCompaniesFromExcel(
     file: File,
+    companyType: CompanyType = 'TGB',
 ): Promise<CompanyImportResultResponse> {
     const formData = new FormData();
     formData.append('file', file);
 
+    const endpoint = companyType === 'EXTERNAL'
+        ? '/companies/external/import'
+        : '/companies/import';
+
     const response = await httpClient.post<CompanyImportResultResponse>(
-        '/companies/import',
+        endpoint,
         formData,
     );
 

@@ -33,7 +33,7 @@ public class Company {
     @Column(name = "secondary_phone", length = 30)
     private String secondaryPhone;
 
-    @Column(name = "activity_area", length = 255)
+    @Column(name = "activity_area", columnDefinition = "text")
     private String activityArea;
 
     @Column(name = "logo_url", length = 500)

@@ -1,5 +1,6 @@
 package com.sakaryateknokent.reviewerassignment.importing;
 
+import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -332,6 +333,311 @@ class CompanyExcelImportParserTest {
     }
 
     @Test
+    void parsesExternalCompanyAliasesAndIgnoresUnsupportedAddressColumns() {
+        CompanyImportPreview preview = parse(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(
+                    sheet,
+                    0,
+                    "İL",
+                    "İLÇE",
+                    "OSB",
+                    "AÇIK ADRES",
+                    "FİRMA",
+                    "WEB SİTESİ",
+                    "TELEFON",
+                    "FAALİYET ALANI",
+                    "E-POSTA",
+                    "SEKTÖR"
+            );
+            writeRow(
+                    sheet,
+                    1,
+                    "Sakarya",
+                    "Serdivan",
+                    "1. OSB",
+                    "Adres",
+                    "Dis Teknoloji",
+                    "example.com",
+                    "555",
+                    "Makine",
+                    "INFO@EXAMPLE.COM",
+                    "Sanayi"
+            );
+        });
+
+        CompanyImportRow row = preview.getRows().getFirst();
+        assertEquals("Dis Teknoloji", row.getName());
+        assertEquals("555", row.getPhone());
+        assertEquals("info@example.com", row.getEmail());
+        assertEquals("Makine", row.getActivityArea());
+        assertTrue(preview.getIgnoredHeaders().contains("İL"));
+        assertTrue(preview.getIgnoredHeaders().contains("İLÇE"));
+        assertTrue(preview.getIgnoredHeaders().contains("OSB"));
+        assertTrue(preview.getIgnoredHeaders().contains("AÇIK ADRES"));
+        assertTrue(preview.getIgnoredHeaders().contains("WEB SİTESİ"));
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void fallsBackToExternalSectorWhenActivityAreaIsBlank() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "FAALİYET ALANI", "SEKTÖR");
+            writeRow(sheet, 1, "Dis Teknoloji", " ", "Enerji");
+        });
+
+        assertEquals("Enerji", row.getActivityArea());
+    }
+
+    @Test
+    void parsesExternalCompanyPhoneEmailAliasesAndContactFields() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(
+                    sheet,
+                    0,
+                    "FİRMA",
+                    "ŞİRKET TELEFON",
+                    "ŞİRKET E-POSTA",
+                    "YETKİLİ AD SOYAD",
+                    "YETKİLİ ÜNVAN",
+                    "YETKİLİ TELEFON",
+                    "YETKİLİ E-POSTA"
+            );
+            writeRow(
+                    sheet,
+                    1,
+                    "Dis Teknoloji",
+                    "111",
+                    "INFO@EXAMPLE.COM",
+                    "Ayse Yilmaz",
+                    "Mudur",
+                    "222",
+                    "AYSE@EXAMPLE.COM"
+            );
+        });
+
+        assertEquals("111", row.getPhone());
+        assertEquals("info@example.com", row.getEmail());
+        assertEquals("Ayse Yilmaz", row.getContactFullName());
+        assertEquals("Mudur", row.getContactPosition());
+        assertEquals("222", row.getContactPhone());
+        assertEquals("ayse@example.com", row.getContactEmail());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void warnsAndKeepsExternalRowValidWhenContactNameIsBlank() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "YETKİLİ AD SOYAD", "YETKİLİ TELEFON");
+            writeRow(sheet, 1, "Dis Teknoloji", " ", "222");
+        });
+
+        assertNull(row.getContactFullName());
+        assertTrue(row.isValid());
+        assertEquals(1, row.getWarnings().size());
+    }
+
+    @Test
+    void treatsBilgiYokEmailAsNullWithoutInvalidEmailOrDuplicateErrors() {
+        CompanyImportPreview preview = parse(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "E-POSTA");
+            writeRow(sheet, 1, "Bir Teknoloji", "Bilgi Yok");
+            writeRow(sheet, 2, "Iki Teknoloji", " bilgi yok ");
+        });
+
+        assertEquals(2, preview.getRows().size());
+        assertTrue(preview.getRows().stream().allMatch(row -> row.getEmail() == null));
+        assertTrue(preview.getRows().stream().allMatch(CompanyImportRow::isValid));
+        assertTrue(preview.getRows().stream().allMatch(row -> row.getErrors().isEmpty()));
+    }
+
+    @Test
+    void treatsPlaceholderPhoneAsNullWithoutLengthValidation() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "TELEFON");
+            writeRow(sheet, 1, "Dis Teknoloji", "Bilgi Yok");
+        });
+
+        assertNull(row.getPhone());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void fallsBackToSectorWhenActivityAreaIsPlaceholder() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "FAALİYET ALANI", "SEKTÖR");
+            writeRow(sheet, 1, "Dis Teknoloji", "Bilgi Yok", "Enerji");
+        });
+
+        assertEquals("Enerji", row.getActivityArea());
+    }
+
+    @Test
+    void keepsActivityAreaNullWhenActivityAreaAndSectorArePlaceholders() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "FAALİYET ALANI", "SEKTÖR");
+            writeRow(sheet, 1, "Dis Teknoloji", "Bilgi Yok", "--");
+        });
+
+        assertNull(row.getActivityArea());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void keepsActivityAreaValidWhenLongerThan255AndShorterThan2000() {
+        String activityArea = repeated("A", 1500);
+
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "FAALİYET ALANI");
+            writeRow(sheet, 1, "Dis Teknoloji", activityArea);
+        });
+
+        assertEquals(activityArea, row.getActivityArea());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void acceptsActivityAreaWithExactly2000Characters() {
+        String activityArea = repeated("A", 2000);
+
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "FAALİYET ALANI");
+            writeRow(sheet, 1, "Dis Teknoloji", activityArea);
+        });
+
+        assertEquals(activityArea, row.getActivityArea());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void marksActivityAreaWith2001CharactersInvalid() {
+        String activityArea = repeated("A", 2001);
+
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "FAALİYET ALANI");
+            writeRow(sheet, 1, "Dis Teknoloji", activityArea);
+        });
+
+        assertEquals(activityArea, row.getActivityArea());
+        assertFalse(row.isValid());
+        assertTrue(row.getErrors().contains(
+                "Faaliyet alanı en fazla 2000 karakter olabilir."
+        ));
+    }
+
+    @Test
+    void usesLongSectorFallbackWhenActivityAreaIsPlaceholder() {
+        String sector = repeated("S", 1500);
+
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "FAALİYET ALANI", "SEKTÖR");
+            writeRow(sheet, 1, "Dis Teknoloji", "Bilgi Yok", sector);
+        });
+
+        assertEquals(sector, row.getActivityArea());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void keepsContactFieldsNullAndDoesNotWarnWhenTheyArePlaceholders() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(
+                    sheet,
+                    0,
+                    "FİRMA",
+                    "YETKİLİ AD SOYAD",
+                    "YETKİLİ ÜNVAN",
+                    "YETKİLİ TELEFON",
+                    "YETKİLİ E-POSTA"
+            );
+            writeRow(
+                    sheet,
+                    1,
+                    "Dis Teknoloji",
+                    "Bilgi Yok",
+                    "Yok",
+                    "N/A",
+                    "-"
+            );
+        });
+
+        assertNull(row.getContactFullName());
+        assertNull(row.getContactPosition());
+        assertNull(row.getContactPhone());
+        assertNull(row.getContactEmail());
+        assertTrue(row.getWarnings().isEmpty());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void treatsPlaceholderCompanyNameAsMissingAndInvalid() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "TELEFON");
+            writeRow(sheet, 1, "Bilgi Yok", "555");
+        });
+
+        assertNull(row.getName());
+        assertFalse(row.isValid());
+        assertTrue(row.getErrors().contains("Firma unvani zorunludur"));
+    }
+
+    @Test
+    void treatsPlaceholderVariantsAsNull() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(
+                    sheet,
+                    0,
+                    "FİRMA",
+                    "TELEFON",
+                    "E-POSTA",
+                    "FAALİYET ALANI",
+                    "YETKİLİ TELEFON"
+            );
+            writeRow(
+                    sheet,
+                    1,
+                    "Dis Teknoloji",
+                    "N/A",
+                    "Yok",
+                    "Bilinmiyor",
+                    "-"
+            );
+        });
+
+        assertNull(row.getPhone());
+        assertNull(row.getEmail());
+        assertNull(row.getActivityArea());
+        assertNull(row.getContactPhone());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void keepsRealInvalidEmailInvalid() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "FİRMA", "E-POSTA");
+            writeRow(sheet, 1, "Dis Teknoloji", "gecersiz");
+        });
+
+        assertFalse(row.isValid());
+        assertTrue(row.getErrors().contains("E-posta formati gecersiz"));
+    }
+
+    @Test
     void mergesHeadersFromMultipleSheetsWithoutDuplicates() {
         CompanyImportPreview preview = parse(workbook -> {
             Sheet first = workbook.createSheet("Bir");
@@ -361,12 +667,27 @@ class CompanyExcelImportParserTest {
         return parse(builder).getRows().getFirst();
     }
 
+    private CompanyImportRow parseFirstRow(
+            CompanyType companyType,
+            WorkbookBuilder builder
+    ) {
+        return parse(companyType, builder).getRows().getFirst();
+    }
+
     private CompanyImportPreview parse(WorkbookBuilder builder) {
+        return parse(CompanyType.TGB, builder);
+    }
+
+    private CompanyImportPreview parse(
+            CompanyType companyType,
+            WorkbookBuilder builder
+    ) {
         try (Workbook workbook = new XSSFWorkbook()) {
             builder.build(workbook);
             return parser.parse(
                     "sirketler.xlsx",
-                    new ByteArrayInputStream(toBytes(workbook))
+                    new ByteArrayInputStream(toBytes(workbook)),
+                    companyType
             );
         } catch (IOException exception) {
             throw new IllegalStateException(exception);
@@ -378,6 +699,10 @@ class CompanyExcelImportParserTest {
             workbook.write(outputStream);
             return outputStream.toByteArray();
         }
+    }
+
+    private String repeated(String value, int count) {
+        return value.repeat(count);
     }
 
     private void writeRow(Sheet sheet, int rowIndex, String... values) {

@@ -222,15 +222,13 @@ export function CompaniesPage({
                         spacing={1}
                         sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}
                     >
-                        {companyType === 'TGB' && (
-                            <Button
-                                variant="outlined"
-                                startIcon={<UploadFileOutlinedIcon />}
-                                onClick={() => setImportDialogOpen(true)}
-                            >
-                                Excel'den Aktar
-                            </Button>
-                        )}
+                        <Button
+                            variant="outlined"
+                            startIcon={<UploadFileOutlinedIcon />}
+                            onClick={() => setImportDialogOpen(true)}
+                        >
+                            Excel'den Aktar
+                        </Button>
 
                         <Button
                             variant="contained"
@@ -362,13 +360,12 @@ export function CompaniesPage({
                 onSubmit={handleFormSubmit}
             />
 
-            {companyType === 'TGB' && (
-                <CompanyImportPreviewDialog
-                    open={isImportDialogOpen}
-                    onClose={() => setImportDialogOpen(false)}
-                    onImported={invalidateCompanies}
-                />
-            )}
+            <CompanyImportPreviewDialog
+                open={isImportDialogOpen}
+                companyType={companyType}
+                onClose={() => setImportDialogOpen(false)}
+                onImported={invalidateCompanies}
+            />
 
             <ConfirmDialog
                 open={Boolean(companyToDelete)}

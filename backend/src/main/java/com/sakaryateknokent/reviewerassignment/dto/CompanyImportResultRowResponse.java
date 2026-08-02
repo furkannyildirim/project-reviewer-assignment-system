@@ -10,6 +10,10 @@ public record CompanyImportResultRowResponse(
         String phone,
         String secondaryPhone,
         String email,
+        String contactFullName,
+        String contactPosition,
+        String contactPhone,
+        String contactEmail,
         String status,
         List<String> messages
 ) {

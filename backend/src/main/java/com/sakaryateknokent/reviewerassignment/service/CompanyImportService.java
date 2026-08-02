@@ -3,6 +3,7 @@ package com.sakaryateknokent.reviewerassignment.service;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyImportResultResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyImportResultRowResponse;
 import com.sakaryateknokent.reviewerassignment.entity.Company;
+import com.sakaryateknokent.reviewerassignment.entity.CompanyContact;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.importing.CompanyExcelImportParser;
@@ -37,6 +38,8 @@ public class CompanyImportService {
             "Bu e-posta adresine sahip bir sirket zaten mevcut.";
     private static final String EXISTING_TGB_NAME_MESSAGE =
             "Bu sirket adiyla bir TGB sirketi zaten mevcut.";
+    private static final String EXISTING_EXTERNAL_NAME_MESSAGE =
+            "Bu sirket adiyla bir dis sirket zaten mevcut.";
     private static final String FILE_EMAIL_MESSAGE =
             "Dosya icinde ayni e-posta birden fazla kullanilmis.";
     private static final String PARSER_FILE_EMAIL_MESSAGE =
@@ -50,10 +53,23 @@ public class CompanyImportService {
     private final CompanyRepository companyRepository;
 
     public CompanyImportResultResponse importTgbCompanies(MultipartFile file) {
-        CompanyImportPreview preview = parse(file);
+        return importCompanies(file, CompanyType.TGB);
+    }
+
+    public CompanyImportResultResponse importExternalCompanies(
+            MultipartFile file
+    ) {
+        return importCompanies(file, CompanyType.EXTERNAL);
+    }
+
+    private CompanyImportResultResponse importCompanies(
+            MultipartFile file,
+            CompanyType companyType
+    ) {
+        CompanyImportPreview preview = parse(file, companyType);
         FileDuplicateKeys fileDuplicateKeys =
                 findFileDuplicateKeys(preview.getRows());
-        Set<String> existingTgbNames = loadExistingTgbNames();
+        Set<String> existingNames = loadExistingNames(companyType);
 
         List<CompanyImportResultRowResponse> resultRows = new ArrayList<>();
         int importedCount = 0;
@@ -85,7 +101,7 @@ public class CompanyImportService {
             }
 
             DuplicateCheck databaseDuplicateCheck =
-                    databaseDuplicateCheck(row, existingTgbNames);
+                    databaseDuplicateCheck(row, existingNames, companyType);
             if (databaseDuplicateCheck.duplicate()) {
                 duplicateCount++;
                 resultRows.add(toResultRow(
@@ -97,8 +113,8 @@ public class CompanyImportService {
             }
 
             try {
-                companyRepository.saveAndFlush(toCompany(row));
-                rememberSavedRow(row, existingTgbNames);
+                companyRepository.saveAndFlush(toCompany(row, companyType));
+                rememberSavedRow(row, existingNames);
                 importedCount++;
                 resultRows.add(toResultRow(
                         row,
@@ -125,22 +141,29 @@ public class CompanyImportService {
         );
     }
 
-    private CompanyImportPreview parse(MultipartFile file) {
+    private CompanyImportPreview parse(
+            MultipartFile file,
+            CompanyType companyType
+    ) {
         if (file == null || file.isEmpty()) {
             throw new InvalidRequestException("Excel dosyasi bos olamaz");
         }
 
         try (InputStream inputStream = file.getInputStream()) {
-            return parser.parse(file.getOriginalFilename(), inputStream);
+            return parser.parse(
+                    file.getOriginalFilename(),
+                    inputStream,
+                    companyType
+            );
         } catch (IOException exception) {
             throw new InvalidRequestException("Excel dosyasi okunamadi");
         }
     }
 
-    private Set<String> loadExistingTgbNames() {
+    private Set<String> loadExistingNames(CompanyType companyType) {
         Set<String> names = new LinkedHashSet<>();
         for (String name : companyRepository.findNamesByCompanyType(
-                CompanyType.TGB
+                companyType
         )) {
             names.add(canonicalName(name));
         }
@@ -219,44 +242,65 @@ public class CompanyImportService {
 
     private DuplicateCheck databaseDuplicateCheck(
             CompanyImportRow row,
-            Set<String> existingTgbNames
+            Set<String> existingNames,
+            CompanyType companyType
     ) {
         if (row.getEmail() != null) {
             String email = canonicalEmail(row.getEmail());
-            if (companyRepository.existsByCompanyTypeAndEmailIgnoreCase(
+            boolean emailExists = CompanyType.TGB.equals(companyType)
+                    && companyRepository.existsByCompanyTypeAndEmailIgnoreCase(
                     CompanyType.TGB,
                     email
-            ) || companyRepository.existsByEmailIgnoreCase(email)) {
+            );
+            if (emailExists || companyRepository.existsByEmailIgnoreCase(email)) {
                 return DuplicateCheck.duplicate(EXISTING_EMAIL_MESSAGE);
             }
 
             return DuplicateCheck.unique();
         }
 
-        if (existingTgbNames.contains(canonicalName(row.getName()))) {
-            return DuplicateCheck.duplicate(EXISTING_TGB_NAME_MESSAGE);
+        if (existingNames.contains(canonicalName(row.getName()))) {
+            return DuplicateCheck.duplicate(existingNameMessage(companyType));
         }
 
         return DuplicateCheck.unique();
     }
 
+    private String existingNameMessage(CompanyType companyType) {
+        return CompanyType.EXTERNAL.equals(companyType)
+                ? EXISTING_EXTERNAL_NAME_MESSAGE
+                : EXISTING_TGB_NAME_MESSAGE;
+    }
+
     private void rememberSavedRow(
             CompanyImportRow row,
-            Set<String> existingTgbNames
+            Set<String> existingNames
     ) {
         if (row.getEmail() == null) {
-            existingTgbNames.add(canonicalName(row.getName()));
+            existingNames.add(canonicalName(row.getName()));
         }
     }
 
-    private Company toCompany(CompanyImportRow row) {
+    private Company toCompany(CompanyImportRow row, CompanyType companyType) {
         Company company = new Company();
         company.setName(row.getName());
         company.setEmail(row.getEmail());
         company.setPhone(row.getPhone());
         company.setSecondaryPhone(row.getSecondaryPhone());
         company.setActivityArea(row.getActivityArea());
-        company.setCompanyType(CompanyType.TGB);
+        company.setCompanyType(companyType);
+
+        if (CompanyType.EXTERNAL.equals(companyType)
+                && row.getContactFullName() != null) {
+            CompanyContact contact = new CompanyContact();
+            contact.setFullName(row.getContactFullName());
+            contact.setPosition(row.getContactPosition());
+            contact.setPhone(row.getContactPhone());
+            contact.setEmail(row.getContactEmail());
+            contact.setPrimary(true);
+            company.addContact(contact);
+        }
+
         return company;
     }
 
@@ -273,6 +317,10 @@ public class CompanyImportService {
                 row.getPhone(),
                 row.getSecondaryPhone(),
                 row.getEmail(),
+                row.getContactFullName(),
+                row.getContactPosition(),
+                row.getContactPhone(),
+                row.getContactEmail(),
                 status,
                 List.copyOf(messages)
         );

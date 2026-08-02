@@ -10,6 +10,10 @@ public record CompanyImportPreviewRowResponse(
         String phone,
         String secondaryPhone,
         String email,
+        String contactFullName,
+        String contactPosition,
+        String contactPhone,
+        String contactEmail,
         List<String> errors,
         List<String> warnings,
         boolean valid

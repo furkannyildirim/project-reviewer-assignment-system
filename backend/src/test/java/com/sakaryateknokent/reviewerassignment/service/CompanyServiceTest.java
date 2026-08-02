@@ -12,6 +12,8 @@ import com.sakaryateknokent.reviewerassignment.entity.CompanyContact;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyContactRepository;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyRepository;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -21,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -39,6 +42,8 @@ class CompanyServiceTest {
             mock(CompanyContactRepository.class);
     private final CompanyService companyService =
             new CompanyService(companyRepository, companyContactRepository);
+    private final Validator validator =
+            Validation.buildDefaultValidatorFactory().getValidator();
 
     @Test
     void createsTgbCompanyWithCompanyType() {
@@ -158,17 +163,76 @@ class CompanyServiceTest {
                 company.getContacts().getFirst().getFullName());
     }
 
+    @Test
+    void createCompanyRequestAllowsActivityAreaWith2000Characters() {
+        CreateCompanyRequest request = createRequest(
+                CompanyType.EXTERNAL,
+                "Dis Sirket",
+                null,
+                repeated("A", 2000)
+        );
+
+        assertEquals(0, validator.validate(request).size());
+    }
+
+    @Test
+    void createCompanyRequestRejectsActivityAreaWith2001Characters() {
+        CreateCompanyRequest request = createRequest(
+                CompanyType.EXTERNAL,
+                "Dis Sirket",
+                null,
+                repeated("A", 2001)
+        );
+
+        Set<String> messages = validator.validate(request)
+                .stream()
+                .map(violation -> violation.getMessage())
+                .collect(java.util.stream.Collectors.toSet());
+
+        assertEquals(Set.of("Faaliyet alanı en fazla 2000 karakter olabilir"),
+                messages);
+    }
+
+    @Test
+    void updateCompanyRequestAllowsActivityAreaWith2000Characters() {
+        UpdateCompanyRequest request = updateRequest(repeated("A", 2000));
+
+        assertEquals(0, validator.validate(request).size());
+    }
+
+    @Test
+    void updateCompanyRequestRejectsActivityAreaWith2001Characters() {
+        UpdateCompanyRequest request = updateRequest(repeated("A", 2001));
+
+        Set<String> messages = validator.validate(request)
+                .stream()
+                .map(violation -> violation.getMessage())
+                .collect(java.util.stream.Collectors.toSet());
+
+        assertEquals(Set.of("Faaliyet alanı en fazla 2000 karakter olabilir"),
+                messages);
+    }
+
     private CreateCompanyRequest createRequest(
             CompanyType companyType,
             String name,
             String secondaryPhone
+    ) {
+        return createRequest(companyType, name, secondaryPhone, "Yazilim");
+    }
+
+    private CreateCompanyRequest createRequest(
+            CompanyType companyType,
+            String name,
+            String secondaryPhone,
+            String activityArea
     ) {
         return new CreateCompanyRequest(
                 name,
                 "company@example.com",
                 "555",
                 secondaryPhone,
-                "Yazilim",
+                activityArea,
                 null,
                 companyType,
                 List.of(new CreateCompanyContactRequest(
@@ -179,6 +243,29 @@ class CompanyServiceTest {
                         true
                 ))
         );
+    }
+
+    private UpdateCompanyRequest updateRequest(String activityArea) {
+        return new UpdateCompanyRequest(
+                "Yeni Sirket",
+                "new@example.com",
+                "555",
+                "444",
+                activityArea,
+                null,
+                List.of(new UpdateCompanyContactRequest(
+                        10L,
+                        "Guncel Yetkili",
+                        "Mudur",
+                        "updated-contact@example.com",
+                        null,
+                        true
+                ))
+        );
+    }
+
+    private String repeated(String value, int count) {
+        return value.repeat(count);
     }
 
     private Company company(Long id, String name, CompanyType companyType) {

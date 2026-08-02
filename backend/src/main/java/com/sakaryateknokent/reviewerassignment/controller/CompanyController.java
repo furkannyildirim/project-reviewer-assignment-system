@@ -43,11 +43,27 @@ public class CompanyController {
         return ResponseEntity.ok(importPreviewService.preview(file));
     }
 
+    @PostMapping("/external/import/preview")
+    public ResponseEntity<CompanyImportPreviewResponse> previewExternalImport(
+            @RequestParam("file") MultipartFile file
+    ) {
+        return ResponseEntity.ok(
+                importPreviewService.preview(file, CompanyType.EXTERNAL)
+        );
+    }
+
     @PostMapping("/import")
     public ResponseEntity<CompanyImportResultResponse> importCompanies(
             @RequestParam("file") MultipartFile file
     ) {
         return ResponseEntity.ok(importService.importTgbCompanies(file));
+    }
+
+    @PostMapping("/external/import")
+    public ResponseEntity<CompanyImportResultResponse> importExternalCompanies(
+            @RequestParam("file") MultipartFile file
+    ) {
+        return ResponseEntity.ok(importService.importExternalCompanies(file));
     }
 
     @GetMapping

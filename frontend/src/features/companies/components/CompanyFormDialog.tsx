@@ -188,8 +188,8 @@ function validate(values: CompanyFormValues): FormErrors {
         errors.secondaryPhone = 'İkinci telefon en fazla 30 karakter olabilir';
     }
 
-    if (values.activityArea.trim().length > 255) {
-        errors.activityArea = 'Faaliyet alanı en fazla 255 karakter olabilir';
+    if (values.activityArea.trim().length > 2000) {
+        errors.activityArea = 'Faaliyet alanı en fazla 2000 karakter olabilir';
     }
 
     if (values.logoUrl.trim().length > 500) {
@@ -513,9 +513,12 @@ export function CompanyFormDialog({
                         error={Boolean(errors.activityArea)}
                         helperText={errors.activityArea}
                         fullWidth
+                        multiline
+                        minRows={3}
+                        maxRows={6}
                         disabled={isFormDisabled}
                         slotProps={{
-                            htmlInput: { maxLength: 255 },
+                            htmlInput: { maxLength: 2000 },
                         }}
                     />
 

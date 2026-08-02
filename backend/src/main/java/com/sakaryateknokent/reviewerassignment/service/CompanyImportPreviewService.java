@@ -2,6 +2,7 @@ package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.CompanyImportPreviewResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyImportPreviewRowResponse;
+import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.importing.CompanyExcelImportParser;
 import com.sakaryateknokent.reviewerassignment.importing.CompanyImportPreview;
@@ -21,6 +22,13 @@ public class CompanyImportPreviewService {
     private final CompanyExcelImportParser parser;
 
     public CompanyImportPreviewResponse preview(MultipartFile file) {
+        return preview(file, CompanyType.TGB);
+    }
+
+    public CompanyImportPreviewResponse preview(
+            MultipartFile file,
+            CompanyType companyType
+    ) {
         if (file == null || file.isEmpty()) {
             throw new InvalidRequestException("Excel dosyasi bos olamaz");
         }
@@ -28,7 +36,8 @@ public class CompanyImportPreviewService {
         try {
             CompanyImportPreview preview = parser.parse(
                     file.getOriginalFilename(),
-                    file.getInputStream()
+                    file.getInputStream(),
+                    companyType
             );
             return toResponse(preview);
         } catch (IOException exception) {
@@ -81,6 +90,10 @@ public class CompanyImportPreviewService {
                 row.getPhone(),
                 row.getSecondaryPhone(),
                 row.getEmail(),
+                row.getContactFullName(),
+                row.getContactPosition(),
+                row.getContactPhone(),
+                row.getContactEmail(),
                 List.copyOf(row.getErrors()),
                 List.copyOf(row.getWarnings()),
                 row.isValid()

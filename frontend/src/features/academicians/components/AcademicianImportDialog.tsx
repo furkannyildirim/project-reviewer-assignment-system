@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type RefObject } from 'react';
 import axios from 'axios';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
@@ -27,6 +27,8 @@ import {
     TablePagination,
     TableRow,
     Tooltip,
+    ToggleButton,
+    ToggleButtonGroup,
     Typography,
     alpha,
     useMediaQuery,
@@ -46,6 +48,8 @@ type AcademicianImportDialogProps = {
     open: boolean;
     onClose: () => void;
 };
+
+type PreviewRowFilter = 'all' | 'valid' | 'problem';
 
 const defaultRowsPerPage = 25;
 const optionalFallback = '—';
@@ -730,30 +734,50 @@ function PreviewTable({
 }) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
+    const [rowFilter, setRowFilter] = useState<PreviewRowFilter>('problem');
 
-    const hiddenValidRowCount = useMemo(
-        () => preview.rows.filter((row) =>
-            row.valid && row.warnings.length === 0).length,
-        [preview.rows],
-    );
-    const problemRows = useMemo(
-        () => preview.rows.filter((row) =>
-            !row.valid || row.warnings.length > 0),
-        [preview.rows],
+    const filteredRows = useMemo(
+        () => preview.rows.filter((row) => {
+            if (rowFilter === 'valid') {
+                return row.valid && row.warnings.length === 0;
+            }
+
+            if (rowFilter === 'problem') {
+                return !row.valid || row.warnings.length > 0;
+            }
+
+            return true;
+        }),
+        [preview.rows, rowFilter],
     );
 
-    const rowCountText = problemRows.length === preview.invalidRowCount
-        ? `${problemRows.length} hatalı kayıt gösteriliyor`
-        : `${problemRows.length} problemli kayıt gösteriliyor`;
+    const rowCountText = `${filteredRows.length} kayıt gösteriliyor`;
 
     const safePage = Math.min(
         page,
-        Math.max(Math.ceil(problemRows.length / rowsPerPage) - 1, 0),
+        Math.max(Math.ceil(filteredRows.length / rowsPerPage) - 1, 0),
     );
-    const visibleRows = problemRows.slice(
+    const visibleRows = filteredRows.slice(
         safePage * rowsPerPage,
         safePage * rowsPerPage + rowsPerPage,
     );
+    const emptyMessage = rowFilter === 'valid'
+        ? 'Geçerli kayıt bulunmuyor.'
+        : rowFilter === 'problem'
+            ? 'Sorunlu kayıt bulunmuyor.'
+            : 'Gösterilecek kayıt yok.';
+
+    function handleRowFilterChange(
+        _: MouseEvent<HTMLElement>,
+        nextFilter: PreviewRowFilter | null,
+    ) {
+        if (!nextFilter) {
+            return;
+        }
+
+        setRowFilter(nextFilter);
+        setPage(0);
+    }
 
     return (
         <Paper
@@ -773,22 +797,35 @@ function PreviewTable({
                     p: 1.75,
                 }}
             >
-                <Stack spacing={0.25}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                        Satır önizleme
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                        {rowCountText}
-                    </Typography>
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1.5}
+                    sx={{
+                        alignItems: { xs: 'flex-start', sm: 'center' },
+                        justifyContent: 'space-between',
+                    }}
+                >
+                    <Stack spacing={0.25}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                            Satır önizleme
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            {rowCountText}
+                        </Typography>
+                    </Stack>
+                    <ToggleButtonGroup
+                        exclusive
+                        size="small"
+                        value={rowFilter}
+                        onChange={handleRowFilterChange}
+                    >
+                        <ToggleButton value="all">Tümü</ToggleButton>
+                        <ToggleButton value="valid">Geçerli</ToggleButton>
+                        <ToggleButton value="problem">Sorunlu</ToggleButton>
+                    </ToggleButtonGroup>
                 </Stack>
             </Stack>
             <Divider />
-
-            {hiddenValidRowCount > 0 && problemRows.length === 0 && (
-                <Alert severity="success" sx={{ borderRadius: 0 }}>
-                    {`Tüm kayıtlar geçerli. ${hiddenValidRowCount} kayıt aktarılmaya hazır.`}
-                </Alert>
-            )}
 
             <TableContainer sx={{ maxWidth: '100%', overflowX: 'auto' }}>
                 <Table
@@ -877,9 +914,7 @@ function PreviewTable({
                             <TableRow>
                                 <TableCell colSpan={6}>
                                     <Typography color="text.secondary" sx={{ py: 2 }}>
-                                        {problemRows.length === 0
-                                            ? `Tüm kayıtlar geçerli. ${hiddenValidRowCount} kayıt aktarılmaya hazır.`
-                                            : 'Gösterilecek problemli kayıt yok.'}
+                                        {emptyMessage}
                                     </Typography>
                                 </TableCell>
                             </TableRow>
@@ -890,7 +925,7 @@ function PreviewTable({
 
             <TablePagination
                 component="div"
-                count={problemRows.length}
+                count={filteredRows.length}
                 page={safePage}
                 rowsPerPage={rowsPerPage}
                 rowsPerPageOptions={[25, 50, 100]}
@@ -1159,7 +1194,10 @@ export function AcademicianImportDialog({
                                 preview={preview}
                                 showNoSaveInfo={!importResult}
                             />
-                            <PreviewTable preview={preview} />
+                            <PreviewTable
+                                key={`${preview.fileName}-${preview.totalDetectedRows}`}
+                                preview={preview}
+                            />
                         </>
                     )}
 

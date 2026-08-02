@@ -74,6 +74,10 @@ export type CompanyImportPreviewRow = {
     phone: string | null;
     secondaryPhone: string | null;
     email: string | null;
+    contactFullName: string | null;
+    contactPosition: string | null;
+    contactPhone: string | null;
+    contactEmail: string | null;
     errors: string[];
     warnings: string[];
     valid: boolean;
@@ -103,6 +107,10 @@ export type CompanyImportResultRow = {
     phone: string | null;
     secondaryPhone: string | null;
     email: string | null;
+    contactFullName: string | null;
+    contactPosition: string | null;
+    contactPhone: string | null;
+    contactEmail: string | null;
     status: CompanyImportResultStatus;
     messages: string[];
 };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type RefObject } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
@@ -28,6 +28,8 @@ import {
     TableHead,
     TablePagination,
     TableRow,
+    ToggleButton,
+    ToggleButtonGroup,
     Typography,
     alpha,
     useMediaQuery,
@@ -40,14 +42,18 @@ import type {
     CompanyImportPreviewRow,
     CompanyImportResultResponse,
     CompanyImportResultRow,
+    CompanyType,
 } from '../company.types';
 import { getApiErrorMessage } from '../../../utils/getApiErrorMessage';
 
 type CompanyImportPreviewDialogProps = {
     open: boolean;
+    companyType: CompanyType;
     onClose: () => void;
     onImported: () => void;
 };
+
+type PreviewRowFilter = 'all' | 'valid' | 'problem';
 
 const optionalFallback = '—';
 const defaultRowsPerPage = 25;
@@ -432,33 +438,55 @@ function PreviewSummary({
 
 function PreviewList({
     preview,
+    companyType,
 }: {
     preview: CompanyImportPreviewResponse;
+    companyType: CompanyType;
 }) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
+    const [rowFilter, setRowFilter] = useState<PreviewRowFilter>('problem');
 
-    const hiddenValidRowCount = useMemo(
-        () => preview.rows.filter((row) =>
-            row.valid && row.warnings.length === 0).length,
-        [preview.rows],
+    const filteredRows = useMemo(
+        () => preview.rows.filter((row) => {
+            if (rowFilter === 'valid') {
+                return row.valid && row.warnings.length === 0;
+            }
+
+            if (rowFilter === 'problem') {
+                return !row.valid || row.warnings.length > 0;
+            }
+
+            return true;
+        }),
+        [preview.rows, rowFilter],
     );
-    const problemRows = useMemo(
-        () => preview.rows.filter((row) =>
-            !row.valid || row.warnings.length > 0),
-        [preview.rows],
-    );
-    const rowCountText = problemRows.length === preview.invalidRowCount
-        ? `${problemRows.length} hatalı kayıt gösteriliyor`
-        : `${problemRows.length} problemli kayıt gösteriliyor`;
+    const rowCountText = `${filteredRows.length} kayıt gösteriliyor`;
     const safePage = Math.min(
         page,
-        Math.max(Math.ceil(problemRows.length / rowsPerPage) - 1, 0),
+        Math.max(Math.ceil(filteredRows.length / rowsPerPage) - 1, 0),
     );
-    const visibleRows = problemRows.slice(
+    const visibleRows = filteredRows.slice(
         safePage * rowsPerPage,
         safePage * rowsPerPage + rowsPerPage,
     );
+    const emptyMessage = rowFilter === 'valid'
+        ? 'Geçerli kayıt bulunmuyor.'
+        : rowFilter === 'problem'
+            ? 'Sorunlu kayıt bulunmuyor.'
+            : 'Gösterilecek kayıt yok.';
+
+    function handleRowFilterChange(
+        _: MouseEvent<HTMLElement>,
+        nextFilter: PreviewRowFilter | null,
+    ) {
+        if (!nextFilter) {
+            return;
+        }
+
+        setRowFilter(nextFilter);
+        setPage(0);
+    }
 
     return (
         <Paper
@@ -478,13 +506,29 @@ function PreviewList({
                     p: 1.75,
                 }}
             >
-                <Stack spacing={0.25}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                        Satır önizleme
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                        {rowCountText}
-                    </Typography>
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1.5}
+                    sx={{ alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between' }}
+                >
+                    <Stack spacing={0.25}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                            Satır önizleme
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            {rowCountText}
+                        </Typography>
+                    </Stack>
+                    <ToggleButtonGroup
+                        exclusive
+                        size="small"
+                        value={rowFilter}
+                        onChange={handleRowFilterChange}
+                    >
+                        <ToggleButton value="all">Tümü</ToggleButton>
+                        <ToggleButton value="valid">Geçerli</ToggleButton>
+                        <ToggleButton value="problem">Sorunlu</ToggleButton>
+                    </ToggleButtonGroup>
                 </Stack>
             </Stack>
             <Divider />
@@ -492,7 +536,10 @@ function PreviewList({
             <TableContainer sx={{ maxWidth: '100%', overflowX: 'auto' }}>
                 <Table
                     size="small"
-                    sx={{ minWidth: 1040, tableLayout: 'fixed' }}
+                    sx={{
+                        minWidth: companyType === 'EXTERNAL' ? 1320 : 1040,
+                        tableLayout: 'fixed',
+                    }}
                     aria-label="Şirket Excel önizleme tablosu"
                 >
                     <TableHead>
@@ -511,8 +558,20 @@ function PreviewList({
                             <TableCell sx={{ width: 132 }}>Durum</TableCell>
                             <TableCell sx={{ width: 156 }}>Kaynak</TableCell>
                             <TableCell sx={{ width: 280 }}>Kaydedilecek Şirket</TableCell>
-                            <TableCell sx={{ width: 280 }}>İletişim</TableCell>
-                            <TableCell sx={{ width: 220 }}>Faaliyet Alanı</TableCell>
+                            {companyType === 'EXTERNAL' && (
+                                <TableCell sx={{ width: 260 }}>Faaliyet Alanı</TableCell>
+                            )}
+                            <TableCell sx={{ width: 280 }}>
+                                {companyType === 'EXTERNAL' ? 'Şirket İletişimi' : 'İletişim'}
+                            </TableCell>
+                            {companyType === 'EXTERNAL' ? (
+                                <>
+                                    <TableCell sx={{ width: 240 }}>Yetkili Kişi</TableCell>
+                                    <TableCell sx={{ width: 280 }}>Yetkili İletişimi</TableCell>
+                                </>
+                            ) : (
+                                <TableCell sx={{ width: 220 }}>Faaliyet Alanı</TableCell>
+                            )}
                             <TableCell sx={{ width: 300 }}>Uyarı/Hata</TableCell>
                         </TableRow>
                     </TableHead>
@@ -547,13 +606,20 @@ function PreviewList({
                                         {displayOptional(row.name)}
                                     </Typography>
                                 </TableCell>
+                                {companyType === 'EXTERNAL' && (
+                                    <TableCell>
+                                        <Typography variant="body2" noWrap>
+                                            {displayOptional(row.activityArea)}
+                                        </Typography>
+                                    </TableCell>
+                                )}
                                 <TableCell>
                                     <Stack spacing={0.35} sx={{ minWidth: 0 }}>
                                         <Typography variant="body2" noWrap>
-                                            {displayOptional(row.email)}
+                                            {displayOptional(row.phone)}
                                         </Typography>
                                         <Typography variant="caption" color="text.secondary" noWrap>
-                                            {displayOptional(row.phone)}
+                                            {displayOptional(row.email)}
                                         </Typography>
                                         {row.secondaryPhone?.trim() && (
                                             <Typography
@@ -566,11 +632,48 @@ function PreviewList({
                                         )}
                                     </Stack>
                                 </TableCell>
-                                <TableCell>
-                                    <Typography variant="body2" noWrap>
-                                        {displayOptional(row.activityArea)}
-                                    </Typography>
-                                </TableCell>
+                                {companyType === 'EXTERNAL' ? (
+                                    <>
+                                        <TableCell>
+                                            <Stack spacing={0.35} sx={{ minWidth: 0 }}>
+                                                <Typography
+                                                    variant="body2"
+                                                    sx={{ fontWeight: 700 }}
+                                                    noWrap
+                                                >
+                                                    {displayOptional(row.contactFullName)}
+                                                </Typography>
+                                                <Typography
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    noWrap
+                                                >
+                                                    {displayOptional(row.contactPosition)}
+                                                </Typography>
+                                            </Stack>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Stack spacing={0.35} sx={{ minWidth: 0 }}>
+                                                <Typography variant="body2" noWrap>
+                                                    {displayOptional(row.contactPhone)}
+                                                </Typography>
+                                                <Typography
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    noWrap
+                                                >
+                                                    {displayOptional(row.contactEmail)}
+                                                </Typography>
+                                            </Stack>
+                                        </TableCell>
+                                    </>
+                                ) : (
+                                    <TableCell>
+                                        <Typography variant="body2" noWrap>
+                                            {displayOptional(row.activityArea)}
+                                        </Typography>
+                                    </TableCell>
+                                )}
                                 <TableCell>
                                     <RowMessages row={row} />
                                 </TableCell>
@@ -578,11 +681,9 @@ function PreviewList({
                         ))}
                         {visibleRows.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={6}>
+                                <TableCell colSpan={companyType === 'EXTERNAL' ? 8 : 6}>
                                     <Typography color="text.secondary" sx={{ py: 2 }}>
-                                        {problemRows.length === 0
-                                            ? `Tüm kayıtlar geçerli. ${hiddenValidRowCount} kayıt aktarılmaya hazır.`
-                                            : 'Gösterilecek problemli kayıt yok.'}
+                                        {emptyMessage}
                                     </Typography>
                                 </TableCell>
                             </TableRow>
@@ -593,7 +694,7 @@ function PreviewList({
 
             <TablePagination
                 component="div"
-                count={problemRows.length}
+                count={filteredRows.length}
                 page={safePage}
                 rowsPerPage={rowsPerPage}
                 rowsPerPageOptions={[25, 50, 100]}
@@ -896,6 +997,7 @@ function ImportResultSummary({
 
 export function CompanyImportPreviewDialog({
     open,
+    companyType,
     onClose,
     onImported,
 }: CompanyImportPreviewDialogProps) {
@@ -911,9 +1013,12 @@ export function CompanyImportPreviewDialog({
         useState<CompanyImportResultResponse | null>(null);
     const [isConfirmOpen, setConfirmOpen] = useState(false);
     const [fileError, setFileError] = useState<string | null>(null);
+    const importTitle = companyType === 'EXTERNAL'
+        ? 'Dış şirketleri Excelden önizle'
+        : "TGB şirketlerini Excel'den önizle";
 
     const previewMutation = useMutation({
-        mutationFn: previewCompanyImport,
+        mutationFn: (file: File) => previewCompanyImport(file, companyType),
         onSuccess: (response, file) => {
             setPreview(response);
             setPreviewedFile(file);
@@ -928,7 +1033,7 @@ export function CompanyImportPreviewDialog({
     });
 
     const importMutation = useMutation({
-        mutationFn: importCompaniesFromExcel,
+        mutationFn: (file: File) => importCompaniesFromExcel(file, companyType),
         onSuccess: (response) => {
             setImportResult(response);
             setConfirmOpen(false);
@@ -1048,7 +1153,7 @@ export function CompanyImportPreviewDialog({
             maxWidth="xl"
             onClose={isBusy ? undefined : handleClose}
         >
-            <DialogTitle>TGB şirketlerini Excel'den önizle</DialogTitle>
+            <DialogTitle>{importTitle}</DialogTitle>
             <DialogContent
                 ref={contentRef}
                 dividers
@@ -1139,7 +1244,9 @@ export function CompanyImportPreviewDialog({
                                 showNoSaveInfo={!importResult}
                             />
                             <PreviewList
+                                key={`${preview.fileName}-${preview.totalRowCount}`}
                                 preview={preview}
+                                companyType={companyType}
                             />
                         </>
                     )}
