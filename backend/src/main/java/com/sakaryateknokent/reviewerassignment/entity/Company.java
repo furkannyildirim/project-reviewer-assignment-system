@@ -51,6 +51,14 @@ public class Company {
     @Setter(AccessLevel.NONE)
     private List<CompanyContact> contacts = new ArrayList<>();
 
+    @OneToMany(
+            mappedBy = "company",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    @Setter(AccessLevel.NONE)
+    private List<CompanyContactMethod> contactMethods = new ArrayList<>();
+
     public void addContact(CompanyContact contact) {
         contacts.add(contact);
         contact.setCompany(this);
@@ -59,5 +67,15 @@ public class Company {
     public void removeContact(CompanyContact contact) {
         contacts.remove(contact);
         contact.setCompany(null);
+    }
+
+    public void addContactMethod(CompanyContactMethod contactMethod) {
+        contactMethods.add(contactMethod);
+        contactMethod.setCompany(this);
+    }
+
+    public void removeContactMethod(CompanyContactMethod contactMethod) {
+        contactMethods.remove(contactMethod);
+        contactMethod.setCompany(null);
     }
 }

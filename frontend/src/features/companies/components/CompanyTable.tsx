@@ -23,7 +23,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined';
 import type { PageResponse } from '../../../types/api';
-import type { Company, CompanyListItem } from '../company.types';
+import type { Company, CompanyContactMethod, CompanyListItem } from '../company.types';
 import { CompanyContactsPopover } from './CompanyContactsPopover';
 
 type CompanyTableProps = {
@@ -39,7 +39,15 @@ type CompanyTableProps = {
 };
 
 function displayOptional(value: string | null) {
-    return value?.trim() ? value : '—';
+    return value?.trim() ? value : '-';
+}
+
+function contactMethodLabel(contactMethod: CompanyContactMethod) {
+    if (contactMethod.label?.trim()) {
+        return `${contactMethod.label}: ${contactMethod.value}`;
+    }
+
+    return contactMethod.value;
 }
 
 function CompanyContactSummary({ company }: { company: CompanyListItem }) {
@@ -50,7 +58,7 @@ function CompanyContactSummary({ company }: { company: CompanyListItem }) {
     if (!contact) {
         return (
             <Typography color="text.secondary">
-                Yetkili kişi eklenmemiş
+                Yetkili kisi eklenmemis
             </Typography>
         );
     }
@@ -75,7 +83,7 @@ function CompanyContactSummary({ company }: { company: CompanyListItem }) {
         <Box
             role="button"
             tabIndex={0}
-            aria-label="Yetkili iletişim bilgilerini görüntüle"
+            aria-label="Yetkili iletisim bilgilerini goruntule"
             onClick={handleOpenDetails}
             onKeyDown={handleKeyDown}
             sx={{
@@ -114,7 +122,7 @@ function CompanyContactSummary({ company }: { company: CompanyListItem }) {
                     />
                     {extraContactCount > 0 && (
                         <Chip
-                            label={`+${extraContactCount} kişi`}
+                            label={`+${extraContactCount} kisi`}
                             size="small"
                             variant="outlined"
                             sx={{
@@ -193,26 +201,66 @@ function CompanyContactSummary({ company }: { company: CompanyListItem }) {
 }
 
 function CompanyCommunication({ company }: { company: CompanyListItem }) {
-    const hasEmail = Boolean(company.email?.trim());
-    const hasPhone = Boolean(company.phone?.trim());
-    const secondaryPhone = company.secondaryPhone?.trim();
+    const emails = company.contactMethods
+        .filter((contactMethod) => contactMethod.type === 'EMAIL');
+    const phones = company.contactMethods
+        .filter((contactMethod) => contactMethod.type === 'PHONE');
+    const primaryEmail = emails.find((contactMethod) => contactMethod.primary)
+        ?? emails[0];
+    const primaryPhone = phones.find((contactMethod) => contactMethod.primary)
+        ?? phones[0];
+    const displayedCount = Number(Boolean(primaryEmail)) + Number(Boolean(primaryPhone));
+    const extraCount = Math.max(company.contactMethods.length - displayedCount, 0);
 
-    if (!hasEmail && !hasPhone && !secondaryPhone) {
-        return <Typography color="text.secondary">—</Typography>;
+    if (!primaryEmail && !primaryPhone) {
+        return <Typography color="text.secondary">-</Typography>;
     }
 
-    return (
-        <Stack spacing={0.25}>
-            {hasEmail && (
-                <Typography>{company.email}</Typography>
+    const tooltipContent = (
+        <Stack spacing={0.75}>
+            {emails.length > 0 && (
+                <Stack spacing={0.25}>
+                    <Typography variant="caption" color="text.secondary">
+                        E-postalar
+                    </Typography>
+                    {emails.map((email) => (
+                        <Typography key={email.id} variant="body2">
+                            {contactMethodLabel(email)}
+                        </Typography>
+                    ))}
+                </Stack>
             )}
-            {hasPhone && (
-                <Typography>{company.phone}</Typography>
-            )}
-            {secondaryPhone && (
-                <Typography>{`Tel 2: ${secondaryPhone}`}</Typography>
+            {phones.length > 0 && (
+                <Stack spacing={0.25}>
+                    <Typography variant="caption" color="text.secondary">
+                        Telefonlar
+                    </Typography>
+                    {phones.map((phone) => (
+                        <Typography key={phone.id} variant="body2">
+                            {contactMethodLabel(phone)}
+                        </Typography>
+                    ))}
+                </Stack>
             )}
         </Stack>
+    );
+
+    return (
+        <Tooltip title={tooltipContent} placement="right-start" arrow>
+            <Stack spacing={0.25} sx={{ display: 'inline-flex' }}>
+                {primaryEmail && (
+                    <Typography>{primaryEmail.value}</Typography>
+                )}
+                {primaryPhone && (
+                    <Typography>{primaryPhone.value}</Typography>
+                )}
+                {extraCount > 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                        {`+${extraCount} diger`}
+                    </Typography>
+                )}
+            </Stack>
+        </Tooltip>
     );
 }
 
@@ -313,15 +361,15 @@ export function CompanyTable({
             }}
         >
             <TableContainer sx={{ overflowX: 'auto' }}>
-                <Table sx={{ minWidth: 860 }} aria-label="Şirket tablosu">
+                <Table sx={{ minWidth: 860 }} aria-label="Sirket tablosu">
                     <TableHead>
                         <TableRow>
                             <TableCell>Logo</TableCell>
-                            <TableCell>Şirket adı</TableCell>
-                            <TableCell>Yetkili Kişi</TableCell>
-                            <TableCell>Şirket iletişimi</TableCell>
-                            <TableCell>Faaliyet alanı</TableCell>
-                            <TableCell align="right">İşlemler</TableCell>
+                            <TableCell>Sirket adi</TableCell>
+                            <TableCell>Yetkili Kisi</TableCell>
+                            <TableCell>Sirket iletisimi</TableCell>
+                            <TableCell>Faaliyet alani</TableCell>
+                            <TableCell align="right">Islemler</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -357,10 +405,10 @@ export function CompanyTable({
                                             spacing={0.5}
                                             sx={{ justifyContent: 'flex-end' }}
                                         >
-                                            <Tooltip title="Düzenle">
+                                            <Tooltip title="Duzenle">
                                                 <span>
                                                     <IconButton
-                                                        aria-label="Şirketi düzenle"
+                                                        aria-label="Sirketi duzenle"
                                                         disabled={isMutating}
                                                         onClick={() => onEdit(company)}
                                                     >
@@ -372,7 +420,7 @@ export function CompanyTable({
                                                 <Tooltip title="Sil">
                                                     <span>
                                                         <IconButton
-                                                            aria-label="Şirketi sil"
+                                                            aria-label="Sirketi sil"
                                                             color="error"
                                                             disabled={isMutating}
                                                             onClick={() => onDelete(company)}

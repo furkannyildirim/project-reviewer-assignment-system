@@ -23,6 +23,8 @@ import type { ApiErrorResponse, FieldErrors } from '../../../types/api';
 import type {
     Company,
     CompanyContactFormValues,
+    CompanyContactMethodFormValues,
+    CompanyContactMethodType,
     CompanyDetail,
     CompanyFormValues,
     CompanyType,
@@ -57,26 +59,28 @@ const emptyContact: CompanyContactFormValues = {
 
 const emptyValues: CompanyFormValues = {
     name: '',
-    email: '',
-    phone: '',
-    secondaryPhone: '',
     activityArea: '',
     logoUrl: '',
+    contactMethods: [],
     contacts: [emptyContact],
 };
-
-const fieldLabels = {
-    name: 'Şirket adı',
-    email: 'E-posta',
-    phone: 'Telefon',
-    secondaryPhone: 'Telefon 2',
-    activityArea: 'Faaliyet alanı',
-    logoUrl: 'Logo URL',
-} satisfies Record<Exclude<keyof CompanyFormValues, 'contacts'>, string>;
 
 function createEmptyContact(primary = false): CompanyContactFormValues {
     return {
         ...emptyContact,
+        primary,
+    };
+}
+
+function createEmptyContactMethod(
+    type: CompanyContactMethodType,
+    primary = false,
+): CompanyContactMethodFormValues {
+    return {
+        id: null,
+        type,
+        value: '',
+        label: '',
         primary,
     };
 }
@@ -102,11 +106,15 @@ function toFormValues(company: CompanyDetail | null): CompanyFormValues {
 
     return {
         name: company.name,
-        email: company.email ?? '',
-        phone: company.phone ?? '',
-        secondaryPhone: company.secondaryPhone ?? '',
         activityArea: company.activityArea ?? '',
         logoUrl: company.logoUrl ?? '',
+        contactMethods: company.contactMethods.map((contactMethod) => ({
+            id: contactMethod.id,
+            type: contactMethod.type,
+            value: contactMethod.value,
+            label: contactMethod.label ?? '',
+            primary: contactMethod.primary,
+        })),
         contacts,
     };
 }
@@ -124,11 +132,15 @@ function buildRequest(
 ): CreateCompanyRequest | UpdateCompanyRequest {
     const companyFields = {
         name: values.name.trim(),
-        email: normalizeOptional(values.email),
-        phone: normalizeOptional(values.phone),
-        secondaryPhone: normalizeOptional(values.secondaryPhone),
         activityArea: normalizeOptional(values.activityArea),
         logoUrl: normalizeOptional(values.logoUrl),
+        contactMethods: values.contactMethods.map((contactMethod) => ({
+            id: contactMethod.id,
+            type: contactMethod.type,
+            value: contactMethod.value.trim(),
+            label: normalizeOptional(contactMethod.label),
+            primary: contactMethod.primary,
+        })),
     };
 
     if (isEdit) {
@@ -162,49 +174,66 @@ function contactField(index: number, field: keyof CompanyContactFormValues) {
     return `contacts[${index}].${field}`;
 }
 
+function contactMethodField(
+    index: number,
+    field: keyof CompanyContactMethodFormValues,
+) {
+    return `contactMethods[${index}].${field}`;
+}
+
 function validate(values: CompanyFormValues): FormErrors {
     const errors: FormErrors = {};
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!values.name.trim()) {
-        errors.name = 'Şirket adı zorunludur';
+        errors.name = 'Sirket adi zorunludur';
     } else if (values.name.trim().length > 200) {
-        errors.name = 'Şirket adı en fazla 200 karakter olabilir';
-    }
-
-    if (values.email.trim()) {
-        if (values.email.trim().length > 255) {
-            errors.email = 'E-posta en fazla 255 karakter olabilir';
-        } else if (!emailPattern.test(values.email.trim())) {
-            errors.email = 'Geçerli bir e-posta adresi girilmelidir';
-        }
-    }
-
-    if (values.phone.trim().length > 30) {
-        errors.phone = 'Telefon en fazla 30 karakter olabilir';
-    }
-
-    if (values.secondaryPhone.trim().length > 30) {
-        errors.secondaryPhone = 'İkinci telefon en fazla 30 karakter olabilir';
+        errors.name = 'Sirket adi en fazla 200 karakter olabilir';
     }
 
     if (values.activityArea.trim().length > 2000) {
-        errors.activityArea = 'Faaliyet alanı en fazla 2000 karakter olabilir';
+        errors.activityArea = 'Faaliyet alani en fazla 2000 karakter olabilir';
     }
 
     if (values.logoUrl.trim().length > 500) {
         errors.logoUrl = 'Logo adresi en fazla 500 karakter olabilir';
     }
 
+    values.contactMethods.forEach((contactMethod, index) => {
+        const value = contactMethod.value.trim();
+        const label = contactMethod.label.trim();
+
+        if (!value) {
+            errors[contactMethodField(index, 'value')] =
+                'Iletisim degeri bos birakilamaz';
+        } else if (contactMethod.type === 'EMAIL') {
+            if (value.length > 255) {
+                errors[contactMethodField(index, 'value')] =
+                    'E-posta en fazla 255 karakter olabilir';
+            } else if (!emailPattern.test(value)) {
+                errors[contactMethodField(index, 'value')] =
+                    'Gecerli bir e-posta adresi girilmelidir';
+            }
+        } else if (value.length > 30) {
+            errors[contactMethodField(index, 'value')] =
+                'Telefon en fazla 30 karakter olabilir';
+        }
+
+        if (label.length > 100) {
+            errors[contactMethodField(index, 'label')] =
+                'Etiket en fazla 100 karakter olabilir';
+        }
+    });
+
     if (values.contacts.length === 0) {
-        errors.contacts = 'En az bir muhatap kişi eklenmelidir';
+        errors.contacts = 'En az bir muhatap kisi eklenmelidir';
     }
 
     const primaryCount = values.contacts.filter((contact) => contact.primary)
         .length;
 
     if (primaryCount !== 1) {
-        errors.contacts = 'Tam olarak bir muhatap kişi birincil olarak seçilmelidir';
+        errors.contacts = 'Tam olarak bir muhatap kisi birincil olarak secilmelidir';
     }
 
     values.contacts.forEach((contact, index) => {
@@ -215,10 +244,10 @@ function validate(values: CompanyFormValues): FormErrors {
 
         if (!fullName) {
             errors[contactField(index, 'fullName')] =
-                'Muhatap adı soyadı boş bırakılamaz';
+                'Muhatap adi soyadi bos birakilamaz';
         } else if (fullName.length > 200) {
             errors[contactField(index, 'fullName')] =
-                'Muhatap adı soyadı en fazla 200 karakter olabilir';
+                'Muhatap adi soyadi en fazla 200 karakter olabilir';
         }
 
         if (position.length > 150) {
@@ -229,10 +258,10 @@ function validate(values: CompanyFormValues): FormErrors {
         if (email) {
             if (email.length > 255) {
                 errors[contactField(index, 'email')] =
-                    'Muhatap e-postası en fazla 255 karakter olabilir';
+                    'Muhatap e-postasi en fazla 255 karakter olabilir';
             } else if (!emailPattern.test(email)) {
                 errors[contactField(index, 'email')] =
-                    'Geçerli bir muhatap e-posta adresi girilmelidir';
+                    'Gecerli bir muhatap e-posta adresi girilmelidir';
             }
         }
 
@@ -243,7 +272,7 @@ function validate(values: CompanyFormValues): FormErrors {
 
         if (!email && !phone) {
             const message =
-                'Muhatap kişi için e-posta veya telefon bilgilerinden en az biri girilmelidir';
+                'Muhatap kisi icin e-posta veya telefon bilgilerinden en az biri girilmelidir';
 
             errors[contactField(index, 'email')] ??= message;
             errors[contactField(index, 'phone')] ??= message;
@@ -275,7 +304,15 @@ function getBusinessError(error: unknown): string {
         return error.response.data.message;
     }
 
-    return 'Şirket kaydedilemedi';
+    return 'Sirket kaydedilemedi';
+}
+
+function methodTypeLabel(type: CompanyContactMethodType) {
+    return type === 'PHONE' ? 'Telefon' : 'E-posta';
+}
+
+function methodGroupTitle(type: CompanyContactMethodType) {
+    return type === 'PHONE' ? 'Telefonlar' : 'E-postalar';
 }
 
 export function CompanyFormDialog({
@@ -295,29 +332,128 @@ export function CompanyFormDialog({
     const [errors, setErrors] = useState<FormErrors>({});
     const [generalError, setGeneralError] = useState<string | null>(null);
     const isEdit = Boolean(company);
-    const title = isEdit ? 'Şirketi Düzenle' : 'Yeni Şirket';
+    const title = isEdit ? 'Sirketi Duzenle' : 'Yeni Sirket';
     const createTypeMessage = companyType === 'TGB'
-        ? 'Bu kayıt TGB şirketi olarak oluşturulacaktır.'
-        : 'Bu kayıt dış şirket olarak oluşturulacaktır.';
+        ? 'Bu kayit TGB sirketi olarak olusturulacaktir.'
+        : 'Bu kayit dis sirket olarak olusturulacaktir.';
     const detailReady = !isEdit || Boolean(companyDetail);
     const isFormDisabled = isSaving || isDetailLoading || !detailReady || Boolean(detailError);
 
-    const helperTexts = useMemo(() => (values.contacts.map((_, index) => ({
+    const contactHelperTexts = useMemo(() => (values.contacts.map((_, index) => ({
         fullName: errors[contactField(index, 'fullName')],
         position: errors[contactField(index, 'position')],
         email: errors[contactField(index, 'email')],
         phone: errors[contactField(index, 'phone')],
     }))), [errors, values.contacts]);
 
-    function handleChange(field: Exclude<keyof CompanyFormValues, 'contacts'>, value: string) {
-        setValues((currentValues) => ({
-            ...currentValues,
-            [field]: value,
-        }));
+    const contactMethodHelperTexts = useMemo(
+        () => values.contactMethods.map((_, index) => ({
+            value: errors[contactMethodField(index, 'value')],
+            label: errors[contactMethodField(index, 'label')],
+        })),
+        [errors, values.contactMethods],
+    );
+
+    function clearTopLevelError(field: keyof CompanyFormValues) {
         setErrors((currentErrors) => ({
             ...currentErrors,
             [field]: undefined,
         }));
+        setGeneralError(null);
+    }
+
+    function handleChange(field: Exclude<keyof CompanyFormValues, 'contacts' | 'contactMethods'>, value: string) {
+        setValues((currentValues) => ({
+            ...currentValues,
+            [field]: value,
+        }));
+        clearTopLevelError(field);
+    }
+
+    function handleContactMethodChange(
+        index: number,
+        field: Exclude<keyof CompanyContactMethodFormValues, 'id' | 'type' | 'primary'>,
+        value: string,
+    ) {
+        setValues((currentValues) => ({
+            ...currentValues,
+            contactMethods: currentValues.contactMethods.map((contactMethod, methodIndex) =>
+                methodIndex === index
+                    ? { ...contactMethod, [field]: value }
+                    : contactMethod,
+            ),
+        }));
+        setErrors((currentErrors) => ({
+            ...currentErrors,
+            [contactMethodField(index, field)]: undefined,
+        }));
+        setGeneralError(null);
+    }
+
+    function handleAddContactMethod(type: CompanyContactMethodType) {
+        setValues((currentValues) => {
+            const hasMethodOfType = currentValues.contactMethods
+                .some((contactMethod) => contactMethod.type === type);
+
+            return {
+                ...currentValues,
+                contactMethods: [
+                    ...currentValues.contactMethods,
+                    createEmptyContactMethod(type, !hasMethodOfType),
+                ],
+            };
+        });
+        setGeneralError(null);
+    }
+
+    function handleRemoveContactMethod(index: number) {
+        setValues((currentValues) => {
+            const removedMethod = currentValues.contactMethods[index];
+            const contactMethods = currentValues.contactMethods.filter((_, methodIndex) =>
+                methodIndex !== index,
+            );
+
+            if (removedMethod.primary) {
+                const firstSameTypeIndex = contactMethods.findIndex(
+                    (contactMethod) => contactMethod.type === removedMethod.type,
+                );
+
+                if (firstSameTypeIndex >= 0) {
+                    return {
+                        ...currentValues,
+                        contactMethods: contactMethods.map((contactMethod, methodIndex) => ({
+                            ...contactMethod,
+                            primary: contactMethod.type === removedMethod.type
+                                ? methodIndex === firstSameTypeIndex
+                                : contactMethod.primary,
+                        })),
+                    };
+                }
+            }
+
+            return {
+                ...currentValues,
+                contactMethods,
+            };
+        });
+        setErrors({});
+        setGeneralError(null);
+    }
+
+    function handleContactMethodPrimaryChange(index: number) {
+        setValues((currentValues) => {
+            const selectedType = currentValues.contactMethods[index].type;
+
+            return {
+                ...currentValues,
+                contactMethods: currentValues.contactMethods.map((contactMethod, methodIndex) => ({
+                    ...contactMethod,
+                    primary: contactMethod.type === selectedType
+                        ? methodIndex === index
+                        : contactMethod.primary,
+                })),
+            };
+        });
         setGeneralError(null);
     }
 
@@ -423,6 +559,109 @@ export function CompanyFormDialog({
         }
     }
 
+    function renderContactMethodGroup(type: CompanyContactMethodType) {
+        const methodsWithIndexes = values.contactMethods
+            .map((contactMethod, index) => ({ contactMethod, index }))
+            .filter(({ contactMethod }) => contactMethod.type === type);
+
+        return (
+            <Stack spacing={1.25}>
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1}
+                    sx={{
+                        alignItems: { xs: 'stretch', sm: 'center' },
+                        justifyContent: 'space-between',
+                    }}
+                >
+                    <Typography sx={{ fontWeight: 600 }}>
+                        {methodGroupTitle(type)}
+                    </Typography>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AddOutlinedIcon />}
+                        onClick={() => handleAddContactMethod(type)}
+                        disabled={isFormDisabled}
+                    >
+                        {`${methodTypeLabel(type)} Ekle`}
+                    </Button>
+                </Stack>
+
+                {methodsWithIndexes.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                        Kayit yok
+                    </Typography>
+                ) : methodsWithIndexes.map(({ contactMethod, index }) => (
+                    <Stack
+                        key={`${contactMethod.id ?? 'new'}-${index}`}
+                        direction={{ xs: 'column', md: 'row' }}
+                        spacing={1}
+                        sx={{ alignItems: { xs: 'stretch', md: 'flex-start' } }}
+                    >
+                        <TextField
+                            label={methodTypeLabel(type)}
+                            type={type === 'EMAIL' ? 'email' : undefined}
+                            value={contactMethod.value}
+                            onChange={(event) =>
+                                handleContactMethodChange(index, 'value', event.target.value)}
+                            error={Boolean(contactMethodHelperTexts[index]?.value)}
+                            helperText={contactMethodHelperTexts[index]?.value}
+                            fullWidth
+                            disabled={isFormDisabled}
+                            slotProps={{
+                                htmlInput: { maxLength: type === 'PHONE' ? 30 : 255 },
+                            }}
+                        />
+                        <TextField
+                            label="Etiket"
+                            value={contactMethod.label}
+                            onChange={(event) =>
+                                handleContactMethodChange(index, 'label', event.target.value)}
+                            error={Boolean(contactMethodHelperTexts[index]?.label)}
+                            helperText={contactMethodHelperTexts[index]?.label}
+                            fullWidth
+                            disabled={isFormDisabled}
+                            slotProps={{
+                                htmlInput: { maxLength: 100 },
+                            }}
+                        />
+                        <Stack
+                            direction="row"
+                            spacing={1}
+                            sx={{
+                                alignItems: 'center',
+                                justifyContent: { xs: 'space-between', md: 'flex-start' },
+                                minWidth: { md: 190 },
+                                pt: { md: 0.75 },
+                            }}
+                        >
+                            <FormControlLabel
+                                control={(
+                                    <Radio
+                                        checked={contactMethod.primary}
+                                        onChange={() =>
+                                            handleContactMethodPrimaryChange(index)}
+                                        disabled={isFormDisabled}
+                                    />
+                                )}
+                                label="Ana"
+                            />
+                            <Button
+                                color="error"
+                                startIcon={<DeleteOutlineOutlinedIcon />}
+                                onClick={() => handleRemoveContactMethod(index)}
+                                disabled={isFormDisabled}
+                            >
+                                Sil
+                            </Button>
+                        </Stack>
+                    </Stack>
+                ))}
+            </Stack>
+        );
+    }
+
     return (
         <Dialog
             open={open}
@@ -442,7 +681,7 @@ export function CompanyFormDialog({
                     )}
 
                     {isDetailLoading && (
-                        <Alert severity="info">Şirket detayı yükleniyor...</Alert>
+                        <Alert severity="info">Sirket detayi yukleniyor...</Alert>
                     )}
 
                     {!isEdit && (
@@ -450,7 +689,7 @@ export function CompanyFormDialog({
                     )}
 
                     <TextField
-                        label={fieldLabels.name}
+                        label="Sirket adi"
                         value={values.name}
                         onChange={(event) => handleChange('name', event.target.value)}
                         error={Boolean(errors.name)}
@@ -463,51 +702,8 @@ export function CompanyFormDialog({
                         }}
                     />
 
-                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                        <TextField
-                            label={fieldLabels.email}
-                            type="email"
-                            value={values.email}
-                            onChange={(event) => handleChange('email', event.target.value)}
-                            error={Boolean(errors.email)}
-                            helperText={errors.email}
-                            fullWidth
-                            disabled={isFormDisabled}
-                            slotProps={{
-                                htmlInput: { maxLength: 255 },
-                            }}
-                        />
-
-                        <TextField
-                            label={fieldLabels.phone}
-                            value={values.phone}
-                            onChange={(event) => handleChange('phone', event.target.value)}
-                            error={Boolean(errors.phone)}
-                            helperText={errors.phone}
-                            fullWidth
-                            disabled={isFormDisabled}
-                            slotProps={{
-                                htmlInput: { maxLength: 30 },
-                            }}
-                        />
-
-                        <TextField
-                            label={fieldLabels.secondaryPhone}
-                            value={values.secondaryPhone}
-                            onChange={(event) =>
-                                handleChange('secondaryPhone', event.target.value)}
-                            error={Boolean(errors.secondaryPhone)}
-                            helperText={errors.secondaryPhone}
-                            fullWidth
-                            disabled={isFormDisabled}
-                            slotProps={{
-                                htmlInput: { maxLength: 30 },
-                            }}
-                        />
-                    </Stack>
-
                     <TextField
-                        label={fieldLabels.activityArea}
+                        label="Faaliyet alani"
                         value={values.activityArea}
                         onChange={(event) => handleChange('activityArea', event.target.value)}
                         error={Boolean(errors.activityArea)}
@@ -523,7 +719,7 @@ export function CompanyFormDialog({
                     />
 
                     <TextField
-                        label={fieldLabels.logoUrl}
+                        label="Logo URL"
                         value={values.logoUrl}
                         onChange={(event) => handleChange('logoUrl', event.target.value)}
                         error={Boolean(errors.logoUrl)}
@@ -538,6 +734,18 @@ export function CompanyFormDialog({
                     <Divider />
 
                     <Stack spacing={1.5}>
+                        <Box>
+                            <Typography variant="h6">
+                                Sirket Iletisim Bilgileri
+                            </Typography>
+                        </Box>
+                        {renderContactMethodGroup('PHONE')}
+                        {renderContactMethodGroup('EMAIL')}
+                    </Stack>
+
+                    <Divider />
+
+                    <Stack spacing={1.5}>
                         <Stack
                             direction={{ xs: 'column', sm: 'row' }}
                             spacing={1}
@@ -548,7 +756,7 @@ export function CompanyFormDialog({
                         >
                             <Box>
                                 <Typography variant="h6">
-                                    Yetkili Kişiler
+                                    Yetkili Kisiler
                                 </Typography>
                                 {errors.contacts && (
                                     <Typography color="error" variant="body2">
@@ -563,7 +771,7 @@ export function CompanyFormDialog({
                                 onClick={handleAddContact}
                                 disabled={isFormDisabled}
                             >
-                                Yetkili Kişi Ekle
+                                Yetkili Kisi Ekle
                             </Button>
                         </Stack>
 
@@ -588,8 +796,8 @@ export function CompanyFormDialog({
                                         >
                                             <Typography sx={{ fontWeight: 600 }}>
                                                 {values.contacts.length > 1
-                                                    ? `${index + 1}. Yetkili Kişi`
-                                                    : 'Yetkili Kişi'}
+                                                    ? `${index + 1}. Yetkili Kisi`
+                                                    : 'Yetkili Kisi'}
                                             </Typography>
 
                                             <Stack
@@ -609,7 +817,7 @@ export function CompanyFormDialog({
                                                             disabled={isFormDisabled}
                                                         />
                                                     )}
-                                                    label="Ana yetkili kişi"
+                                                    label="Ana yetkili kisi"
                                                 />
                                                 {values.contacts.length > 1 && (
                                                     <Button
@@ -634,8 +842,8 @@ export function CompanyFormDialog({
                                                     'fullName',
                                                     event.target.value,
                                                 )}
-                                            error={Boolean(helperTexts[index]?.fullName)}
-                                            helperText={helperTexts[index]?.fullName}
+                                            error={Boolean(contactHelperTexts[index]?.fullName)}
+                                            helperText={contactHelperTexts[index]?.fullName}
                                             required
                                             fullWidth
                                             disabled={isFormDisabled}
@@ -653,8 +861,8 @@ export function CompanyFormDialog({
                                                     'position',
                                                     event.target.value,
                                                 )}
-                                            error={Boolean(helperTexts[index]?.position)}
-                                            helperText={helperTexts[index]?.position}
+                                            error={Boolean(contactHelperTexts[index]?.position)}
+                                            helperText={contactHelperTexts[index]?.position}
                                             fullWidth
                                             disabled={isFormDisabled}
                                             slotProps={{
@@ -676,8 +884,8 @@ export function CompanyFormDialog({
                                                         'email',
                                                         event.target.value,
                                                     )}
-                                                error={Boolean(helperTexts[index]?.email)}
-                                                helperText={helperTexts[index]?.email}
+                                                error={Boolean(contactHelperTexts[index]?.email)}
+                                                helperText={contactHelperTexts[index]?.email}
                                                 fullWidth
                                                 disabled={isFormDisabled}
                                                 slotProps={{
@@ -694,8 +902,8 @@ export function CompanyFormDialog({
                                                         'phone',
                                                         event.target.value,
                                                     )}
-                                                error={Boolean(helperTexts[index]?.phone)}
-                                                helperText={helperTexts[index]?.phone}
+                                                error={Boolean(contactHelperTexts[index]?.phone)}
+                                                helperText={contactHelperTexts[index]?.phone}
                                                 fullWidth
                                                 disabled={isFormDisabled}
                                                 slotProps={{
@@ -712,7 +920,7 @@ export function CompanyFormDialog({
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose} disabled={isSaving}>
-                    Vazgeç
+                    Vazgec
                 </Button>
                 <Button
                     variant="contained"

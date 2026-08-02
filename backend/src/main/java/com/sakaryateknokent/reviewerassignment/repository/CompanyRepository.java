@@ -38,10 +38,13 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
                    :search = ''
                    OR LOWER(company.name)
                         LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR LOWER(company.email)
-                        LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR LOWER(company.phone)
-                        LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR EXISTS (
+                        SELECT method.id
+                        FROM CompanyContactMethod method
+                        WHERE method.company = company
+                          AND LOWER(method.value)
+                              LIKE LOWER(CONCAT('%', :search, '%'))
+                   )
                    OR LOWER(company.activityArea)
                         LIKE LOWER(CONCAT('%', :search, '%'))
               )

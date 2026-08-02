@@ -1,5 +1,23 @@
 export type CompanyType = 'TGB' | 'EXTERNAL';
 
+export type CompanyContactMethodType = 'PHONE' | 'EMAIL';
+
+export type CompanyContactMethod = {
+    id: number;
+    type: CompanyContactMethodType;
+    value: string;
+    label: string | null;
+    primary: boolean;
+};
+
+export type CompanyContactMethodRequest = {
+    id: number | null;
+    type: CompanyContactMethodType;
+    value: string;
+    label: string | null;
+    primary: boolean;
+};
+
 export type CompanyContact = {
     id: number;
     fullName: string;
@@ -12,12 +30,10 @@ export type CompanyContact = {
 export type CompanyListItem = {
     id: number;
     name: string;
-    email: string | null;
-    phone: string | null;
-    secondaryPhone: string | null;
     activityArea: string | null;
     logoUrl: string | null;
     companyType: CompanyType;
+    contactMethods: CompanyContactMethod[];
     primaryContact: CompanyContact | null;
     contactCount: number;
 };
@@ -25,12 +41,10 @@ export type CompanyListItem = {
 export type CompanyDetail = {
     id: number;
     name: string;
-    email: string | null;
-    phone: string | null;
-    secondaryPhone: string | null;
     activityArea: string | null;
     logoUrl: string | null;
     companyType: CompanyType;
+    contactMethods: CompanyContactMethod[];
     contacts: CompanyContact[];
 };
 
@@ -50,12 +64,10 @@ export type UpdateCompanyContactRequest = CreateCompanyContactRequest & {
 
 export type CreateCompanyRequest = {
     name: string;
-    email: string | null;
-    phone: string | null;
-    secondaryPhone: string | null;
     activityArea: string | null;
     logoUrl: string | null;
     companyType: CompanyType;
+    contactMethods: CompanyContactMethodRequest[];
     contacts: CreateCompanyContactRequest[];
 };
 
@@ -133,12 +145,18 @@ export type CompanyPageParams = {
 
 export type CompanyFormValues = {
     name: string;
-    email: string;
-    phone: string;
-    secondaryPhone: string;
     activityArea: string;
     logoUrl: string;
+    contactMethods: CompanyContactMethodFormValues[];
     contacts: CompanyContactFormValues[];
+};
+
+export type CompanyContactMethodFormValues = {
+    id: number | null;
+    type: CompanyContactMethodType;
+    value: string;
+    label: string;
+    primary: boolean;
 };
 
 export type CompanyContactFormValues = {
