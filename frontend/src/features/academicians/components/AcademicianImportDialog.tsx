@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type RefObject } from 'react';
 import axios from 'axios';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
@@ -26,9 +26,9 @@ import {
     TableHead,
     TablePagination,
     TableRow,
+    Tooltip,
     ToggleButton,
     ToggleButtonGroup,
-    Tooltip,
     Typography,
     alpha,
     useMediaQuery,
@@ -49,7 +49,7 @@ type AcademicianImportDialogProps = {
     onClose: () => void;
 };
 
-type RowFilter = 'all' | 'invalid' | 'warning';
+type PreviewRowFilter = 'all' | 'valid' | 'problem';
 
 const defaultRowsPerPage = 25;
 const optionalFallback = '—';
@@ -693,6 +693,12 @@ function ImportResultSummary({
                     />
                 </Stack>
 
+                {result.skippedRows.length === 0 && result.invalidRows.length === 0 && (
+                    <Alert severity="success" sx={{ borderRadius: '8px' }}>
+                        Tüm geçerli kayıtlar başarıyla aktarıldı.
+                    </Alert>
+                )}
+
                 {(result.skippedRows.length > 0 || result.invalidRows.length > 0) && (
                     <Box
                         sx={{
@@ -726,21 +732,26 @@ function PreviewTable({
 }: {
     preview: AcademicianImportPreviewResponse;
 }) {
-    const [filter, setFilter] = useState<RowFilter>('all');
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
+    const [rowFilter, setRowFilter] = useState<PreviewRowFilter>('problem');
 
-    const filteredRows = useMemo(() => {
-        if (filter === 'invalid') {
-            return preview.rows.filter((row) => !row.valid);
-        }
+    const filteredRows = useMemo(
+        () => preview.rows.filter((row) => {
+            if (rowFilter === 'valid') {
+                return row.valid && row.warnings.length === 0;
+            }
 
-        if (filter === 'warning') {
-            return preview.rows.filter((row) => row.valid && row.warnings.length > 0);
-        }
+            if (rowFilter === 'problem') {
+                return !row.valid || row.warnings.length > 0;
+            }
 
-        return preview.rows;
-    }, [filter, preview.rows]);
+            return true;
+        }),
+        [preview.rows, rowFilter],
+    );
+
+    const rowCountText = `${filteredRows.length} kayıt gösteriliyor`;
 
     const safePage = Math.min(
         page,
@@ -750,6 +761,23 @@ function PreviewTable({
         safePage * rowsPerPage,
         safePage * rowsPerPage + rowsPerPage,
     );
+    const emptyMessage = rowFilter === 'valid'
+        ? 'Geçerli kayıt bulunmuyor.'
+        : rowFilter === 'problem'
+            ? 'Sorunlu kayıt bulunmuyor.'
+            : 'Gösterilecek kayıt yok.';
+
+    function handleRowFilterChange(
+        _: MouseEvent<HTMLElement>,
+        nextFilter: PreviewRowFilter | null,
+    ) {
+        if (!nextFilter) {
+            return;
+        }
+
+        setRowFilter(nextFilter);
+        setPage(0);
+    }
 
     return (
         <Paper
@@ -763,58 +791,39 @@ function PreviewTable({
             }}
         >
             <Stack
-                direction={{ xs: 'column', sm: 'row' }}
                 spacing={1.5}
                 sx={{
-                    alignItems: { xs: 'stretch', sm: 'center' },
                     bgcolor: 'background.paper',
-                    justifyContent: 'space-between',
                     p: 1.75,
                 }}
             >
-                <Stack spacing={0.25}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                        Satır önizleme
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                        {filteredRows.length} satır gösteriliyor
-                    </Typography>
-                </Stack>
-                <ToggleButtonGroup
-                    exclusive
-                    size="small"
-                    value={filter}
-                    onChange={(_, nextFilter: RowFilter | null) => {
-                        if (nextFilter) {
-                            setFilter(nextFilter);
-                            setPage(0);
-                        }
-                    }}
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1.5}
                     sx={{
-                        alignSelf: { xs: 'stretch', sm: 'center' },
-                        bgcolor: 'background.default',
-                        borderRadius: '8px',
-                        p: 0.25,
-                        '& .MuiToggleButtonGroup-grouped': {
-                            border: 0,
-                            borderRadius: '7px',
-                            mx: 0.125,
-                        },
-                        '& .MuiToggleButton-root': {
-                            flex: { xs: 1, sm: 'initial' },
-                            fontWeight: 700,
-                            px: 1.4,
-                        },
-                        '& .Mui-selected': {
-                            bgcolor: 'background.paper',
-                            boxShadow: '0 1px 6px rgba(15, 23, 42, 0.10)',
-                        },
+                        alignItems: { xs: 'flex-start', sm: 'center' },
+                        justifyContent: 'space-between',
                     }}
                 >
-                    <ToggleButton value="all">Tümü</ToggleButton>
-                    <ToggleButton value="invalid">Hatalılar</ToggleButton>
-                    <ToggleButton value="warning">Uyarılılar</ToggleButton>
-                </ToggleButtonGroup>
+                    <Stack spacing={0.25}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                            Satır önizleme
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            {rowCountText}
+                        </Typography>
+                    </Stack>
+                    <ToggleButtonGroup
+                        exclusive
+                        size="small"
+                        value={rowFilter}
+                        onChange={handleRowFilterChange}
+                    >
+                        <ToggleButton value="all">Tümü</ToggleButton>
+                        <ToggleButton value="valid">Geçerli</ToggleButton>
+                        <ToggleButton value="problem">Sorunlu</ToggleButton>
+                    </ToggleButtonGroup>
+                </Stack>
             </Stack>
             <Divider />
 
@@ -905,9 +914,7 @@ function PreviewTable({
                             <TableRow>
                                 <TableCell colSpan={6}>
                                     <Typography color="text.secondary" sx={{ py: 2 }}>
-                                        {filter === 'warning' && preview.generalWarnings.length > 0
-                                            ? 'Satır bazlı uyarı bulunmuyor. Genel dosya uyarıları yukarıda gösteriliyor.'
-                                            : 'Bu filtrede gösterilecek satır yok.'}
+                                        {emptyMessage}
                                     </Typography>
                                 </TableCell>
                             </TableRow>
@@ -1187,7 +1194,10 @@ export function AcademicianImportDialog({
                                 preview={preview}
                                 showNoSaveInfo={!importResult}
                             />
-                            <PreviewTable preview={preview} />
+                            <PreviewTable
+                                key={`${preview.fileName}-${preview.totalDetectedRows}`}
+                                preview={preview}
+                            />
                         </>
                     )}
 

@@ -1,5 +1,6 @@
 package com.sakaryateknokent.reviewerassignment.entity;
 
+import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -29,11 +30,18 @@ public class Company {
     @Column(length = 30)
     private String phone;
 
-    @Column(name = "activity_area", length = 255)
+    @Column(name = "secondary_phone", length = 30)
+    private String secondaryPhone;
+
+    @Column(name = "activity_area", columnDefinition = "text")
     private String activityArea;
 
     @Column(name = "logo_url", length = 500)
     private String logoUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "company_type", nullable = false, length = 20)
+    private CompanyType companyType;
 
     @OneToMany(
             mappedBy = "company",

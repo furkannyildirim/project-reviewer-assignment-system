@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.repository;
 
 import com.sakaryateknokent.reviewerassignment.entity.Company;
+import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,22 +12,42 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     boolean existsByEmail(String email);
 
+    boolean existsByEmailIgnoreCase(String email);
+
+    boolean existsByCompanyTypeAndEmailIgnoreCase(
+            CompanyType companyType,
+            String email
+    );
+
     boolean existsByEmailAndIdNot(String email, Long id);
+
+    @Query("""
+            SELECT company.name
+            FROM Company company
+            WHERE company.companyType = :companyType
+            """)
+    java.util.List<String> findNamesByCompanyType(
+            @Param("companyType") CompanyType companyType
+    );
 
     @Query("""
             SELECT company
             FROM Company company
-            WHERE :search = ''
-               OR LOWER(company.name)
-                    LIKE LOWER(CONCAT('%', :search, '%'))
-               OR LOWER(company.email)
-                    LIKE LOWER(CONCAT('%', :search, '%'))
-               OR LOWER(company.phone)
-                    LIKE LOWER(CONCAT('%', :search, '%'))
-               OR LOWER(company.activityArea)
-                    LIKE LOWER(CONCAT('%', :search, '%'))
+            WHERE company.companyType = :companyType
+              AND (
+                   :search = ''
+                   OR LOWER(company.name)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(company.email)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(company.phone)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(company.activityArea)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+              )
             """)
     Page<Company> search(
+            @Param("companyType") CompanyType companyType,
             @Param("search") String search,
             Pageable pageable
     );

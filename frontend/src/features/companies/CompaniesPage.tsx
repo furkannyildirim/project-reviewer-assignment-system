@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
+import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import {
     Alert,
     Box,
@@ -27,11 +28,13 @@ import {
 import { companyQueryKeys } from './companyQueryKeys';
 import type {
     Company,
+    CompanyType,
     CreateCompanyRequest,
     UpdateCompanyRequest,
 } from './company.types';
 import { companyPageSizes } from './company.types';
 import { CompanyFormDialog } from './components/CompanyFormDialog';
+import { CompanyImportPreviewDialog } from './components/CompanyImportPreviewDialog';
 import { CompanyTable } from './components/CompanyTable';
 
 type FormMode = {
@@ -44,7 +47,19 @@ type SnackbarState = {
     severity: 'success' | 'error';
 } | null;
 
-export function CompaniesPage() {
+type CompaniesPageProps = {
+    companyType: CompanyType;
+    title: string;
+    description: string;
+    emptyTitle: string;
+};
+
+export function CompaniesPage({
+    companyType,
+    title,
+    description,
+    emptyTitle,
+}: CompaniesPageProps) {
     const { role } = useAuth();
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
@@ -52,12 +67,14 @@ export function CompaniesPage() {
     const [size, setSize] = useState(10);
     const [formMode, setFormMode] = useState<FormMode>(null);
     const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
+    const [isImportDialogOpen, setImportDialogOpen] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [snackbar, setSnackbar] = useState<SnackbarState>(null);
     const debouncedSearch = useDebouncedValue(search.trim(), 400);
     const isAdmin = role === 'ADMIN';
 
     const queryParams = {
+        companyType,
         search: debouncedSearch,
         page,
         size,
@@ -197,16 +214,30 @@ export function CompaniesPage() {
     return (
         <Stack spacing={3}>
             <PageHeader
-                title="Şirket Yönetimi"
-                description="Şirket kayıtlarını arayın, sayfalayın, oluşturun ve güncelleyin."
+                title={title}
+                description={description}
                 action={(
-                    <Button
-                        variant="contained"
-                        startIcon={<AddBusinessOutlinedIcon />}
-                        onClick={() => setFormMode({ type: 'create', company: null })}
+                    <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={1}
+                        sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}
                     >
-                        Yeni Şirket
-                    </Button>
+                        <Button
+                            variant="outlined"
+                            startIcon={<UploadFileOutlinedIcon />}
+                            onClick={() => setImportDialogOpen(true)}
+                        >
+                            Excel'den Aktar
+                        </Button>
+
+                        <Button
+                            variant="contained"
+                            startIcon={<AddBusinessOutlinedIcon />}
+                            onClick={() => setFormMode({ type: 'create', company: null })}
+                        >
+                        Şirket Ekle
+                        </Button>
+                    </Stack>
                 )}
             />
 
@@ -271,7 +302,7 @@ export function CompaniesPage() {
 
             {showEmptyState ? (
                 <EmptyState
-                    title="Şirket kaydı bulunamadı"
+                    title={emptyTitle}
                     description={
                         debouncedSearch
                             ? 'Arama ölçütlerini değiştirerek tekrar deneyin.'
@@ -320,12 +351,20 @@ export function CompaniesPage() {
                         : null
                 }
                 isSaving={isSaving}
+                companyType={companyType}
                 onClose={() => {
                     if (!isSaving) {
                         setFormMode(null);
                     }
                 }}
                 onSubmit={handleFormSubmit}
+            />
+
+            <CompanyImportPreviewDialog
+                open={isImportDialogOpen}
+                companyType={companyType}
+                onClose={() => setImportDialogOpen(false)}
+                onImported={invalidateCompanies}
             />
 
             <ConfirmDialog

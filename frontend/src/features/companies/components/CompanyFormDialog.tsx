@@ -25,6 +25,7 @@ import type {
     CompanyContactFormValues,
     CompanyDetail,
     CompanyFormValues,
+    CompanyType,
     CreateCompanyRequest,
     UpdateCompanyRequest,
 } from '../company.types';
@@ -36,6 +37,7 @@ type CompanyFormDialogProps = {
     isDetailLoading: boolean;
     detailError: string | null;
     isSaving: boolean;
+    companyType: CompanyType;
     onClose: () => void;
     onSubmit: (
         request: CreateCompanyRequest | UpdateCompanyRequest,
@@ -57,6 +59,7 @@ const emptyValues: CompanyFormValues = {
     name: '',
     email: '',
     phone: '',
+    secondaryPhone: '',
     activityArea: '',
     logoUrl: '',
     contacts: [emptyContact],
@@ -66,6 +69,7 @@ const fieldLabels = {
     name: 'Şirket adı',
     email: 'E-posta',
     phone: 'Telefon',
+    secondaryPhone: 'Telefon 2',
     activityArea: 'Faaliyet alanı',
     logoUrl: 'Logo URL',
 } satisfies Record<Exclude<keyof CompanyFormValues, 'contacts'>, string>;
@@ -100,6 +104,7 @@ function toFormValues(company: CompanyDetail | null): CompanyFormValues {
         name: company.name,
         email: company.email ?? '',
         phone: company.phone ?? '',
+        secondaryPhone: company.secondaryPhone ?? '',
         activityArea: company.activityArea ?? '',
         logoUrl: company.logoUrl ?? '',
         contacts,
@@ -115,11 +120,13 @@ function normalizeOptional(value: string): string | null {
 function buildRequest(
     values: CompanyFormValues,
     isEdit: boolean,
+    companyType: CompanyType,
 ): CreateCompanyRequest | UpdateCompanyRequest {
     const companyFields = {
         name: values.name.trim(),
         email: normalizeOptional(values.email),
         phone: normalizeOptional(values.phone),
+        secondaryPhone: normalizeOptional(values.secondaryPhone),
         activityArea: normalizeOptional(values.activityArea),
         logoUrl: normalizeOptional(values.logoUrl),
     };
@@ -140,6 +147,7 @@ function buildRequest(
 
     return {
         ...companyFields,
+        companyType,
         contacts: values.contacts.map((contact) => ({
             fullName: contact.fullName.trim(),
             position: normalizeOptional(contact.position),
@@ -176,8 +184,12 @@ function validate(values: CompanyFormValues): FormErrors {
         errors.phone = 'Telefon en fazla 30 karakter olabilir';
     }
 
-    if (values.activityArea.trim().length > 255) {
-        errors.activityArea = 'Faaliyet alanı en fazla 255 karakter olabilir';
+    if (values.secondaryPhone.trim().length > 30) {
+        errors.secondaryPhone = 'İkinci telefon en fazla 30 karakter olabilir';
+    }
+
+    if (values.activityArea.trim().length > 2000) {
+        errors.activityArea = 'Faaliyet alanı en fazla 2000 karakter olabilir';
     }
 
     if (values.logoUrl.trim().length > 500) {
@@ -273,6 +285,7 @@ export function CompanyFormDialog({
     isDetailLoading,
     detailError,
     isSaving,
+    companyType,
     onClose,
     onSubmit,
 }: CompanyFormDialogProps) {
@@ -283,6 +296,9 @@ export function CompanyFormDialog({
     const [generalError, setGeneralError] = useState<string | null>(null);
     const isEdit = Boolean(company);
     const title = isEdit ? 'Şirketi Düzenle' : 'Yeni Şirket';
+    const createTypeMessage = companyType === 'TGB'
+        ? 'Bu kayıt TGB şirketi olarak oluşturulacaktır.'
+        : 'Bu kayıt dış şirket olarak oluşturulacaktır.';
     const detailReady = !isEdit || Boolean(companyDetail);
     const isFormDisabled = isSaving || isDetailLoading || !detailReady || Boolean(detailError);
 
@@ -398,7 +414,7 @@ export function CompanyFormDialog({
         }
 
         try {
-            await onSubmit(buildRequest(values, isEdit));
+            await onSubmit(buildRequest(values, isEdit, companyType));
         } catch (error) {
             const apiFieldErrors = getFieldErrors(error);
 
@@ -427,6 +443,10 @@ export function CompanyFormDialog({
 
                     {isDetailLoading && (
                         <Alert severity="info">Şirket detayı yükleniyor...</Alert>
+                    )}
+
+                    {!isEdit && (
+                        <Alert severity="info">{createTypeMessage}</Alert>
                     )}
 
                     <TextField
@@ -470,6 +490,20 @@ export function CompanyFormDialog({
                                 htmlInput: { maxLength: 30 },
                             }}
                         />
+
+                        <TextField
+                            label={fieldLabels.secondaryPhone}
+                            value={values.secondaryPhone}
+                            onChange={(event) =>
+                                handleChange('secondaryPhone', event.target.value)}
+                            error={Boolean(errors.secondaryPhone)}
+                            helperText={errors.secondaryPhone}
+                            fullWidth
+                            disabled={isFormDisabled}
+                            slotProps={{
+                                htmlInput: { maxLength: 30 },
+                            }}
+                        />
                     </Stack>
 
                     <TextField
@@ -479,9 +513,12 @@ export function CompanyFormDialog({
                         error={Boolean(errors.activityArea)}
                         helperText={errors.activityArea}
                         fullWidth
+                        multiline
+                        minRows={3}
+                        maxRows={6}
                         disabled={isFormDisabled}
                         slotProps={{
-                            htmlInput: { maxLength: 255 },
+                            htmlInput: { maxLength: 2000 },
                         }}
                     />
 

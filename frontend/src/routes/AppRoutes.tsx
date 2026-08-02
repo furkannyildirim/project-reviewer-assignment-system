@@ -42,7 +42,34 @@ export function AppRoutes() {
                         path="/academicians"
                         element={<AcademiciansPage />}
                     />
-                    <Route path="/companies" element={<CompaniesPage />} />
+                    <Route
+                        path="/companies"
+                        element={<Navigate to="/companies/tgb" replace />}
+                    />
+                    <Route
+                        path="/companies/tgb"
+                        element={(
+                            <CompaniesPage
+                                key="tgb-companies"
+                                companyType="TGB"
+                                title="TGB Şirketleri"
+                                description="TGB şirket kayıtlarını arayın, sayfalayın, oluşturun ve güncelleyin."
+                                emptyTitle="Henüz TGB şirketi bulunmuyor."
+                            />
+                        )}
+                    />
+                    <Route
+                        path="/companies/external"
+                        element={(
+                            <CompaniesPage
+                                key="external-companies"
+                                companyType="EXTERNAL"
+                                title="Dış Şirketler"
+                                description="Dış şirket kayıtlarını arayın, sayfalayın, oluşturun ve güncelleyin."
+                                emptyTitle="Henüz dış şirket bulunmuyor."
+                            />
+                        )}
+                    />
                     <Route element={<AdminRoute />}>
                         <Route path="/users" element={<UsersPage />} />
                     </Route>
