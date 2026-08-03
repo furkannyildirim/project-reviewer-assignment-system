@@ -70,12 +70,26 @@ public class CompanyController {
     public ResponseEntity<PageResponse<CompanyListResponse>> getCompanies(
             @RequestParam CompanyType companyType,
             @RequestParam(defaultValue = "") String search,
+            @RequestParam(required = false) String initial,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         return ResponseEntity.ok(
-                companyService.getCompanies(companyType, search, page, size)
+                companyService.getCompanies(
+                        companyType,
+                        search,
+                        initial,
+                        page,
+                        size
+                )
         );
+    }
+
+    @GetMapping("/count")
+    public ResponseEntity<Long> countCompanies(
+            @RequestParam CompanyType companyType
+    ) {
+        return ResponseEntity.ok(companyService.countCompanies(companyType));
     }
 
     @GetMapping("/{id}")

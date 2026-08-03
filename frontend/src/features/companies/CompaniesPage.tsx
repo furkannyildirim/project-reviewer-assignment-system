@@ -21,6 +21,7 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import {
     createCompany,
     deleteCompany,
+    getCompanyCount,
     getCompanyById,
     getCompanies,
     updateCompany,
@@ -54,6 +55,38 @@ type CompaniesPageProps = {
     emptyTitle: string;
 };
 
+const companyInitialOptions = [
+    'A',
+    'B',
+    'C',
+    'Ç',
+    'D',
+    'E',
+    'F',
+    'G',
+    'Ğ',
+    'H',
+    'I',
+    'İ',
+    'J',
+    'K',
+    'L',
+    'M',
+    'N',
+    'O',
+    'Ö',
+    'P',
+    'R',
+    'S',
+    'Ş',
+    'T',
+    'U',
+    'Ü',
+    'V',
+    'Y',
+    'Z',
+] as const;
+
 export function CompaniesPage({
     companyType,
     title,
@@ -63,6 +96,7 @@ export function CompaniesPage({
     const { role } = useAuth();
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
+    const [initial, setInitial] = useState('');
     const [page, setPage] = useState(0);
     const [size, setSize] = useState(10);
     const [formMode, setFormMode] = useState<FormMode>(null);
@@ -76,6 +110,7 @@ export function CompaniesPage({
     const queryParams = {
         companyType,
         search: debouncedSearch,
+        initial: initial || undefined,
         page,
         size,
     };
@@ -84,6 +119,12 @@ export function CompaniesPage({
         queryKey: companyQueryKeys.list(queryParams),
         queryFn: () => getCompanies(queryParams),
         placeholderData: keepPreviousData,
+    });
+
+    const companyCountQuery = useQuery({
+        queryKey: companyQueryKeys.count(companyType),
+        queryFn: () => getCompanyCount(companyType),
+        staleTime: 5 * 60 * 1000,
     });
 
     const editCompanyId =
@@ -198,6 +239,11 @@ export function CompaniesPage({
         setPage(0);
     }
 
+    function handleInitialChange(value: string) {
+        setInitial(value);
+        setPage(0);
+    }
+
     function handleSizeChange(nextSize: number) {
         setSize(nextSize);
         setPage(0);
@@ -256,6 +302,21 @@ export function CompaniesPage({
 
                 <TextField
                     select
+                    label="Baş harf"
+                    value={initial}
+                    onChange={(event) => handleInitialChange(event.target.value)}
+                    sx={{ minWidth: { xs: '100%', md: 150 } }}
+                >
+                    <MenuItem value="">Tümü</MenuItem>
+                    {companyInitialOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                            {option}
+                        </MenuItem>
+                    ))}
+                </TextField>
+
+                <TextField
+                    select
                     label="Satır sayısı"
                     value={size}
                     onChange={(event) => handleSizeChange(Number(event.target.value))}
@@ -284,7 +345,24 @@ export function CompaniesPage({
                         }}
                     >
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            Toplam {companiesQuery.data.totalElements} kayıt
+                            {companiesQuery.data.totalElements} şirket bulundu
+                        </Typography>
+                    </Box>
+                )}
+
+                {companyCountQuery.data !== undefined && (
+                    <Box
+                        sx={{
+                            alignItems: 'center',
+                            color: 'text.secondary',
+                            display: 'flex',
+                            minHeight: 40,
+                            ml: { md: 'auto' },
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            Toplam: {companyCountQuery.data} şirket
                         </Typography>
                     </Box>
                 )}

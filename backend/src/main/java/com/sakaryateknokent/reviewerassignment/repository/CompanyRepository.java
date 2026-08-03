@@ -21,6 +21,8 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     boolean existsByEmailAndIdNot(String email, Long id);
 
+    long countByCompanyType(CompanyType companyType);
+
     @Query("""
             SELECT company.name
             FROM Company company
@@ -48,10 +50,16 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
                    OR LOWER(company.activityArea)
                         LIKE LOWER(CONCAT('%', :search, '%'))
               )
+              AND (
+                   :initial = ''
+                   OR LOWER(company.name)
+                        LIKE LOWER(CONCAT(:initial, '%'))
+              )
             """)
     Page<Company> search(
             @Param("companyType") CompanyType companyType,
             @Param("search") String search,
+            @Param("initial") String initial,
             Pageable pageable
     );
 }

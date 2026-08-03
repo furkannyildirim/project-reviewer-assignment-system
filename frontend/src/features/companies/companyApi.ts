@@ -14,9 +14,25 @@ import type {
 export async function getCompanies(
     params: CompanyPageParams,
 ): Promise<PageResponse<CompanyListItem>> {
+    const requestParams = {
+        ...params,
+        initial: params.initial || undefined,
+    };
+
     const response = await httpClient.get<PageResponse<CompanyListItem>>(
         '/companies',
-        { params },
+        { params: requestParams },
+    );
+
+    return response.data;
+}
+
+export async function getCompanyCount(
+    companyType: CompanyType,
+): Promise<number> {
+    const response = await httpClient.get<number>(
+        '/companies/count',
+        { params: { companyType } },
     );
 
     return response.data;

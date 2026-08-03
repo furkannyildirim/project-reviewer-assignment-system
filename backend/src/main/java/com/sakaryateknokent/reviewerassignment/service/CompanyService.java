@@ -97,6 +97,7 @@ public class CompanyService {
     public PageResponse<CompanyListResponse> getCompanies(
             CompanyType companyType,
             String search,
+            String initial,
             int page,
             int size
     ) {
@@ -105,6 +106,9 @@ public class CompanyService {
         String normalizedSearch = search == null
                 ? ""
                 : search.trim();
+        String normalizedInitial = initial == null
+                ? ""
+                : initial.trim();
 
         Pageable pageable = PageRequest.of(
                 page,
@@ -113,7 +117,7 @@ public class CompanyService {
         );
 
         Page<Company> companyPage = companyRepository
-                .search(companyType, normalizedSearch, pageable);
+                .search(companyType, normalizedSearch, normalizedInitial, pageable);
 
         List<Company> companies = companyPage.getContent();
         Map<Long, List<CompanyContact>> contactsByCompanyId =
@@ -144,6 +148,11 @@ public class CompanyService {
                 companyPage.isFirst(),
                 companyPage.isLast()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public long countCompanies(CompanyType companyType) {
+        return companyRepository.countByCompanyType(companyType);
     }
 
     @Transactional(readOnly = true)

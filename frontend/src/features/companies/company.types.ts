@@ -137,6 +137,7 @@ export type CompanyImportResultResponse = {
 export type CompanyPageParams = {
     companyType: CompanyType;
     search: string;
+    initial?: string;
     page: number;
     size: number;
 };

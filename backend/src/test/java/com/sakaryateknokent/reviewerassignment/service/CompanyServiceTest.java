@@ -36,8 +36,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -342,6 +344,7 @@ class CompanyServiceTest {
         when(companyRepository.search(
                 eq(CompanyType.EXTERNAL),
                 eq("term"),
+                eq(""),
                 any(Pageable.class)
         )).thenReturn(new PageImpl<>(List.of(company)));
         when(companyContactRepository.findByCompanyIdIn(List.of(1L)))
@@ -353,6 +356,7 @@ class CompanyServiceTest {
                 companyService.getCompanies(
                         CompanyType.EXTERNAL,
                         " term ",
+                        null,
                         0,
                         10
                 );
@@ -366,6 +370,91 @@ class CompanyServiceTest {
         verify(companyRepository).search(
                 eq(CompanyType.EXTERNAL),
                 eq("term"),
+                eq(""),
+                any(Pageable.class)
+        );
+    }
+
+    @Test
+    void listsTgbCompaniesWithTrimmedInitialAndFilteredTotalElements() {
+        Company beta = company(1L, "Beta Teknoloji", CompanyType.TGB);
+        when(companyRepository.search(
+                eq(CompanyType.TGB),
+                eq("yazilim"),
+                eq("B"),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(beta), Pageable.ofSize(10), 18));
+        when(companyContactRepository.findByCompanyIdIn(List.of(1L)))
+                .thenReturn(List.of());
+        when(contactMethodRepository.findByCompanyIdIn(List.of(1L)))
+                .thenReturn(List.of());
+
+        PageResponse<CompanyListResponse> response =
+                companyService.getCompanies(
+                        CompanyType.TGB,
+                        " yazilim ",
+                        " B ",
+                        0,
+                        10
+                );
+
+        assertEquals(18, response.totalElements());
+        assertEquals("Beta Teknoloji", response.content().getFirst().name());
+        verify(companyRepository).search(
+                eq(CompanyType.TGB),
+                eq("yazilim"),
+                eq("B"),
+                any(Pageable.class)
+        );
+    }
+
+    @Test
+    void listsExternalCompaniesWithLowercaseAndTurkishInitials() {
+        Company sirket = company(2L, "\u015Eahin Yazilim", CompanyType.EXTERNAL);
+        when(companyRepository.search(
+                eq(CompanyType.EXTERNAL),
+                eq(""),
+                eq("\u015F"),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(sirket), Pageable.ofSize(10), 1));
+        when(companyContactRepository.findByCompanyIdIn(List.of(2L)))
+                .thenReturn(List.of());
+        when(contactMethodRepository.findByCompanyIdIn(List.of(2L)))
+                .thenReturn(List.of());
+
+        PageResponse<CompanyListResponse> response =
+                companyService.getCompanies(
+                        CompanyType.EXTERNAL,
+                        "",
+                        " \u015F ",
+                        0,
+                        10
+                );
+
+        assertEquals(1, response.totalElements());
+        verify(companyRepository).search(
+                eq(CompanyType.EXTERNAL),
+                eq(""),
+                eq("\u015F"),
+                any(Pageable.class)
+        );
+    }
+
+    @Test
+    void countsCompaniesByCompanyTypeWithoutSearchOrInitialFilters() {
+        when(companyRepository.countByCompanyType(CompanyType.TGB))
+                .thenReturn(120L);
+        when(companyRepository.countByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(340L);
+
+        assertEquals(120L, companyService.countCompanies(CompanyType.TGB));
+        assertEquals(340L, companyService.countCompanies(CompanyType.EXTERNAL));
+        verify(companyRepository).countByCompanyType(CompanyType.TGB);
+        verify(companyRepository).countByCompanyType(CompanyType.EXTERNAL);
+        verify(companyRepository, never()).search(
+                any(CompanyType.class),
+                anyString(),
+                anyString(),
                 any(Pageable.class)
         );
     }
