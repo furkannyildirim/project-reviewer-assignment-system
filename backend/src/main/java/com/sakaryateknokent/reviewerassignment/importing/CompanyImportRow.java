@@ -8,9 +8,8 @@ public class CompanyImportRow {
     private final String sheetName;
     private final int rowNumber;
     private String name;
-    private String phone;
-    private String secondaryPhone;
-    private String email;
+    private final List<String> companyPhones = new ArrayList<>();
+    private final List<String> companyEmails = new ArrayList<>();
     private String activityArea;
     private String contactFullName;
     private String contactPosition;
@@ -40,28 +39,20 @@ public class CompanyImportRow {
         this.name = name;
     }
 
-    public String getPhone() {
-        return phone;
+    public List<String> getCompanyPhones() {
+        return companyPhones;
     }
 
-    public void setPhone(String phone) {
-        this.phone = phone;
+    public void addCompanyPhone(String phone) {
+        companyPhones.add(phone);
     }
 
-    public String getSecondaryPhone() {
-        return secondaryPhone;
+    public List<String> getCompanyEmails() {
+        return companyEmails;
     }
 
-    public void setSecondaryPhone(String secondaryPhone) {
-        this.secondaryPhone = secondaryPhone;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
+    public void addCompanyEmail(String email) {
+        companyEmails.add(email);
     }
 
     public String getActivityArea() {

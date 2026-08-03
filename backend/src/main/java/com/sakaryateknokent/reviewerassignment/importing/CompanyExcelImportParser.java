@@ -253,17 +253,21 @@ public class CompanyExcelImportParser {
             importRow.setName(normalizeOptionalImportText(
                     cellValue(row, mapping.columnRange(HeaderType.NAME))
             ));
-            importRow.setPhone(normalizeOptionalImportText(
-                    cellValue(row, mapping.columnRange(HeaderType.PHONE))
-            ));
-            importRow.setSecondaryPhone(
-                    normalizeOptionalImportText(
-                            cellValue(row, mapping.columnRange(HeaderType.SECONDARY_PHONE))
-                    )
+            addCompanyPhones(
+                    importRow,
+                    cellValue(row, mapping.columnRange(HeaderType.PHONE)),
+                    "Telefon"
             );
-            importRow.setEmail(normalizeImportEmail(
-                    cellValue(row, mapping.columnRange(HeaderType.EMAIL))
-            ));
+            addCompanyPhones(
+                    importRow,
+                    cellValue(row, mapping.columnRange(HeaderType.SECONDARY_PHONE)),
+                    "Telefon 2"
+            );
+            addCompanyEmails(
+                    importRow,
+                    cellValue(row, mapping.columnRange(HeaderType.EMAIL)),
+                    "E-posta"
+            );
             importRow.setActivityArea(resolveActivityArea(row, mapping));
             importRow.setContactFullName(
                     normalizeOptionalImportText(
@@ -320,6 +324,117 @@ public class CompanyExcelImportParser {
         return AcademicianTextNormalizer.normalizeEmail(normalized);
     }
 
+    private void addCompanyPhones(
+            CompanyImportRow row,
+            String value,
+            String sourceLabel
+    ) {
+        for (String phone : splitContactParts(value, ContactPartType.PHONE)) {
+            String normalizedPhone = normalizeOptionalImportText(phone);
+            if (normalizedPhone == null) {
+                continue;
+            }
+
+            if (!isReasonablePhoneCandidate(normalizedPhone)) {
+                row.getErrors().add(
+                        sourceLabel + " parcasi gecersiz: " + normalizedPhone
+                );
+                continue;
+            }
+
+            if (normalizedPhone.length() > MAX_PHONE_LENGTH) {
+                row.getErrors().add(
+                        sourceLabel + " parcasi en fazla 30 karakter olabilir: "
+                                + normalizedPhone
+                );
+                continue;
+            }
+
+            if (!row.getCompanyPhones().contains(normalizedPhone)) {
+                row.addCompanyPhone(normalizedPhone);
+            }
+        }
+    }
+
+    private void addCompanyEmails(
+            CompanyImportRow row,
+            String value,
+            String sourceLabel
+    ) {
+        Set<String> existingEmails = row.getCompanyEmails()
+                .stream()
+                .map(email -> email.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        for (String email : splitContactParts(value, ContactPartType.EMAIL)) {
+            String normalizedEmail = normalizeImportEmail(email);
+            if (normalizedEmail == null) {
+                continue;
+            }
+
+            if (normalizedEmail.length() > MAX_EMAIL_LENGTH) {
+                row.getErrors().add(
+                        sourceLabel + " parcasi en fazla 255 karakter olabilir: "
+                                + normalizedEmail
+                );
+                continue;
+            }
+
+            if (!EMAIL_PATTERN.matcher(normalizedEmail).matches()) {
+                row.getErrors().add(
+                        sourceLabel + " parcasi formati gecersiz: "
+                                + normalizedEmail
+                );
+                continue;
+            }
+
+            if (existingEmails.add(normalizedEmail.toLowerCase(Locale.ROOT))) {
+                row.addCompanyEmail(normalizedEmail);
+            }
+        }
+    }
+
+    private java.util.List<String> splitContactParts(
+            String value,
+            ContactPartType type
+    ) {
+        String normalized = AcademicianTextNormalizer.normalizeOptionalText(value);
+        if (normalized == null || isOptionalPlaceholder(normalized)) {
+            return java.util.List.of();
+        }
+
+        String[] explicitParts = normalized.split("\\R|[;&/]");
+        if (explicitParts.length > 1) {
+            return java.util.Arrays.stream(explicitParts)
+                    .map(String::trim)
+                    .filter(part -> !part.isBlank())
+                    .toList();
+        }
+
+        if (ContactPartType.PHONE.equals(type)) {
+            String[] dashParts = normalized.split("\\s+[-–—]\\s+");
+            if (dashParts.length == 2
+                    && isDashSeparatedPhoneCandidate(dashParts[0])
+                    && isDashSeparatedPhoneCandidate(dashParts[1])) {
+                return java.util.List.of(dashParts[0].trim(), dashParts[1].trim());
+            }
+        }
+
+        return java.util.List.of(normalized);
+    }
+
+    private boolean isDashSeparatedPhoneCandidate(String value) {
+        String normalized = AcademicianTextNormalizer.normalizeOptionalText(value);
+        return normalized != null
+                && !isOptionalPlaceholder(normalized)
+                && isReasonablePhoneCandidate(normalized)
+                && normalized.length() <= MAX_PHONE_LENGTH;
+    }
+
+    private boolean isReasonablePhoneCandidate(String value) {
+        return value.chars().anyMatch(Character::isDigit);
+    }
+
     private boolean isOptionalPlaceholder(String value) {
         String trimmed = value.trim();
         if (trimmed.equals("-") || trimmed.equals("--")) {
@@ -335,28 +450,6 @@ public class CompanyExcelImportParser {
                 "Firma unvani zorunludur",
                 "Firma unvani en fazla 200 karakter olabilir",
                 MAX_NAME_LENGTH,
-                row
-        );
-        validateOptionalLength(
-                row.getEmail(),
-                "E-posta en fazla 255 karakter olabilir",
-                MAX_EMAIL_LENGTH,
-                row
-        );
-        if (row.getEmail() != null
-                && !EMAIL_PATTERN.matcher(row.getEmail()).matches()) {
-            row.getErrors().add("E-posta formati gecersiz");
-        }
-        validateOptionalLength(
-                row.getPhone(),
-                "Telefon 1 en fazla 30 karakter olabilir",
-                MAX_PHONE_LENGTH,
-                row
-        );
-        validateOptionalLength(
-                row.getSecondaryPhone(),
-                "Telefon 2 en fazla 30 karakter olabilir",
-                MAX_PHONE_LENGTH,
                 row
         );
         validateOptionalLength(
@@ -639,8 +732,9 @@ public class CompanyExcelImportParser {
             java.util.List<CompanyImportRow> rows
     ) {
         Set<String> duplicateEmails = rows.stream()
-                .map(CompanyImportRow::getEmail)
+                .flatMap(row -> row.getCompanyEmails().stream())
                 .filter(email -> email != null && !email.isBlank())
+                .map(email -> email.toLowerCase(Locale.ROOT))
                 .collect(Collectors.groupingBy(
                         email -> email,
                         Collectors.counting()
@@ -656,7 +750,11 @@ public class CompanyExcelImportParser {
         }
 
         for (CompanyImportRow row : rows) {
-            if (duplicateEmails.contains(row.getEmail())) {
+            boolean rowHasDuplicateEmail = row.getCompanyEmails()
+                    .stream()
+                    .map(email -> email.toLowerCase(Locale.ROOT))
+                    .anyMatch(duplicateEmails::contains);
+            if (rowHasDuplicateEmail) {
                 row.getErrors().add(
                         "Dosya icinde ayni e-posta birden fazla kullanilmis"
                 );
@@ -758,5 +856,10 @@ public class CompanyExcelImportParser {
             int endColumn
     ) {
 
+    }
+
+    private enum ContactPartType {
+        PHONE,
+        EMAIL
     }
 }

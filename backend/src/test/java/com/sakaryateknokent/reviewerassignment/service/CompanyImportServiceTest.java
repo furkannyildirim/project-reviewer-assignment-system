@@ -2,8 +2,10 @@ package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.CompanyImportResultResponse;
 import com.sakaryateknokent.reviewerassignment.entity.Company;
+import com.sakaryateknokent.reviewerassignment.enums.CompanyContactMethodType;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.importing.CompanyExcelImportParser;
+import com.sakaryateknokent.reviewerassignment.repository.CompanyContactMethodRepository;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyRepository;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -38,10 +40,13 @@ class CompanyImportServiceTest {
 
     private final CompanyRepository companyRepository =
             mock(CompanyRepository.class);
+    private final CompanyContactMethodRepository companyContactMethodRepository =
+            mock(CompanyContactMethodRepository.class);
     private final CompanyImportService companyImportService =
             new CompanyImportService(
                     new CompanyExcelImportParser(),
-                    companyRepository
+                    companyRepository,
+                    companyContactMethodRepository
             );
 
     @BeforeEach
@@ -86,9 +91,8 @@ class CompanyImportServiceTest {
         assertEquals("IMPORTED", response.rows().getFirst().status());
         assertEquals(CompanyType.TGB, savedCompany.getCompanyType());
         assertEquals("ABC Teknoloji", savedCompany.getName());
-        assertEquals("info@example.com", savedCompany.getEmail());
-        assertEquals("111", savedCompany.getPhone());
-        assertEquals("222", savedCompany.getSecondaryPhone());
+        assertEquals(List.of("info@example.com"), companyEmails(savedCompany));
+        assertEquals(List.of("111", "222"), companyPhones(savedCompany));
         assertEquals("Yazilim", savedCompany.getActivityArea());
     }
 
@@ -113,9 +117,8 @@ class CompanyImportServiceTest {
         assertEquals(1, response.importedCount());
         assertEquals("Anonim Teknoloji", savedCompany.getName());
         assertEquals("Yazilim", savedCompany.getActivityArea());
-        assertEquals("111", savedCompany.getPhone());
-        assertEquals("222", savedCompany.getSecondaryPhone());
-        assertEquals("info@example.com", savedCompany.getEmail());
+        assertEquals(List.of("111", "222"), companyPhones(savedCompany));
+        assertEquals(List.of("info@example.com"), companyEmails(savedCompany));
     }
 
     @Test
@@ -135,9 +138,7 @@ class CompanyImportServiceTest {
         }));
 
         Company savedCompany = savedCompanies().getFirst();
-        assertNull(savedCompany.getPhone());
-        assertNull(savedCompany.getSecondaryPhone());
-        assertNull(savedCompany.getEmail());
+        assertTrue(savedCompany.getContactMethods().isEmpty());
         assertNull(savedCompany.getActivityArea());
     }
 
@@ -169,8 +170,8 @@ class CompanyImportServiceTest {
 
     @Test
     void marksExistingTgbEmailAsDuplicate() {
-        when(companyRepository.existsByCompanyTypeAndEmailIgnoreCase(
-                CompanyType.TGB,
+        when(companyContactMethodRepository.existsByTypeAndValueIgnoreCase(
+                CompanyContactMethodType.EMAIL,
                 "info@example.com"
         )).thenReturn(true);
 
@@ -186,7 +187,10 @@ class CompanyImportServiceTest {
 
     @Test
     void marksExternalEmailAsDuplicateBecauseEmailIsGloballyUnique() {
-        when(companyRepository.existsByEmailIgnoreCase("info@example.com"))
+        when(companyContactMethodRepository.existsByTypeAndValueIgnoreCase(
+                CompanyContactMethodType.EMAIL,
+                "info@example.com"
+        ))
                 .thenReturn(true);
 
         CompanyImportResultResponse response = companyImportService
@@ -276,7 +280,10 @@ class CompanyImportServiceTest {
         assertTrue(response.rows().getFirst().messages().contains(
                 "Firma unvani zorunludur"
         ));
-        assertEquals("info@example.com", savedCompanies().getFirst().getEmail());
+        assertEquals(
+                List.of("info@example.com"),
+                companyEmails(savedCompanies().getFirst())
+        );
     }
 
     @Test
@@ -299,7 +306,10 @@ class CompanyImportServiceTest {
 
     @Test
     void invalidOrDuplicateRowsDoNotBlockOtherValidRowsAndCountsAreCorrect() {
-        when(companyRepository.existsByEmailIgnoreCase("duplicate@example.com"))
+        when(companyContactMethodRepository.existsByTypeAndValueIgnoreCase(
+                CompanyContactMethodType.EMAIL,
+                "duplicate@example.com"
+        ))
                 .thenReturn(true);
 
         CompanyImportResultResponse response = companyImportService
@@ -364,8 +374,8 @@ class CompanyImportServiceTest {
         assertEquals(1, response.importedCount());
         assertEquals(CompanyType.EXTERNAL, savedCompany.getCompanyType());
         assertEquals("Dis Teknoloji", savedCompany.getName());
-        assertEquals("111", savedCompany.getPhone());
-        assertEquals("info@example.com", savedCompany.getEmail());
+        assertEquals(List.of("111"), companyPhones(savedCompany));
+        assertEquals(List.of("info@example.com"), companyEmails(savedCompany));
         assertEquals("Makine", savedCompany.getActivityArea());
         assertEquals(1, savedCompany.getContacts().size());
         assertEquals("Ayse Yilmaz", savedCompany.getContacts().getFirst().getFullName());
@@ -439,7 +449,10 @@ class CompanyImportServiceTest {
 
     @Test
     void marksExternalEmailDuplicateGlobally() {
-        when(companyRepository.existsByEmailIgnoreCase("info@example.com"))
+        when(companyContactMethodRepository.existsByTypeAndValueIgnoreCase(
+                CompanyContactMethodType.EMAIL,
+                "info@example.com"
+        ))
                 .thenReturn(true);
 
         CompanyImportResultResponse response = companyImportService
@@ -517,6 +530,24 @@ class CompanyImportServiceTest {
         ArgumentCaptor<Company> captor = ArgumentCaptor.forClass(Company.class);
         verify(companyRepository, atLeastOnce()).saveAndFlush(captor.capture());
         return captor.getAllValues();
+    }
+
+    private List<String> companyPhones(Company company) {
+        return company.getContactMethods()
+                .stream()
+                .filter(contactMethod ->
+                        contactMethod.getType() == CompanyContactMethodType.PHONE)
+                .map(contactMethod -> contactMethod.getValue())
+                .toList();
+    }
+
+    private List<String> companyEmails(Company company) {
+        return company.getContactMethods()
+                .stream()
+                .filter(contactMethod ->
+                        contactMethod.getType() == CompanyContactMethodType.EMAIL)
+                .map(contactMethod -> contactMethod.getValue())
+                .toList();
     }
 
     private MockMultipartFile file(WorkbookBuilder builder) {

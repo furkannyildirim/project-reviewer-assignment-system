@@ -4,12 +4,15 @@ import com.sakaryateknokent.reviewerassignment.dto.CompanyImportResultResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyImportResultRowResponse;
 import com.sakaryateknokent.reviewerassignment.entity.Company;
 import com.sakaryateknokent.reviewerassignment.entity.CompanyContact;
+import com.sakaryateknokent.reviewerassignment.entity.CompanyContactMethod;
+import com.sakaryateknokent.reviewerassignment.enums.CompanyContactMethodType;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.importing.CompanyExcelImportParser;
 import com.sakaryateknokent.reviewerassignment.importing.CompanyImportPreview;
 import com.sakaryateknokent.reviewerassignment.importing.CompanyImportRow;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyRepository;
+import com.sakaryateknokent.reviewerassignment.repository.CompanyContactMethodRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -51,6 +54,7 @@ public class CompanyImportService {
 
     private final CompanyExcelImportParser parser;
     private final CompanyRepository companyRepository;
+    private final CompanyContactMethodRepository companyContactMethodRepository;
 
     public CompanyImportResultResponse importTgbCompanies(MultipartFile file) {
         return importCompanies(file, CompanyType.TGB);
@@ -182,8 +186,10 @@ public class CompanyImportService {
                 continue;
             }
 
-            if (row.getEmail() != null) {
-                increment(emailCounts, canonicalEmail(row.getEmail()));
+            if (!row.getCompanyEmails().isEmpty()) {
+                for (String email : row.getCompanyEmails()) {
+                    increment(emailCounts, canonicalEmail(email));
+                }
                 continue;
             }
 
@@ -224,12 +230,15 @@ public class CompanyImportService {
             CompanyImportRow row,
             FileDuplicateKeys duplicateKeys
     ) {
-        if (row.getEmail() != null
-                && duplicateKeys.emails().contains(canonicalEmail(row.getEmail()))) {
+        if (!row.getCompanyEmails().isEmpty()
+                && row.getCompanyEmails()
+                .stream()
+                .map(this::canonicalEmail)
+                .anyMatch(duplicateKeys.emails()::contains)) {
             return DuplicateCheck.duplicate(FILE_EMAIL_MESSAGE);
         }
 
-        if (row.getEmail() == null
+        if (row.getCompanyEmails().isEmpty()
                 && row.getName() != null
                 && duplicateKeys.noEmailNames().contains(
                 canonicalName(row.getName())
@@ -245,15 +254,15 @@ public class CompanyImportService {
             Set<String> existingNames,
             CompanyType companyType
     ) {
-        if (row.getEmail() != null) {
-            String email = canonicalEmail(row.getEmail());
-            boolean emailExists = CompanyType.TGB.equals(companyType)
-                    && companyRepository.existsByCompanyTypeAndEmailIgnoreCase(
-                    CompanyType.TGB,
-                    email
-            );
-            if (emailExists || companyRepository.existsByEmailIgnoreCase(email)) {
-                return DuplicateCheck.duplicate(EXISTING_EMAIL_MESSAGE);
+        if (!row.getCompanyEmails().isEmpty()) {
+            for (String rowEmail : row.getCompanyEmails()) {
+                String email = canonicalEmail(rowEmail);
+                if (companyContactMethodRepository.existsByTypeAndValueIgnoreCase(
+                        CompanyContactMethodType.EMAIL,
+                        email
+                )) {
+                    return DuplicateCheck.duplicate(EXISTING_EMAIL_MESSAGE);
+                }
             }
 
             return DuplicateCheck.unique();
@@ -276,7 +285,7 @@ public class CompanyImportService {
             CompanyImportRow row,
             Set<String> existingNames
     ) {
-        if (row.getEmail() == null) {
+        if (row.getCompanyEmails().isEmpty()) {
             existingNames.add(canonicalName(row.getName()));
         }
     }
@@ -284,11 +293,9 @@ public class CompanyImportService {
     private Company toCompany(CompanyImportRow row, CompanyType companyType) {
         Company company = new Company();
         company.setName(row.getName());
-        company.setEmail(row.getEmail());
-        company.setPhone(row.getPhone());
-        company.setSecondaryPhone(row.getSecondaryPhone());
         company.setActivityArea(row.getActivityArea());
         company.setCompanyType(companyType);
+        addContactMethods(company, row);
 
         if (CompanyType.EXTERNAL.equals(companyType)
                 && row.getContactFullName() != null) {
@@ -314,9 +321,8 @@ public class CompanyImportService {
                 row.getRowNumber(),
                 row.getName(),
                 row.getActivityArea(),
-                row.getPhone(),
-                row.getSecondaryPhone(),
-                row.getEmail(),
+                List.copyOf(row.getCompanyPhones()),
+                List.copyOf(row.getCompanyEmails()),
                 row.getContactFullName(),
                 row.getContactPosition(),
                 row.getContactPhone(),
@@ -324,6 +330,24 @@ public class CompanyImportService {
                 status,
                 List.copyOf(messages)
         );
+    }
+
+    private void addContactMethods(Company company, CompanyImportRow row) {
+        for (int index = 0; index < row.getCompanyPhones().size(); index++) {
+            CompanyContactMethod contactMethod = new CompanyContactMethod();
+            contactMethod.setType(CompanyContactMethodType.PHONE);
+            contactMethod.setValue(row.getCompanyPhones().get(index));
+            contactMethod.setPrimary(index == 0);
+            company.addContactMethod(contactMethod);
+        }
+
+        for (int index = 0; index < row.getCompanyEmails().size(); index++) {
+            CompanyContactMethod contactMethod = new CompanyContactMethod();
+            contactMethod.setType(CompanyContactMethodType.EMAIL);
+            contactMethod.setValue(row.getCompanyEmails().get(index));
+            contactMethod.setPrimary(index == 0);
+            company.addContactMethod(contactMethod);
+        }
     }
 
     private String canonicalEmail(String email) {

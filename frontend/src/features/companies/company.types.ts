@@ -83,9 +83,8 @@ export type CompanyImportPreviewRow = {
     rowNumber: number;
     name: string | null;
     activityArea: string | null;
-    phone: string | null;
-    secondaryPhone: string | null;
-    email: string | null;
+    companyPhones: string[];
+    companyEmails: string[];
     contactFullName: string | null;
     contactPosition: string | null;
     contactPhone: string | null;
@@ -116,9 +115,8 @@ export type CompanyImportResultRow = {
     rowNumber: number;
     name: string | null;
     activityArea: string | null;
-    phone: string | null;
-    secondaryPhone: string | null;
-    email: string | null;
+    companyPhones: string[];
+    companyEmails: string[];
     contactFullName: string | null;
     contactPosition: string | null;
     contactPhone: string | null;

@@ -62,6 +62,29 @@ function displayOptional(value: string | null) {
     return value?.trim() ? value : optionalFallback;
 }
 
+function displayOptionalList(values: string[]) {
+    const displayValues = values.filter((value) => value.trim());
+
+    if (displayValues.length === 0) {
+        return <Typography color="text.secondary">{optionalFallback}</Typography>;
+    }
+
+    return (
+        <Stack spacing={0.25}>
+            {displayValues.map((value) => (
+                <Typography key={value} variant="body2" noWrap>
+                    {value}
+                </Typography>
+            ))}
+        </Stack>
+    );
+}
+
+function displayInlineList(values: string[]) {
+    const displayValues = values.filter((value) => value.trim());
+    return displayValues.length > 0 ? displayValues.join(', ') : optionalFallback;
+}
+
 function formatFileSize(size: number) {
     if (size < 1024) {
         return `${size} B`;
@@ -615,21 +638,10 @@ function PreviewList({
                                 )}
                                 <TableCell>
                                     <Stack spacing={0.35} sx={{ minWidth: 0 }}>
-                                        <Typography variant="body2" noWrap>
-                                            {displayOptional(row.phone)}
-                                        </Typography>
+                                        {displayOptionalList(row.companyPhones)}
                                         <Typography variant="caption" color="text.secondary" noWrap>
-                                            {displayOptional(row.email)}
+                                            {displayInlineList(row.companyEmails)}
                                         </Typography>
-                                        {row.secondaryPhone?.trim() && (
-                                            <Typography
-                                                variant="caption"
-                                                color="text.secondary"
-                                                noWrap
-                                            >
-                                                Tel 2: {row.secondaryPhone}
-                                            </Typography>
-                                        )}
                                     </Stack>
                                 </TableCell>
                                 {companyType === 'EXTERNAL' ? (
@@ -803,7 +815,7 @@ function ImportResultCard({ row }: { row: CompanyImportResultRow }) {
                     {' · '}
                     {displayOptional(row.activityArea)}
                     {' · '}
-                    {displayOptional(row.email)}
+                    {displayInlineList(row.companyEmails)}
                 </Typography>
 
                 {row.messages.length > 0 && (
