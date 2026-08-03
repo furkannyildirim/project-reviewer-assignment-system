@@ -12,10 +12,21 @@ import type {
 export async function getAcademicians(
     params: AcademicianPageParams,
 ): Promise<PageResponse<Academician>> {
+    const requestParams = {
+        ...params,
+        initial: params.initial || undefined,
+    };
+
     const response = await httpClient.get<PageResponse<Academician>>(
         '/academicians',
-        { params },
+        { params: requestParams },
     );
+
+    return response.data;
+}
+
+export async function getAcademicianCount(): Promise<number> {
+    const response = await httpClient.get<number>('/academicians/count');
 
     return response.data;
 }

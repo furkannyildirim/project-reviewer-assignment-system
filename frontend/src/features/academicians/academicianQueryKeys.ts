@@ -7,4 +7,8 @@ export const academicianQueryKeys = {
         'list',
         params,
     ] as const,
+    count: () => [
+        ...academicianQueryKeys.all,
+        'count',
+    ] as const,
 };

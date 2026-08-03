@@ -21,6 +21,7 @@ import { useAuth } from '../auth/useAuth';
 import {
     createAcademician,
     deleteAcademician,
+    getAcademicianCount,
     getAcademicians,
     updateAcademician,
 } from './academicianApi';
@@ -41,6 +42,38 @@ type SnackbarState = {
     severity: 'success' | 'error';
 } | null;
 
+const academicianInitialOptions = [
+    'A',
+    'B',
+    'C',
+    'Ç',
+    'D',
+    'E',
+    'F',
+    'G',
+    'Ğ',
+    'H',
+    'I',
+    'İ',
+    'J',
+    'K',
+    'L',
+    'M',
+    'N',
+    'O',
+    'Ö',
+    'P',
+    'R',
+    'S',
+    'Ş',
+    'T',
+    'U',
+    'Ü',
+    'V',
+    'Y',
+    'Z',
+] as const;
+
 function getFullName(academician: Academician) {
     return `${academician.firstName} ${academician.lastName}`.trim();
 }
@@ -49,6 +82,7 @@ export function AcademiciansPage() {
     const { role } = useAuth();
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
+    const [initial, setInitial] = useState('');
     const [page, setPage] = useState(0);
     const [size, setSize] = useState(10);
     const [formMode, setFormMode] = useState<FormMode>(null);
@@ -62,6 +96,7 @@ export function AcademiciansPage() {
 
     const queryParams = {
         search: debouncedSearch,
+        initial: initial || undefined,
         page,
         size,
     };
@@ -70,6 +105,12 @@ export function AcademiciansPage() {
         queryKey: academicianQueryKeys.list(queryParams),
         queryFn: () => getAcademicians(queryParams),
         placeholderData: keepPreviousData,
+    });
+
+    const academicianCountQuery = useQuery({
+        queryKey: academicianQueryKeys.count(),
+        queryFn: getAcademicianCount,
+        staleTime: 5 * 60 * 1000,
     });
 
     const invalidateAcademicians = () =>
@@ -168,6 +209,11 @@ export function AcademiciansPage() {
         setPage(0);
     }
 
+    function handleInitialChange(value: string) {
+        setInitial(value);
+        setPage(0);
+    }
+
     function handleSizeChange(nextSize: number) {
         setSize(nextSize);
         setPage(0);
@@ -228,6 +274,21 @@ export function AcademiciansPage() {
 
                 <TextField
                     select
+                    label="Baş harf"
+                    value={initial}
+                    onChange={(event) => handleInitialChange(event.target.value)}
+                    sx={{ minWidth: { xs: '100%', md: 150 } }}
+                >
+                    <MenuItem value="">Tümü</MenuItem>
+                    {academicianInitialOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                            {option}
+                        </MenuItem>
+                    ))}
+                </TextField>
+
+                <TextField
+                    select
                     label="Satır sayısı"
                     value={size}
                     onChange={(event) => handleSizeChange(Number(event.target.value))}
@@ -256,7 +317,24 @@ export function AcademiciansPage() {
                         }}
                     >
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            Toplam {academiciansQuery.data.totalElements} kayıt
+                            {academiciansQuery.data.totalElements} akademisyen bulundu
+                        </Typography>
+                    </Box>
+                )}
+
+                {academicianCountQuery.data !== undefined && (
+                    <Box
+                        sx={{
+                            alignItems: 'center',
+                            color: 'text.secondary',
+                            display: 'flex',
+                            minHeight: 40,
+                            ml: { md: 'auto' },
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            Toplam: {academicianCountQuery.data} akademisyen
                         </Typography>
                     </Box>
                 )}

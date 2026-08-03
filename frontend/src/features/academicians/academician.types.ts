@@ -78,6 +78,7 @@ export type AcademicianImportResultResponse = {
 
 export type AcademicianPageParams = {
     search: string;
+    initial?: string;
     page: number;
     size: number;
 };

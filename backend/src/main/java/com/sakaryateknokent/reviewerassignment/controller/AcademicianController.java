@@ -55,12 +55,18 @@ public class AcademicianController {
     public ResponseEntity<PageResponse<AcademicianResponse>>
     getAcademicians(
             @RequestParam(defaultValue = "") String search,
+            @RequestParam(required = false) String initial,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         return ResponseEntity.ok(
-                academicianService.getAcademicians(search, page, size)
+                academicianService.getAcademicians(search, initial, page, size)
         );
+    }
+
+    @GetMapping("/count")
+    public ResponseEntity<Long> countAcademicians() {
+        return ResponseEntity.ok(academicianService.countAcademicians());
     }
 
     @GetMapping("/{id}")

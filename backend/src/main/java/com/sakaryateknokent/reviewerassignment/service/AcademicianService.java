@@ -69,6 +69,7 @@ public class AcademicianService {
     @Transactional(readOnly = true)
     public PageResponse<AcademicianResponse> getAcademicians(
             String search,
+            String initial,
             int page,
             int size
     ) {
@@ -77,6 +78,9 @@ public class AcademicianService {
         String normalizedSearch = search == null
                 ? ""
                 : search.trim();
+        String normalizedInitial = initial == null
+                ? ""
+                : initial.trim();
 
         Pageable pageable = PageRequest.of(
                 page,
@@ -86,7 +90,7 @@ public class AcademicianService {
 
         Page<AcademicianResponse> academicianPage =
                 academicianRepository
-                        .search(normalizedSearch, pageable)
+                        .search(normalizedSearch, normalizedInitial, pageable)
                         .map(this::toResponse);
 
         return new PageResponse<>(
@@ -98,6 +102,11 @@ public class AcademicianService {
                 academicianPage.isFirst(),
                 academicianPage.isLast()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public long countAcademicians() {
+        return academicianRepository.count();
     }
 
     @Transactional(readOnly = true)
