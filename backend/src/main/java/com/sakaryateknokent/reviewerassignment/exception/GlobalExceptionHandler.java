@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -95,6 +96,22 @@ public class GlobalExceptionHandler {
         return buildResponse(
                 HttpStatus.CONFLICT,
                 "İşlem veritabanı kısıtları nedeniyle tamamlanamadı",
+                request.getRequestURI(),
+                Map.of()
+        );
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiErrorResponse> handleOptimisticLockingFailure(
+            RuntimeException exception,
+            HttpServletRequest request
+    ) {
+        log.warn("Eşzamanlı akademisyen güncellemesi reddedildi");
+
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                "Akademisyen kaydı başka bir işlem tarafından güncellendi. "
+                        + "Lütfen sayfayı yenileyip tekrar deneyin.",
                 request.getRequestURI(),
                 Map.of()
         );

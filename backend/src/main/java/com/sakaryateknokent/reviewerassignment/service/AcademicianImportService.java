@@ -2,124 +2,88 @@ package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportResultResponse;
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportResultRowResponse;
-import com.sakaryateknokent.reviewerassignment.entity.Academician;
-import com.sakaryateknokent.reviewerassignment.exception.DuplicateResourceException;
 import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.importing.AcademicianExcelImportParser;
 import com.sakaryateknokent.reviewerassignment.importing.AcademicianImportPreview;
 import com.sakaryateknokent.reviewerassignment.importing.AcademicianImportRow;
-import com.sakaryateknokent.reviewerassignment.repository.AcademicianIdentityProjection;
-import com.sakaryateknokent.reviewerassignment.repository.AcademicianRepository;
+import com.sakaryateknokent.reviewerassignment.service.AcademicianImportClassifier.AcademicianImportDecision;
+import com.sakaryateknokent.reviewerassignment.service.AcademicianImportClassifier.AcademicianImportPlan;
+import com.sakaryateknokent.reviewerassignment.service.AcademicianImportClassifier.ImportStatus;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class AcademicianImportService {
 
-    private static final Locale TURKISH_LOCALE =
-            Locale.forLanguageTag("tr");
-    private static final String STATUS_CREATED = "CREATED";
-    private static final String STATUS_SKIPPED_DUPLICATE =
-            "SKIPPED_DUPLICATE";
-    private static final String STATUS_SKIPPED_INVALID =
-            "SKIPPED_INVALID";
+    private static final String FAILED_DEFAULT_MESSAGE =
+            "Kayit veritabanina yazilirken hata olustu. "
+                    + "Diger kayitlarin aktarimina devam edildi.";
+    private static final String FAILED_OPTIMISTIC_LOCKING_MESSAGE =
+            "Kayit baska bir islem tarafindan guncellendi. "
+                    + "Bu kayit aktarilmadi.";
 
     private final AcademicianExcelImportParser parser;
-    private final AcademicianRepository academicianRepository;
+    private final AcademicianImportClassifier classifier;
+    private final AcademicianImportPersistenceService persistenceService;
 
-    @Transactional
     public AcademicianImportResultResponse importCreateOnly(
             MultipartFile file
     ) {
         AcademicianImportPreview preview = parse(file);
-        List<AcademicianImportRow> validRows = preview.getRows().stream()
-                .filter(AcademicianImportRow::isValid)
-                .toList();
-        List<AcademicianImportRow> invalidRows = preview.getRows().stream()
-                .filter(row -> !row.isValid())
-                .toList();
+        AcademicianImportPlan plan = classifier.classify(preview);
 
-        if (validRows.isEmpty()) {
-            throw new InvalidRequestException(
-                    "Dosyada aktarılabilir geçerli kayıt bulunamadı"
-            );
-        }
-
-        Set<String> emailLookup = collectEmails(validRows);
-        Set<String> existingEmails = emailLookup.isEmpty()
-                ? Set.of()
-                : academicianRepository.findExistingEmails(emailLookup);
-        Set<CanonicalIdentity> existingIdentities =
-                loadExistingIdentities(validRows);
-
-        Set<String> seenEmails = new LinkedHashSet<>();
-        Set<CanonicalIdentity> seenNoEmailIdentities = new LinkedHashSet<>();
-        List<Academician> academiciansToCreate = new ArrayList<>();
         List<AcademicianImportResultRowResponse> createdRows =
                 new ArrayList<>();
-        List<AcademicianImportResultRowResponse> skippedRows =
+        List<AcademicianImportResultRowResponse> updatedRows =
                 new ArrayList<>();
-        List<AcademicianImportResultRowResponse> skippedInvalidRows =
-                invalidRows.stream()
-                        .map(row -> toResultRow(
-                                row,
-                                STATUS_SKIPPED_INVALID,
-                                row.getErrors()
-                        ))
-                        .toList();
+        List<AcademicianImportResultRowResponse> duplicateRows =
+                new ArrayList<>();
+        List<AcademicianImportResultRowResponse> conflictRows =
+                new ArrayList<>();
+        List<AcademicianImportResultRowResponse> invalidRows =
+                new ArrayList<>();
+        List<AcademicianImportResultRowResponse> failedRows =
+                new ArrayList<>();
 
-        for (AcademicianImportRow row : validRows) {
-            DuplicateCheck duplicateCheck = duplicateCheck(
-                    row,
-                    existingEmails,
-                    existingIdentities,
-                    seenEmails,
-                    seenNoEmailIdentities
-            );
-
-            if (duplicateCheck.duplicate()) {
-                skippedRows.add(toResultRow(
-                        row,
-                        STATUS_SKIPPED_DUPLICATE,
-                        List.of(duplicateCheck.message())
+        for (AcademicianImportDecision decision : plan.decisions()) {
+            if (decision.status() == ImportStatus.NEW) {
+                persistNew(decision, createdRows, failedRows);
+            } else if (decision.status() == ImportStatus.UPDATE) {
+                persistUpdate(decision, updatedRows, failedRows);
+            } else if (decision.status() == ImportStatus.DUPLICATE) {
+                duplicateRows.add(toResultRow(
+                        decision,
+                        "DUPLICATE",
+                        decision.messages()
                 ));
-                continue;
+            } else if (decision.status() == ImportStatus.CONFLICT) {
+                conflictRows.add(toResultRow(
+                        decision,
+                        "CONFLICT",
+                        decision.messages()
+                ));
+            } else if (decision.status() == ImportStatus.INVALID) {
+                invalidRows.add(toResultRow(
+                        decision,
+                        "INVALID",
+                        decision.messages()
+                ));
             }
-
-            seen(row, seenEmails, seenNoEmailIdentities);
-            academiciansToCreate.add(toAcademician(row));
-            createdRows.add(toResultRow(
-                    row,
-                    STATUS_CREATED,
-                    row.getWarnings()
-            ));
-        }
-
-        try {
-            if (!academiciansToCreate.isEmpty()) {
-                academicianRepository.saveAllAndFlush(academiciansToCreate);
-            }
-        } catch (DataIntegrityViolationException exception) {
-            throw new DuplicateResourceException(
-                    "Import sirasinda cakisan akademisyen kaydi bulundu. "
-                            + "Lutfen dosyayi tekrar kontrol edin."
-            );
         }
 
         int warningCount = preview.getGeneralWarnings().size()
-                + preview.getRows().stream()
+                + plan.decisions().stream()
+                .map(AcademicianImportDecision::row)
                 .mapToInt(row -> row.getWarnings().size())
                 .sum();
 
@@ -127,14 +91,71 @@ public class AcademicianImportService {
                 preview.getFileName(),
                 preview.getRows().size(),
                 createdRows.size(),
-                skippedRows.size(),
-                skippedInvalidRows.size(),
+                updatedRows.size(),
+                duplicateRows.size(),
+                conflictRows.size(),
+                invalidRows.size(),
+                failedRows.size(),
                 warningCount,
                 List.copyOf(createdRows),
-                List.copyOf(skippedRows),
-                List.copyOf(skippedInvalidRows),
+                List.copyOf(updatedRows),
+                List.copyOf(duplicateRows),
+                List.copyOf(conflictRows),
+                List.copyOf(invalidRows),
+                List.copyOf(failedRows),
                 List.copyOf(preview.getGeneralWarnings())
         );
+    }
+
+    private void persistNew(
+            AcademicianImportDecision decision,
+            List<AcademicianImportResultRowResponse> createdRows,
+            List<AcademicianImportResultRowResponse> failedRows
+    ) {
+        try {
+            persistenceService.create(decision.row());
+            createdRows.add(toResultRow(
+                    decision,
+                    "CREATED",
+                    decision.messages()
+            ));
+        } catch (DataAccessException exception) {
+            failedRows.add(toResultRow(
+                    decision,
+                    "FAILED",
+                    List.of(failureMessage(exception))
+            ));
+        }
+    }
+
+    private void persistUpdate(
+            AcademicianImportDecision decision,
+            List<AcademicianImportResultRowResponse> updatedRows,
+            List<AcademicianImportResultRowResponse> failedRows
+    ) {
+        try {
+            persistenceService.update(decision);
+            updatedRows.add(toResultRow(
+                    decision,
+                    "UPDATED",
+                    decision.changes()
+            ));
+        } catch (DataAccessException exception) {
+            failedRows.add(toResultRow(
+                    decision,
+                    "FAILED",
+                    List.of(failureMessage(exception))
+            ));
+        }
+    }
+
+    private String failureMessage(DataAccessException exception) {
+        if (exception instanceof OptimisticLockingFailureException
+                || exception instanceof ObjectOptimisticLockingFailureException) {
+            return FAILED_OPTIMISTIC_LOCKING_MESSAGE;
+        }
+
+        return FAILED_DEFAULT_MESSAGE;
     }
 
     private AcademicianImportPreview parse(MultipartFile file) {
@@ -153,121 +174,13 @@ public class AcademicianImportService {
         }
     }
 
-    private Set<String> collectEmails(List<AcademicianImportRow> rows) {
-        Set<String> emails = new LinkedHashSet<>();
-
-        for (AcademicianImportRow row : rows) {
-            if (row.getEmail() != null) {
-                emails.add(row.getEmail());
-            }
-        }
-
-        return emails;
-    }
-
-    private Set<CanonicalIdentity> loadExistingIdentities(
-            List<AcademicianImportRow> rows
-    ) {
-        boolean hasNoEmailCandidate = rows.stream()
-                .anyMatch(row -> row.isValid() && row.getEmail() == null);
-
-        if (!hasNoEmailCandidate) {
-            return Set.of();
-        }
-
-        Set<CanonicalIdentity> identities = new LinkedHashSet<>();
-        for (AcademicianIdentityProjection projection
-                : academicianRepository.findIdentities()) {
-            identities.add(canonicalIdentity(
-                    projection.getFirstName(),
-                    projection.getLastName(),
-                    projection.getTitle()
-            ));
-        }
-
-        return identities;
-    }
-
-    private DuplicateCheck duplicateCheck(
-            AcademicianImportRow row,
-            Set<String> existingEmails,
-            Set<CanonicalIdentity> existingIdentities,
-            Set<String> seenEmails,
-            Set<CanonicalIdentity> seenNoEmailIdentities
-    ) {
-        String email = row.getEmail();
-        if (email != null) {
-            if (seenEmails.contains(email)) {
-                return DuplicateCheck.duplicate(
-                        "Dosya icinde ayni e-posta daha once yer aliyor"
-                );
-            }
-
-            if (existingEmails.contains(email)) {
-                return DuplicateCheck.duplicate(
-                        "Bu e-posta adresiyle kayitli bir akademisyen zaten var"
-                );
-            }
-
-            return DuplicateCheck.unique();
-        }
-
-        CanonicalIdentity identity = canonicalIdentity(row);
-        if (seenNoEmailIdentities.contains(identity)) {
-            return DuplicateCheck.duplicate(
-                    "Dosya icinde ayni ad, soyad ve unvan daha once yer aliyor"
-            );
-        }
-
-        if (existingIdentities.contains(identity)) {
-            return DuplicateCheck.duplicate(
-                    "Bu ad, soyad ve unvan ile kayitli bir akademisyen zaten var"
-            );
-        }
-
-        return DuplicateCheck.unique();
-    }
-
-    private void seen(
-            AcademicianImportRow row,
-            Set<String> seenEmails,
-            Set<CanonicalIdentity> seenNoEmailIdentities
-    ) {
-        if (row.getEmail() != null) {
-            seenEmails.add(row.getEmail());
-            return;
-        }
-
-        seenNoEmailIdentities.add(canonicalIdentity(row));
-    }
-
-    private Academician toAcademician(AcademicianImportRow row) {
-        Academician academician = new Academician();
-        academician.setFirstName(normalizeRequiredText(row.getFirstName()));
-        academician.setLastName(normalizeRequiredText(row.getLastName()));
-        academician.setEmail(AcademicianTextNormalizer.normalizeEmail(
-                row.getEmail()
-        ));
-        academician.setPhone(AcademicianTextNormalizer.normalizeOptionalText(
-                row.getPhone()
-        ));
-        academician.setTitle(AcademicianTextNormalizer.normalizeOptionalText(
-                row.getTitle()
-        ));
-        academician.getKeywords().addAll(
-                AcademicianTextNormalizer.normalizeKeywords(
-                        row.getKeywords()
-                )
-        );
-
-        return academician;
-    }
-
     private AcademicianImportResultRowResponse toResultRow(
-            AcademicianImportRow row,
+            AcademicianImportDecision decision,
             String status,
             List<String> messages
     ) {
+        AcademicianImportRow row = decision.row();
+
         return new AcademicianImportResultRowResponse(
                 row.getSheetName(),
                 row.getRowNumber(),
@@ -280,57 +193,4 @@ public class AcademicianImportService {
         );
     }
 
-    private CanonicalIdentity canonicalIdentity(AcademicianImportRow row) {
-        return canonicalIdentity(
-                row.getFirstName(),
-                row.getLastName(),
-                row.getTitle()
-        );
-    }
-
-    private CanonicalIdentity canonicalIdentity(
-            String firstName,
-            String lastName,
-            String title
-    ) {
-        return new CanonicalIdentity(
-                canonicalValue(firstName),
-                canonicalValue(lastName),
-                canonicalValue(title)
-        );
-    }
-
-    private String canonicalValue(String value) {
-        if (value == null || value.isBlank()) {
-            return "";
-        }
-
-        return AcademicianTextNormalizer.normalizeWhitespace(value)
-                .toLowerCase(TURKISH_LOCALE);
-    }
-
-    private String normalizeRequiredText(String value) {
-        return AcademicianTextNormalizer.normalizeWhitespace(value);
-    }
-
-    private record CanonicalIdentity(
-            String firstName,
-            String lastName,
-            String title
-    ) {
-    }
-
-    private record DuplicateCheck(
-            boolean duplicate,
-            String message
-    ) {
-
-        private static DuplicateCheck unique() {
-            return new DuplicateCheck(false, "");
-        }
-
-        private static DuplicateCheck duplicate(String message) {
-            return new DuplicateCheck(true, message);
-        }
-    }
 }

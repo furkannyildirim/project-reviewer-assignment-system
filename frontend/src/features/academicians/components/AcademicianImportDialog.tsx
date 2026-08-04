@@ -49,7 +49,7 @@ type AcademicianImportDialogProps = {
     onClose: () => void;
 };
 
-type PreviewRowFilter = 'all' | 'valid' | 'problem';
+type PreviewRowFilter = 'all' | 'NEW' | 'UPDATE' | 'DUPLICATE' | 'INVALID';
 
 const defaultRowsPerPage = 25;
 const optionalFallback = '—';
@@ -245,35 +245,40 @@ function KeywordPreview({ keywords }: { keywords: string[] }) {
 }
 
 function RowStatus({ row }: { row: AcademicianImportPreviewRow }) {
-    if (!row.valid) {
-        return (
-            <Chip
-                color="error"
-                icon={<ErrorOutlineOutlinedIcon />}
-                label="Hatalı"
-                size="small"
-                variant="outlined"
-            />
-        );
-    }
-
-    if (row.warnings.length > 0) {
-        return (
-            <Chip
-                color="warning"
-                icon={<WarningAmberOutlinedIcon />}
-                label="Uyarılı"
-                size="small"
-                variant="outlined"
-            />
-        );
-    }
+    const statusConfig = {
+        NEW: {
+            color: 'success',
+            icon: <CheckCircleOutlineOutlinedIcon />,
+            label: 'Yeni',
+        },
+        UPDATE: {
+            color: 'info',
+            icon: <CheckCircleOutlineOutlinedIcon />,
+            label: 'Guncellenecek',
+        },
+        DUPLICATE: {
+            color: 'warning',
+            icon: <WarningAmberOutlinedIcon />,
+            label: 'Tekrarli',
+        },
+        CONFLICT: {
+            color: 'error',
+            icon: <ErrorOutlineOutlinedIcon />,
+            label: 'Cakisma',
+        },
+        INVALID: {
+            color: 'error',
+            icon: <ErrorOutlineOutlinedIcon />,
+            label: 'Hatali',
+        },
+    } as const;
+    const config = statusConfig[row.status];
 
     return (
         <Chip
-            color="success"
-            icon={<CheckCircleOutlineOutlinedIcon />}
-            label="Geçerli"
+            color={config.color}
+            icon={config.icon}
+            label={config.label}
             size="small"
             variant="outlined"
         />
@@ -283,37 +288,35 @@ function RowStatus({ row }: { row: AcademicianImportPreviewRow }) {
 function RowMessages({ row }: { row: AcademicianImportPreviewRow }) {
     const messages = [
         ...row.errors.map((message) => ({ message, color: 'error.main' })),
+        ...row.messages.map((message) => ({
+            message,
+            color: row.status === 'CONFLICT' || row.status === 'INVALID'
+                ? 'error.main'
+                : row.status === 'DUPLICATE'
+                    ? 'warning.main'
+                    : 'success.main',
+        })),
         ...row.warnings.map((message) => ({ message, color: 'warning.main' })),
     ];
-    const visibleMessages = messages.slice(0, 2);
-    const hiddenCount = messages.length - visibleMessages.length;
-
     if (messages.length === 0) {
         return <Typography color="text.secondary">{optionalFallback}</Typography>;
     }
 
     return (
-        <Stack spacing={0.25} sx={{ maxWidth: 280 }}>
-            {visibleMessages.map(({ message, color }) => (
+        <Stack spacing={0.25} sx={{ maxWidth: 280, minWidth: 0 }}>
+            {messages.map(({ message, color }, index) => (
                 <Typography
-                    key={`${color}-${message}`}
+                    key={`${color}-${index}-${message}`}
                     variant="body2"
                     sx={{
                         color,
-                        display: '-webkit-box',
-                        overflow: 'hidden',
-                        WebkitBoxOrient: 'vertical',
-                        WebkitLineClamp: 2,
+                        whiteSpace: 'normal',
+                        overflowWrap: 'anywhere',
                     }}
                 >
                     {message}
                 </Typography>
             ))}
-            {hiddenCount > 0 && (
-                <Typography variant="caption" color="text.secondary">
-                    +{hiddenCount} mesaj
-                </Typography>
-            )}
         </Stack>
     );
 }
@@ -480,6 +483,12 @@ function PreviewSummary({
                     showNoSaveInfo={showNoSaveInfo}
                 />
             </Stack>
+
+            {showNoSaveInfo && (
+                <Alert severity="info" sx={{ borderRadius: '8px', py: 0.5 }}>
+                    Aktarım sırasında kayıtlar yeniden doğrulanır. Bu nedenle aktarım sonucu önizlemeden farklı olabilir.
+                </Alert>
+            )}
         </Stack>
     );
 }
@@ -503,9 +512,11 @@ function ResultRowLine({
 }) {
     const messages = row.messages.length > 0
         ? row.messages.join(', ')
-        : row.status === 'SKIPPED_INVALID'
+        : row.status === 'INVALID'
             ? 'Hatalı kayıt aktarılmadı'
-            : 'Tekrar eden kayıt atlandı';
+            : row.status === 'FAILED'
+                ? 'Kayıt veritabanına yazılamadı'
+                : 'Tekrar eden kayıt atlandı';
 
     return (
         <Paper
@@ -653,6 +664,8 @@ function ImportResultSummary({
     result: AcademicianImportResultResponse;
     resultSectionRef: RefObject<HTMLDivElement | null>;
 }) {
+    const invalidOrConflictCount = result.invalidCount + result.conflictCount;
+
     return (
         <Paper
             ref={resultSectionRef}
@@ -677,14 +690,24 @@ function ImportResultSummary({
                         color="success.main"
                     />
                     <SummaryMetric
+                        label="Guncellenen kayit"
+                        value={result.updatedCount}
+                        color="info.main"
+                    />
+                    <SummaryMetric
                         label="Atlanan duplicate"
-                        value={result.skippedDuplicateCount}
+                        value={result.duplicateCount}
                         color="warning.main"
                     />
                     <SummaryMetric
-                        label="Hatalı / aktarılmayan kayıt"
-                        value={result.skippedInvalidCount}
-                        color={result.skippedInvalidCount > 0 ? 'error.main' : 'text.primary'}
+                        label="Hatalı / aktarılamayan kayıt"
+                        value={invalidOrConflictCount}
+                        color={invalidOrConflictCount > 0 ? 'error.main' : 'text.primary'}
+                    />
+                    <SummaryMetric
+                        label="Başarısız kayıt"
+                        value={result.failedCount}
+                        color={result.failedCount > 0 ? 'error.main' : 'text.primary'}
                     />
                     <SummaryMetric
                         label="Uyarı sayısı"
@@ -693,13 +716,20 @@ function ImportResultSummary({
                     />
                 </Stack>
 
-                {result.skippedRows.length === 0 && result.invalidRows.length === 0 && (
+                {result.duplicateRows.length === 0
+                    && result.conflictRows.length === 0
+                    && result.invalidRows.length === 0
+                    && result.failedRows.length === 0 && (
                     <Alert severity="success" sx={{ borderRadius: '8px' }}>
                         Tüm geçerli kayıtlar başarıyla aktarıldı.
                     </Alert>
                 )}
 
-                {(result.skippedRows.length > 0 || result.invalidRows.length > 0) && (
+                {(result.updatedRows.length > 0
+                    || result.duplicateRows.length > 0
+                    || result.conflictRows.length > 0
+                    || result.invalidRows.length > 0
+                    || result.failedRows.length > 0) && (
                     <Box
                         sx={{
                             display: 'grid',
@@ -711,13 +741,28 @@ function ImportResultSummary({
                         }}
                     >
                         <ResultRowsPanel
+                            title="Guncellenen kayitlar"
+                            rows={result.updatedRows}
+                            tone="warning"
+                        />
+                        <ResultRowsPanel
+                            title="Hata nedeniyle aktarılmayan kayıtlar"
+                            rows={result.conflictRows}
+                            tone="error"
+                        />
+                        <ResultRowsPanel
                             title="Duplicate olduğu için atlanan kayıtlar"
-                            rows={result.skippedRows}
+                            rows={result.duplicateRows}
                             tone="warning"
                         />
                         <ResultRowsPanel
                             title="Hatalı olduğu için aktarılmayan kayıtlar"
                             rows={result.invalidRows}
+                            tone="error"
+                        />
+                        <ResultRowsPanel
+                            title="Veritabanı hatası nedeniyle aktarılamayan kayıtlar"
+                            rows={result.failedRows}
                             tone="error"
                         />
                     </Box>
@@ -734,19 +779,19 @@ function PreviewTable({
 }) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
-    const [rowFilter, setRowFilter] = useState<PreviewRowFilter>('problem');
+    const [rowFilter, setRowFilter] = useState<PreviewRowFilter>('INVALID');
 
     const filteredRows = useMemo(
         () => preview.rows.filter((row) => {
-            if (rowFilter === 'valid') {
-                return row.valid && row.warnings.length === 0;
+            if (rowFilter === 'all') {
+                return true;
             }
 
-            if (rowFilter === 'problem') {
-                return !row.valid || row.warnings.length > 0;
+            if (rowFilter === 'INVALID') {
+                return row.status === 'INVALID' || row.status === 'CONFLICT';
             }
 
-            return true;
+            return row.status === rowFilter;
         }),
         [preview.rows, rowFilter],
     );
@@ -761,11 +806,7 @@ function PreviewTable({
         safePage * rowsPerPage,
         safePage * rowsPerPage + rowsPerPage,
     );
-    const emptyMessage = rowFilter === 'valid'
-        ? 'Geçerli kayıt bulunmuyor.'
-        : rowFilter === 'problem'
-            ? 'Sorunlu kayıt bulunmuyor.'
-            : 'Gösterilecek kayıt yok.';
+    const emptyMessage = 'Gosterilecek kayit yok.';
 
     function handleRowFilterChange(
         _: MouseEvent<HTMLElement>,
@@ -818,10 +859,25 @@ function PreviewTable({
                         size="small"
                         value={rowFilter}
                         onChange={handleRowFilterChange}
+                        sx={{
+                            display: 'grid',
+                            gridTemplateColumns: {
+                                xs: 'repeat(2, minmax(0, 1fr))',
+                                sm: 'repeat(5, minmax(0, 1fr))',
+                            },
+                            width: { xs: '100%', sm: 560 },
+                            '& .MuiToggleButton-root': {
+                                minHeight: 34,
+                                px: 1.25,
+                                whiteSpace: 'nowrap',
+                            },
+                        }}
                     >
-                        <ToggleButton value="all">Tümü</ToggleButton>
-                        <ToggleButton value="valid">Geçerli</ToggleButton>
-                        <ToggleButton value="problem">Sorunlu</ToggleButton>
+                        <ToggleButton value="all">Tumu</ToggleButton>
+                        <ToggleButton value="NEW">Yeni</ToggleButton>
+                        <ToggleButton value="UPDATE">Guncellenecek</ToggleButton>
+                        <ToggleButton value="DUPLICATE">Tekrarli</ToggleButton>
+                        <ToggleButton value="INVALID">Hatali</ToggleButton>
                     </ToggleButtonGroup>
                 </Stack>
             </Stack>

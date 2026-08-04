@@ -4,6 +4,7 @@ import java.util.Set;
 
 public record AcademicianResponse(
         Long id,
+        Long version,
         String firstName,
         String lastName,
         String email,

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -39,9 +40,24 @@ public class AcademicianExcelImportParser {
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
             "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
     );
+    private static final Set<String> OPTIONAL_PLACEHOLDER_KEYS =
+            createOptionalPlaceholderKeys();
     private static final String COMBINED_NAME_WARNING_MESSAGE =
             "Birleşik ad soyad alanları otomatik ayrıştırılmıştır. "
                     + "Gerekirse aktarımdan sonra düzenleyebilirsiniz.";
+    private static final String UNPARSEABLE_SHEET_WARNING_TEMPLATE =
+            "\"%s\" sayfası okunamadı: akademisyen ad/soyad başlıkları bulunamadı.";
+
+    private static final String MULTIPLE_PHONES_WARNING_MESSAGE =
+            "Birden fazla telefon bulundu, ilk deger kullanilacak";
+    private static final String MULTIPLE_EMAILS_WARNING_MESSAGE =
+            "Birden fazla e-posta bulundu, ilk deger kullanilacak";
+    private static final String DIFFERENT_EMAIL_COLUMNS_ERROR_MESSAGE =
+            "Ayn\u0131 sat\u0131rda birden fazla farkl\u0131 e-posta de\u011feri bulundu. "
+                    + "E-posta s\u00fctunlar\u0131n\u0131 kontrol edin.";
+    private static final String DIFFERENT_PHONE_COLUMNS_ERROR_MESSAGE =
+            "Ayn\u0131 sat\u0131rda birden fazla farkl\u0131 telefon de\u011feri bulundu. "
+                    + "Telefon s\u00fctunlar\u0131n\u0131 kontrol edin.";
 
     private static final Map<String, HeaderType> HEADER_ALIASES =
             createHeaderAliases();
@@ -115,6 +131,7 @@ public class AcademicianExcelImportParser {
             validNameStructureFound |= mapping.hasValidNameStructure();
 
             if (!mapping.hasValidNameStructure()) {
+                addUnparseableSheetWarning(sheet, preview);
                 continue;
             }
 
@@ -133,6 +150,22 @@ public class AcademicianExcelImportParser {
             throw new InvalidRequestException(
                     "Excel dosyasinda akademisyen adi ve soyadi icin uygun baslik bulunamadi"
             );
+        }
+    }
+
+    private void addUnparseableSheetWarning(
+            Sheet sheet,
+            AcademicianImportPreview preview
+    ) {
+        String sheetName = sheet.getSheetName() == null
+                ? ""
+                : sheet.getSheetName().trim();
+        String warning = String.format(
+                UNPARSEABLE_SHEET_WARNING_TEMPLATE,
+                sheetName
+        );
+        if (!preview.getGeneralWarnings().contains(warning)) {
+            preview.getGeneralWarnings().add(warning);
         }
     }
 
@@ -170,6 +203,8 @@ public class AcademicianExcelImportParser {
             AcademicianImportPreview preview
     ) {
         Map<HeaderType, Integer> columns = new LinkedHashMap<>();
+        List<Integer> emailColumns = new ArrayList<>();
+        List<Integer> phoneColumns = new ArrayList<>();
         Set<Integer> ignoredColumns = new LinkedHashSet<>();
 
         for (Cell cell : row) {
@@ -178,23 +213,33 @@ public class AcademicianExcelImportParser {
                 continue;
             }
 
-            HeaderType headerType = HEADER_ALIASES.get(normalizeHeader(value));
+            HeaderType headerType = resolveHeaderType(normalizeHeader(value));
             if (headerType == null) {
-                preview.getIgnoredHeaders().add(value.trim());
+                preview.getIgnoredHeaders().add(value);
                 ignoredColumns.add(cell.getColumnIndex());
                 continue;
             }
 
-            preview.getDetectedHeaders().add(value.trim());
+            preview.getDetectedHeaders().add(value);
             if (headerType == HeaderType.PROJECTS) {
-                preview.getIgnoredHeaders().add(value.trim());
+                preview.getIgnoredHeaders().add(value);
                 ignoredColumns.add(cell.getColumnIndex());
+            } else if (headerType == HeaderType.EMAIL) {
+                emailColumns.add(cell.getColumnIndex());
+            } else if (headerType == HeaderType.PHONE) {
+                phoneColumns.add(cell.getColumnIndex());
             } else {
                 columns.putIfAbsent(headerType, cell.getColumnIndex());
             }
         }
 
-        return new HeaderMapping(row.getRowNum(), columns, ignoredColumns);
+        return new HeaderMapping(
+                row.getRowNum(),
+                columns,
+                List.copyOf(emailColumns),
+                List.copyOf(phoneColumns),
+                ignoredColumns
+        );
     }
 
     private void parseRows(
@@ -221,11 +266,23 @@ public class AcademicianExcelImportParser {
                     new AcademicianImportRow(sheetName, rowIndex + 1);
 
             fillNameAndTitle(sheet, row, mapping, importRow, preview);
-            importRow.setEmail(AcademicianTextNormalizer.normalizeEmail(
-                    cellValue(sheet, row, mapping.column(HeaderType.EMAIL))
+            ParsedContact parsedContact = parseContact(
+                    rawCellValue(
+                            sheet,
+                            row,
+                            mapping.column(HeaderType.COMMUNICATION)
+                    ),
+                    importRow
+            );
+            importRow.setEmail(resolveEmail(
+                    collectColumnValues(sheet, row, mapping.emailColumns()),
+                    parsedContact,
+                    importRow
             ));
-            importRow.setPhone(AcademicianTextNormalizer.normalizeOptionalText(
-                    cellValue(sheet, row, mapping.column(HeaderType.PHONE))
+            importRow.setPhone(resolvePhone(
+                    collectColumnValues(sheet, row, mapping.phoneColumns()),
+                    parsedContact,
+                    importRow
             ));
 
             if (mapping.column(HeaderType.TITLE) != null) {
@@ -241,7 +298,7 @@ public class AcademicianExcelImportParser {
             }
 
             importRow.setKeywords(parseKeywords(
-                    cellValue(sheet, row, mapping.column(HeaderType.KEYWORDS))
+                    rawCellValue(sheet, row, mapping.column(HeaderType.KEYWORDS))
             ));
             validateRow(importRow);
             preview.getRows().add(importRow);
@@ -307,8 +364,12 @@ public class AcademicianExcelImportParser {
                     titleAlias.lookup() + " "
             )) {
                 title = titleAlias.standardTitle();
+                int prefixLength = originalTitlePrefixLength(
+                        remaining,
+                        titleAlias.lookup()
+                ).orElse(titleAlias.sourceLength());
                 remaining = AcademicianTextNormalizer.normalizeWhitespace(
-                        remaining.substring(titleAlias.sourceLength())
+                        remaining.substring(prefixLength)
                 );
                 break;
             }
@@ -328,8 +389,88 @@ public class AcademicianExcelImportParser {
         return new ParsedName(firstName, lastName, title);
     }
 
+    private OptionalInt originalTitlePrefixLength(
+            String value,
+            String normalizedTitleLookup
+    ) {
+        StringBuilder normalizedPrefix = new StringBuilder();
+        boolean pendingSpace = false;
+
+        for (int index = 0; index < value.length(); index++) {
+            pendingSpace = appendNormalizedTitleCharacter(
+                    normalizedPrefix,
+                    pendingSpace,
+                    value.charAt(index)
+            );
+
+            if (normalizedPrefix.toString().equals(normalizedTitleLookup)) {
+                return OptionalInt.of(index + 1);
+            }
+        }
+
+        return OptionalInt.empty();
+    }
+
+    private boolean appendNormalizedTitleCharacter(
+            StringBuilder normalizedPrefix,
+            boolean pendingSpace,
+            char character
+    ) {
+        String normalizedCharacter = Normalizer
+                .normalize(String.valueOf(character), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replace('ı', 'i')
+                .replace('I', 'i')
+                .toLowerCase(Locale.ROOT);
+        normalizedCharacter =
+                AcademicianTextNormalizer.normalizeWhitespace(
+                        normalizedCharacter
+                );
+
+        if (normalizedCharacter.isEmpty()) {
+            return true;
+        }
+
+        for (int i = 0; i < normalizedCharacter.length(); i++) {
+            char normalized = normalizedCharacter.charAt(i);
+            if (Character.isWhitespace(normalized)) {
+                pendingSpace = true;
+                continue;
+            }
+
+            if (normalized == '.') {
+                appendPendingSpace(normalizedPrefix, pendingSpace);
+                if (normalizedPrefix.isEmpty()
+                        || normalizedPrefix.charAt(normalizedPrefix.length() - 1)
+                        != '.') {
+                    normalizedPrefix.append('.');
+                }
+                pendingSpace = true;
+                continue;
+            }
+
+            appendPendingSpace(normalizedPrefix, pendingSpace);
+            normalizedPrefix.append(normalized);
+            pendingSpace = false;
+        }
+
+        return pendingSpace;
+    }
+
+    private void appendPendingSpace(
+            StringBuilder normalizedPrefix,
+            boolean pendingSpace
+    ) {
+        if (pendingSpace
+                && !normalizedPrefix.isEmpty()
+                && normalizedPrefix.charAt(normalizedPrefix.length() - 1)
+                != ' ') {
+            normalizedPrefix.append(' ');
+        }
+    }
+
     private Set<String> parseKeywords(String value) {
-        if (value == null || value.isBlank()) {
+        if (AcademicianTextNormalizer.normalizeOptionalText(value) == null) {
             return new LinkedHashSet<>();
         }
 
@@ -339,6 +480,189 @@ public class AcademicianExcelImportParser {
         }
 
         return AcademicianTextNormalizer.normalizeKeywords(keywords);
+    }
+
+    private List<String> collectColumnValues(
+            Sheet sheet,
+            Row row,
+            List<Integer> columnIndexes
+    ) {
+        List<String> values = new ArrayList<>();
+        for (Integer columnIndex : columnIndexes) {
+            values.add(cellValue(sheet, row, columnIndex));
+        }
+
+        return values;
+    }
+
+    private String resolveEmail(
+            List<String> explicitEmails,
+            ParsedContact parsedContact,
+            AcademicianImportRow row
+    ) {
+        String normalizedEmail = resolveExplicitEmail(explicitEmails, row);
+        return normalizedEmail == null
+                ? parsedContact.email()
+                : normalizedEmail;
+    }
+
+    private String resolvePhone(
+            List<String> explicitPhones,
+            ParsedContact parsedContact,
+            AcademicianImportRow row
+    ) {
+        String normalizedPhone = resolveExplicitPhone(explicitPhones, row);
+        return normalizedPhone == null
+                ? parsedContact.phone()
+                : normalizedPhone;
+    }
+
+    private String resolveExplicitEmail(
+            List<String> explicitEmails,
+            AcademicianImportRow row
+    ) {
+        Set<String> normalizedEmails = new LinkedHashSet<>();
+
+        for (String explicitEmail : explicitEmails) {
+            String normalizedEmail = normalizeImportEmail(explicitEmail);
+            if (normalizedEmail == null) {
+                continue;
+            }
+
+            if (normalizedEmail.length() > MAX_EMAIL_LENGTH) {
+                row.getErrors().add("E-posta en fazla 255 karakter olabilir");
+                continue;
+            }
+
+            if (!EMAIL_PATTERN.matcher(normalizedEmail).matches()) {
+                row.getErrors().add("E-posta formati gecersiz");
+                continue;
+            }
+
+            normalizedEmails.add(normalizedEmail);
+        }
+
+        if (normalizedEmails.size() > 1) {
+            row.getErrors().add(DIFFERENT_EMAIL_COLUMNS_ERROR_MESSAGE);
+            return null;
+        }
+
+        return normalizedEmails.stream().findFirst().orElse(null);
+    }
+
+    private String resolveExplicitPhone(
+            List<String> explicitPhones,
+            AcademicianImportRow row
+    ) {
+        Set<String> normalizedPhones = new LinkedHashSet<>();
+
+        for (String explicitPhone : explicitPhones) {
+            String normalizedPhone = normalizeOptionalImportText(explicitPhone);
+            if (normalizedPhone == null) {
+                continue;
+            }
+
+            if (normalizedPhone.length() > MAX_PHONE_LENGTH) {
+                row.getErrors().add("Telefon en fazla 30 karakter olabilir");
+                continue;
+            }
+
+            normalizedPhones.add(normalizedPhone);
+        }
+
+        if (normalizedPhones.size() > 1) {
+            row.getErrors().add(DIFFERENT_PHONE_COLUMNS_ERROR_MESSAGE);
+            return null;
+        }
+
+        return normalizedPhones.stream().findFirst().orElse(null);
+    }
+
+    private ParsedContact parseContact(
+            String value,
+            AcademicianImportRow row
+    ) {
+        if (normalizeOptionalImportText(value) == null) {
+            return new ParsedContact(null, null);
+        }
+
+        String phone = null;
+        String email = null;
+        boolean multiplePhonesFound = false;
+        boolean multipleEmailsFound = false;
+
+        for (String part : value.split("\\R|[;&/]")) {
+            String normalizedPart = normalizeOptionalImportText(part);
+            if (normalizedPart == null) {
+                continue;
+            }
+
+            String normalizedEmail = AcademicianTextNormalizer
+                    .normalizeEmail(normalizedPart);
+            if (EMAIL_PATTERN.matcher(normalizedEmail).matches()) {
+                if (email == null) {
+                    email = normalizedEmail;
+                } else {
+                    multipleEmailsFound = true;
+                }
+                continue;
+            }
+
+            if (!normalizedPart.contains("@")
+                    && isReasonablePhoneCandidate(normalizedPart)) {
+                if (phone == null) {
+                    phone = normalizedPart;
+                } else {
+                    multiplePhonesFound = true;
+                }
+                continue;
+            }
+
+            row.getErrors().add(
+                    "Iletisim parcasi gecersiz: " + normalizedPart
+            );
+        }
+
+        if (multiplePhonesFound) {
+            row.getWarnings().add(MULTIPLE_PHONES_WARNING_MESSAGE);
+        }
+        if (multipleEmailsFound) {
+            row.getWarnings().add(MULTIPLE_EMAILS_WARNING_MESSAGE);
+        }
+
+        return new ParsedContact(phone, email);
+    }
+
+    private String normalizeOptionalImportText(String value) {
+        String normalized = AcademicianTextNormalizer.normalizeOptionalText(value);
+        if (normalized == null || isOptionalPlaceholder(normalized)) {
+            return null;
+        }
+
+        return normalized;
+    }
+
+    private String normalizeImportEmail(String value) {
+        String normalized = normalizeOptionalImportText(value);
+        return normalized == null
+                ? null
+                : AcademicianTextNormalizer.normalizeEmail(normalized);
+    }
+
+    private boolean isReasonablePhoneCandidate(String value) {
+        return value.chars().anyMatch(Character::isDigit);
+    }
+
+    private boolean isOptionalPlaceholder(String value) {
+        String trimmed = AcademicianTextNormalizer.normalizeOptionalText(value);
+        if (trimmed == null) {
+            return false;
+        }
+        if (trimmed.equals("-") || trimmed.equals("--")) {
+            return true;
+        }
+
+        return OPTIONAL_PLACEHOLDER_KEYS.contains(normalizeHeader(trimmed));
     }
 
     private void validateRow(AcademicianImportRow row) {
@@ -470,6 +794,27 @@ public class AcademicianExcelImportParser {
         return formattedCellValue(row.getCell(columnIndex));
     }
 
+    private String rawCellValue(Sheet sheet, Row row, Integer columnIndex) {
+        if (row == null || columnIndex == null) {
+            return null;
+        }
+
+        CellRangeAddress region = mergedRegionAt(
+                sheet,
+                row.getRowNum(),
+                columnIndex
+        );
+        if (region != null) {
+            Row anchorRow = sheet.getRow(region.getFirstRow());
+            Cell anchorCell = anchorRow == null
+                    ? null
+                    : anchorRow.getCell(region.getFirstColumn());
+            return rawFormattedCellValue(anchorCell);
+        }
+
+        return rawFormattedCellValue(row.getCell(columnIndex));
+    }
+
     private CellRangeAddress mergedRegionAt(
             Sheet sheet,
             int rowIndex,
@@ -490,9 +835,18 @@ public class AcademicianExcelImportParser {
         }
 
         String value = dataFormatter.formatCellValue(cell);
-        return value == null || value.isBlank()
+        return AcademicianTextNormalizer.normalizeOptionalText(value);
+    }
+
+    private String rawFormattedCellValue(Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+
+        String value = dataFormatter.formatCellValue(cell);
+        return AcademicianTextNormalizer.normalizeOptionalText(value) == null
                 ? null
-                : value.trim();
+                : value;
     }
 
     private static Map<String, HeaderType> createHeaderAliases() {
@@ -520,8 +874,16 @@ public class AcademicianExcelImportParser {
                 aliases,
                 HeaderType.PHONE,
                 "TELEFON",
+                "PHONE",
                 "GSM",
                 "CEP TELEFONU"
+        );
+        addAliases(
+                aliases,
+                HeaderType.COMMUNICATION,
+                "ILETISIM",
+                "ILETISIM BILGISI",
+                "ILETISIM BILGILERI"
         );
         addAliases(
                 aliases,
@@ -538,6 +900,22 @@ public class AcademicianExcelImportParser {
         return aliases;
     }
 
+    private static Set<String> createOptionalPlaceholderKeys() {
+        Set<String> placeholders = new LinkedHashSet<>();
+        addPlaceholder(placeholders, "Bilgi Yok");
+        addPlaceholder(placeholders, "Yok");
+        addPlaceholder(placeholders, "Bilinmiyor");
+        addPlaceholder(placeholders, "Belirtilmemis");
+        addPlaceholder(placeholders, "Mevcut Degil");
+        addPlaceholder(placeholders, "N/A");
+        addPlaceholder(placeholders, "NA");
+        return Set.copyOf(placeholders);
+    }
+
+    private static void addPlaceholder(Set<String> placeholders, String value) {
+        placeholders.add(normalizeHeader(value));
+    }
+
     private static void addAliases(
             Map<String, HeaderType> aliases,
             HeaderType type,
@@ -548,18 +926,48 @@ public class AcademicianExcelImportParser {
         }
     }
 
+    private static HeaderType resolveHeaderType(String normalizedHeader) {
+        HeaderType exactType = HEADER_ALIASES.get(normalizedHeader);
+        if (exactType != null) {
+            return exactType;
+        }
+
+        for (Map.Entry<String, HeaderType> entry : HEADER_ALIASES.entrySet()) {
+            HeaderType headerType = entry.getValue();
+            if ((headerType == HeaderType.EMAIL || headerType == HeaderType.PHONE)
+                    && isNumberedSemanticHeader(
+                    normalizedHeader,
+                    entry.getKey()
+            )) {
+                return headerType;
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean isNumberedSemanticHeader(
+            String normalizedHeader,
+            String normalizedAlias
+    ) {
+        if (!normalizedHeader.startsWith(normalizedAlias + " ")) {
+            return false;
+        }
+
+        String suffix = normalizedHeader.substring(normalizedAlias.length() + 1);
+        return !suffix.isBlank()
+                && suffix.chars().allMatch(Character::isDigit);
+    }
+
     private static String normalizeHeader(String value) {
-        String normalized = value
-                .trim()
+        String normalized = AcademicianTextNormalizer.normalizeWhitespace(value)
                 .replace('ı', 'i')
                 .replace('I', 'i');
         normalized = Normalizer.normalize(normalized, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}+", "")
-                .replaceAll("[\\p{Punct}\\u2010-\\u2015]+", " ")
-                .replaceAll("\\s+", " ")
-                .trim()
+                .replaceAll("[\\p{Punct}\\u2010-\\u2015]+", " ");
+        return AcademicianTextNormalizer.normalizeWhitespace(normalized)
                 .toUpperCase(Locale.ROOT);
-        return normalized;
     }
 
     private static List<TitleAlias> createTitleAliases() {
@@ -592,6 +1000,7 @@ public class AcademicianExcelImportParser {
             String standardTitle
     ) {
         aliases.add(new TitleAlias(
+                source,
                 normalizeTitleLookup(source),
                 source.length(),
                 standardTitle
@@ -605,11 +1014,10 @@ public class AcademicianExcelImportParser {
                 .replace('ı', 'i')
                 .replace('I', 'i')
                 .replaceAll("[.]+", ".")
-                .replaceAll("\\s+", " ")
-                .trim()
                 .toLowerCase(Locale.ROOT);
+        normalized = AcademicianTextNormalizer.normalizeWhitespace(normalized);
         normalized = normalized.replace(".", ". ");
-        return normalized.replaceAll("\\s+", " ").trim();
+        return AcademicianTextNormalizer.normalizeWhitespace(normalized);
     }
 
     private enum HeaderType {
@@ -619,6 +1027,7 @@ public class AcademicianExcelImportParser {
         TITLE,
         EMAIL,
         PHONE,
+        COMMUNICATION,
         KEYWORDS,
         PROJECTS
     }
@@ -626,11 +1035,16 @@ public class AcademicianExcelImportParser {
     private record HeaderMapping(
             int headerRowIndex,
             Map<HeaderType, Integer> columns,
+            List<Integer> emailColumns,
+            List<Integer> phoneColumns,
             Set<Integer> ignoredColumns
     ) {
 
         private boolean hasAnyKnownHeader() {
-            return !columns.isEmpty() || !ignoredColumns.isEmpty();
+            return !columns.isEmpty()
+                    || !emailColumns.isEmpty()
+                    || !phoneColumns.isEmpty()
+                    || !ignoredColumns.isEmpty();
         }
 
         private boolean hasValidNameStructure() {
@@ -644,11 +1058,15 @@ public class AcademicianExcelImportParser {
         }
 
         private Set<Integer> dataColumns() {
-            return new LinkedHashSet<>(columns.values());
+            Set<Integer> dataColumns = new LinkedHashSet<>(columns.values());
+            dataColumns.addAll(emailColumns);
+            dataColumns.addAll(phoneColumns);
+            return dataColumns;
         }
     }
 
     private record TitleAlias(
+            String source,
             String lookup,
             int sourceLength,
             String standardTitle
@@ -659,6 +1077,12 @@ public class AcademicianExcelImportParser {
             String firstName,
             String lastName,
             String title
+    ) {
+    }
+
+    private record ParsedContact(
+            String phone,
+            String email
     ) {
     }
 }

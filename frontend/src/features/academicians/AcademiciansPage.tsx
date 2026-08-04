@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import {
@@ -21,12 +22,17 @@ import { useAuth } from '../auth/useAuth';
 import {
     createAcademician,
     deleteAcademician,
+    exportAcademicians,
     getAcademicianCount,
     getAcademicians,
     updateAcademician,
 } from './academicianApi';
 import { academicianQueryKeys } from './academicianQueryKeys';
-import type { Academician, CreateAcademicianRequest } from './academician.types';
+import type {
+    Academician,
+    CreateAcademicianRequest,
+    UpdateAcademicianRequest,
+} from './academician.types';
 import { academicianPageSizes } from './academician.types';
 import { AcademicianFormDialog } from './components/AcademicianFormDialog';
 import { AcademicianImportDialog } from './components/AcademicianImportDialog';
@@ -137,7 +143,7 @@ export function AcademiciansPage() {
             request,
         }: {
             id: number;
-            request: CreateAcademicianRequest;
+            request: UpdateAcademicianRequest;
         }) => updateAcademician(id, request),
         onSuccess: async () => {
             setFormMode(null);
@@ -178,6 +184,29 @@ export function AcademiciansPage() {
         },
     });
 
+    const exportMutation = useMutation({
+        mutationFn: exportAcademicians,
+        onSuccess: (blob) => {
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = 'akademisyenler.xlsx';
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(url);
+        },
+        onError: (error) => {
+            setSnackbar({
+                message: getApiErrorMessage(
+                    error,
+                    'Akademisyenler Excel dosyasına aktarılamadı',
+                ),
+                severity: 'error',
+            });
+        },
+    });
+
     const isSaving = createMutation.isPending || updateMutation.isPending;
     const isMutating = isSaving || deleteMutation.isPending;
     const academicians = academiciansQuery.data?.content ?? [];
@@ -186,7 +215,9 @@ export function AcademiciansPage() {
         && !academiciansQuery.isError
         && academicians.length === 0;
 
-    async function handleFormSubmit(request: CreateAcademicianRequest) {
+    async function handleFormSubmit(
+        request: CreateAcademicianRequest | UpdateAcademicianRequest,
+    ) {
         if (!formMode || isSaving) {
             return;
         }
@@ -199,7 +230,7 @@ export function AcademiciansPage() {
         if (formMode.academician) {
             await updateMutation.mutateAsync({
                 id: formMode.academician.id,
-                request,
+                request: request as UpdateAcademicianRequest,
             });
         }
     }
@@ -227,6 +258,17 @@ export function AcademiciansPage() {
         deleteMutation.mutate(academicianToDelete.id);
     }
 
+    function handleExport() {
+        if (exportMutation.isPending) {
+            return;
+        }
+
+        exportMutation.mutate({
+            search: debouncedSearch,
+            initial: initial || undefined,
+        });
+    }
+
     return (
         <Stack spacing={3}>
             <PageHeader
@@ -244,6 +286,14 @@ export function AcademiciansPage() {
                             onClick={() => setImportDialogOpen(true)}
                         >
                             Excel'den Aktar
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            startIcon={<FileDownloadOutlinedIcon />}
+                            disabled={exportMutation.isPending}
+                            onClick={handleExport}
+                        >
+                            {exportMutation.isPending ? 'Aktarılıyor' : "Excel'e Aktar"}
                         </Button>
                         <Button
                             variant="contained"

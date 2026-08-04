@@ -27,6 +27,27 @@ public interface AcademicianRepository
     Set<String> findExistingEmails(@Param("emails") Collection<String> emails);
 
     @Query("""
+            SELECT academician
+            FROM Academician academician
+            WHERE academician.email IS NOT NULL
+              AND LOWER(academician.email) = :email
+            """)
+    List<Academician> findByNormalizedEmail(@Param("email") String email);
+
+    @Query("""
+            SELECT academician
+            FROM Academician academician
+            WHERE academician.canonicalFirstName = :firstName
+              AND academician.canonicalLastName = :lastName
+              AND academician.canonicalTitle = :title
+            """)
+    List<Academician> findByCanonicalIdentity(
+            @Param("firstName") String firstName,
+            @Param("lastName") String lastName,
+            @Param("title") String title
+    );
+
+    @Query("""
             SELECT academician.firstName AS firstName,
                    academician.lastName AS lastName,
                    academician.title AS title
@@ -44,6 +65,8 @@ public interface AcademicianRepository
                            OR LOWER(academician.firstName)
                                 LIKE LOWER(CONCAT('%', :search, '%'))
                            OR LOWER(academician.lastName)
+                                LIKE LOWER(CONCAT('%', :search, '%'))
+                           OR LOWER(CONCAT(academician.firstName, ' ', academician.lastName))
                                 LIKE LOWER(CONCAT('%', :search, '%'))
                            OR LOWER(academician.email)
                                 LIKE LOWER(CONCAT('%', :search, '%'))
@@ -69,6 +92,8 @@ public interface AcademicianRepository
                            OR LOWER(academician.firstName)
                                 LIKE LOWER(CONCAT('%', :search, '%'))
                            OR LOWER(academician.lastName)
+                                LIKE LOWER(CONCAT('%', :search, '%'))
+                           OR LOWER(CONCAT(academician.firstName, ' ', academician.lastName))
                                 LIKE LOWER(CONCAT('%', :search, '%'))
                            OR LOWER(academician.email)
                                 LIKE LOWER(CONCAT('%', :search, '%'))

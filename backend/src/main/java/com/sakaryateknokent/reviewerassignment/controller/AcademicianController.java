@@ -6,12 +6,16 @@ import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportResultRespon
 import com.sakaryateknokent.reviewerassignment.dto.CreateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateAcademicianRequest;
+import com.sakaryateknokent.reviewerassignment.service.AcademicianExportService;
 import com.sakaryateknokent.reviewerassignment.service.AcademicianImportService;
 import com.sakaryateknokent.reviewerassignment.service.AcademicianImportPreviewService;
 import com.sakaryateknokent.reviewerassignment.service.AcademicianService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AcademicianController {
 
     private final AcademicianService academicianService;
+    private final AcademicianExportService academicianExportService;
     private final AcademicianImportPreviewService importPreviewService;
     private final AcademicianImportService importService;
 
@@ -67,6 +72,29 @@ public class AcademicianController {
     @GetMapping("/count")
     public ResponseEntity<Long> countAcademicians() {
         return ResponseEntity.ok(academicianService.countAcademicians());
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportAcademicians(
+            @RequestParam(defaultValue = "") String search,
+            @RequestParam(required = false) String initial
+    ) {
+        byte[] fileContent = academicianExportService.exportToExcel(
+                academicianService.getAcademiciansForExport(search, initial)
+        );
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename("akademisyenler.xlsx")
+                                .build()
+                                .toString()
+                )
+                .body(fileContent);
     }
 
     @GetMapping("/{id}")

@@ -15,6 +15,7 @@ import type {
     Academician,
     AcademicianFormValues,
     CreateAcademicianRequest,
+    UpdateAcademicianRequest,
 } from '../academician.types';
 
 type AcademicianFormDialogProps = {
@@ -22,7 +23,9 @@ type AcademicianFormDialogProps = {
     academician: Academician | null;
     isSaving: boolean;
     onClose: () => void;
-    onSubmit: (request: CreateAcademicianRequest) => Promise<void>;
+    onSubmit: (
+        request: CreateAcademicianRequest | UpdateAcademicianRequest,
+    ) => Promise<void>;
 };
 
 type FormErrors = Partial<Record<keyof AcademicianFormValues, string>>;
@@ -89,8 +92,9 @@ function normalizeKeywords(value: string): string[] {
 
 function buildRequest(
     values: AcademicianFormValues,
-): CreateAcademicianRequest {
-    return {
+    academician: Academician | null,
+): CreateAcademicianRequest | UpdateAcademicianRequest {
+    const request = {
         firstName: values.firstName.trim(),
         lastName: values.lastName.trim(),
         email: normalizeOptional(values.email),
@@ -98,6 +102,13 @@ function buildRequest(
         title: normalizeOptional(values.title),
         keywords: normalizeKeywords(values.keywordsText),
     };
+
+    return academician
+        ? {
+            ...request,
+            version: academician.version,
+        }
+        : request;
 }
 
 function validate(values: AcademicianFormValues): FormErrors {
@@ -220,7 +231,7 @@ export function AcademicianFormDialog({
         }
 
         try {
-            await onSubmit(buildRequest(values));
+            await onSubmit(buildRequest(values, academician));
         } catch (error) {
             const apiFieldErrors = getFieldErrors(error);
             const nextErrors: FormErrors = {};

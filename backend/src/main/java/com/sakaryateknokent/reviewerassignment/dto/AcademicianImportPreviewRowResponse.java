@@ -12,7 +12,9 @@ public record AcademicianImportPreviewRowResponse(
         String phone,
         String title,
         Set<String> keywords,
+        String status,
         boolean valid,
+        List<String> messages,
         List<String> warnings,
         List<String> errors
 ) {

@@ -14,11 +14,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 @Service
@@ -62,8 +64,9 @@ public class AcademicianService {
                         request.keywords()
                 )
         );
+        academician.refreshCanonicalIdentity();
 
-        return toResponse(academicianRepository.save(academician));
+        return toResponse(academicianRepository.saveAndFlush(academician));
     }
 
     @Transactional(readOnly = true)
@@ -75,12 +78,8 @@ public class AcademicianService {
     ) {
         validatePagination(page, size);
 
-        String normalizedSearch = search == null
-                ? ""
-                : search.trim();
-        String normalizedInitial = initial == null
-                ? ""
-                : initial.trim();
+        String normalizedSearch = normalizeSearch(search);
+        String normalizedInitial = normalizeInitial(initial);
 
         Pageable pageable = PageRequest.of(
                 page,
@@ -110,6 +109,24 @@ public class AcademicianService {
     }
 
     @Transactional(readOnly = true)
+    public List<AcademicianResponse> getAcademiciansForExport(
+            String search,
+            String initial
+    ) {
+        String normalizedSearch = normalizeSearch(search);
+        String normalizedInitial = normalizeInitial(initial);
+
+        return academicianRepository
+                .search(
+                        normalizedSearch,
+                        normalizedInitial,
+                        Pageable.unpaged(DEFAULT_ACADEMICIAN_SORT)
+                )
+                .map(this::toResponse)
+                .getContent();
+    }
+
+    @Transactional(readOnly = true)
     public AcademicianResponse getAcademicianById(Long id) {
         return toResponse(findAcademicianById(id));
     }
@@ -122,6 +139,7 @@ public class AcademicianService {
         String normalizedEmail =
                 AcademicianTextNormalizer.normalizeEmail(request.email());
 
+        validateVersion(request.version(), academician);
         validateEmailForUpdate(normalizedEmail, id);
 
         academician.setFirstName(request.firstName().trim());
@@ -144,8 +162,9 @@ public class AcademicianService {
                         request.keywords()
                 )
         );
+        academician.refreshCanonicalIdentity();
 
-        return toResponse(academicianRepository.save(academician));
+        return toResponse(academicianRepository.saveAndFlush(academician));
     }
 
     public void deleteAcademician(Long id) {
@@ -191,6 +210,27 @@ public class AcademicianService {
         }
     }
 
+    private void validateVersion(Long requestVersion, Academician academician) {
+        if (!requestVersion.equals(academician.getVersion())) {
+            throw new ObjectOptimisticLockingFailureException(
+                    Academician.class,
+                    academician.getId()
+            );
+        }
+    }
+
+    private String normalizeSearch(String search) {
+        return search == null
+                ? ""
+                : search.trim();
+    }
+
+    private String normalizeInitial(String initial) {
+        return initial == null
+                ? ""
+                : initial.trim();
+    }
+
     private AcademicianResponse toResponse(Academician academician) {
         Set<String> keywords = Collections.unmodifiableSet(
                 new LinkedHashSet<>(academician.getKeywords())
@@ -198,6 +238,7 @@ public class AcademicianService {
 
         return new AcademicianResponse(
                 academician.getId(),
+                academician.getVersion(),
                 academician.getFirstName(),
                 academician.getLastName(),
                 academician.getEmail(),
