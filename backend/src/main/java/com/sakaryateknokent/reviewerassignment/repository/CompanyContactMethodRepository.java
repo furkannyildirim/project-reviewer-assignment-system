@@ -21,5 +21,10 @@ public interface CompanyContactMethodRepository
             Long companyId
     );
 
+    List<CompanyContactMethod> findByTypeAndValueIgnoreCaseOrderByIdAsc(
+            CompanyContactMethodType type,
+            String value
+    );
+
     List<CompanyContactMethod> findByCompanyIdIn(Collection<Long> companyIds);
 }

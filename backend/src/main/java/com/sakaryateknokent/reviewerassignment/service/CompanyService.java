@@ -74,6 +74,11 @@ public class CompanyService {
         Company company = new Company();
         company.setName(request.name().trim());
         company.setActivityArea(normalizeOptionalText(request.activityArea()));
+        company.setCity(normalizeOptionalText(request.city()));
+        company.setDistrict(normalizeOptionalText(request.district()));
+        company.setOsb(normalizeOptionalText(request.osb()));
+        company.setAddress(normalizeOptionalText(request.address()));
+        company.setBuilding(normalizeOptionalText(request.building()));
         company.setLogoUrl(normalizeOptionalText(request.logoUrl()));
         company.setCompanyType(request.companyType());
 
@@ -199,6 +204,11 @@ public class CompanyService {
 
         company.setName(request.name().trim());
         company.setActivityArea(normalizeOptionalText(request.activityArea()));
+        company.setCity(normalizeOptionalText(request.city()));
+        company.setDistrict(normalizeOptionalText(request.district()));
+        company.setOsb(normalizeOptionalText(request.osb()));
+        company.setAddress(normalizeOptionalText(request.address()));
+        company.setBuilding(normalizeOptionalText(request.building()));
         company.setLogoUrl(normalizeOptionalText(request.logoUrl()));
 
         applyUpdatedContactMethods(company, contactMethods);
@@ -787,6 +797,11 @@ public class CompanyService {
                 company.getId(),
                 company.getName(),
                 company.getActivityArea(),
+                company.getCity(),
+                company.getDistrict(),
+                company.getOsb(),
+                company.getAddress(),
+                company.getBuilding(),
                 company.getLogoUrl(),
                 company.getCompanyType(),
                 sortContactMethods(company.getContactMethods()).stream()

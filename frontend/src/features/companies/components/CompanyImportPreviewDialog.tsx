@@ -53,7 +53,7 @@ type CompanyImportPreviewDialogProps = {
     onImported: () => void;
 };
 
-type PreviewRowFilter = 'all' | 'valid' | 'problem';
+type PreviewRowFilter = 'all' | 'valid' | 'update' | 'warning' | 'problem';
 
 const optionalFallback = '—';
 const defaultRowsPerPage = 25;
@@ -230,7 +230,7 @@ function HeaderChips({
 }
 
 function RowStatus({ row }: { row: CompanyImportPreviewRow }) {
-    if (!row.valid) {
+    if (!row.valid || row.status === 'INVALID') {
         return (
             <Chip
                 color="error"
@@ -242,7 +242,31 @@ function RowStatus({ row }: { row: CompanyImportPreviewRow }) {
         );
     }
 
-    if (row.warnings.length > 0) {
+    if (row.status === 'UPDATE') {
+        return (
+            <Chip
+                color="info"
+                icon={<CheckCircleOutlineOutlinedIcon />}
+                label="Güncellenecek"
+                size="small"
+                variant="outlined"
+            />
+        );
+    }
+
+    if (row.status === 'DUPLICATE') {
+        return (
+            <Chip
+                color="warning"
+                icon={<WarningAmberOutlinedIcon />}
+                label="Tekrarlı"
+                size="small"
+                variant="outlined"
+            />
+        );
+    }
+
+    if (row.status === 'WARNING' || row.warnings.length > 0) {
         return (
             <Chip
                 color="warning"
@@ -266,7 +290,23 @@ function RowStatus({ row }: { row: CompanyImportPreviewRow }) {
 }
 
 function RowMessages({ row }: { row: CompanyImportPreviewRow }) {
-    const messages = [...row.errors, ...row.warnings];
+    const messages = [
+        ...row.errors.map((message) => ({
+            color: 'error.main',
+            message,
+            type: 'error',
+        })),
+        ...row.updateMessages.map((message) => ({
+            color: 'info.main',
+            message,
+            type: 'update',
+        })),
+        ...row.warnings.map((message) => ({
+            color: 'warning.main',
+            message,
+            type: 'warning',
+        })),
+    ];
 
     if (messages.length === 0) {
         return <Typography color="text.secondary">{optionalFallback}</Typography>;
@@ -274,11 +314,11 @@ function RowMessages({ row }: { row: CompanyImportPreviewRow }) {
 
     return (
         <Stack spacing={0.25}>
-            {messages.map((message) => (
+            {messages.map(({ color, message, type }, index) => (
                 <Typography
-                    key={message}
+                    key={`${type}-${index}-${message}`}
                     variant="body2"
-                    color={row.valid ? 'warning.main' : 'error.main'}
+                    color={color}
                 >
                     {message}
                 </Typography>
@@ -468,16 +508,24 @@ function PreviewList({
 }) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
-    const [rowFilter, setRowFilter] = useState<PreviewRowFilter>('problem');
+    const [rowFilter, setRowFilter] = useState<PreviewRowFilter>('all');
 
     const filteredRows = useMemo(
         () => preview.rows.filter((row) => {
             if (rowFilter === 'valid') {
-                return row.valid && row.warnings.length === 0;
+                return row.valid && row.status === 'NEW' && row.warnings.length === 0;
+            }
+
+            if (rowFilter === 'update') {
+                return row.valid && row.status === 'UPDATE';
+            }
+
+            if (rowFilter === 'warning') {
+                return row.warnings.length > 0 || row.status === 'WARNING';
             }
 
             if (rowFilter === 'problem') {
-                return !row.valid || row.warnings.length > 0;
+                return !row.valid || row.errors.length > 0 || row.status === 'INVALID';
             }
 
             return true;
@@ -493,11 +541,14 @@ function PreviewList({
         safePage * rowsPerPage,
         safePage * rowsPerPage + rowsPerPage,
     );
-    const emptyMessage = rowFilter === 'valid'
-        ? 'Geçerli kayıt bulunmuyor.'
-        : rowFilter === 'problem'
-            ? 'Sorunlu kayıt bulunmuyor.'
-            : 'Gösterilecek kayıt yok.';
+    const emptyMessages: Record<PreviewRowFilter, string> = {
+        all: 'Gösterilecek kayıt yok.',
+        valid: 'Yeni kayıt bulunmuyor.',
+        update: 'Güncellenecek kayıt bulunmuyor.',
+        warning: 'Uyarılı kayıt bulunmuyor.',
+        problem: 'Sorunlu kayıt bulunmuyor.',
+    };
+    const emptyMessage = emptyMessages[rowFilter];
 
     function handleRowFilterChange(
         _: MouseEvent<HTMLElement>,
@@ -547,9 +598,21 @@ function PreviewList({
                         size="small"
                         value={rowFilter}
                         onChange={handleRowFilterChange}
+                        sx={{
+                            width: { xs: '100%', sm: 620 },
+                            maxWidth: '100%',
+                            '& .MuiToggleButton-root': {
+                                flex: 1,
+                                minWidth: 0,
+                                px: 1,
+                                whiteSpace: 'nowrap',
+                            },
+                        }}
                     >
                         <ToggleButton value="all">Tümü</ToggleButton>
-                        <ToggleButton value="valid">Geçerli</ToggleButton>
+                        <ToggleButton value="valid">Yeni</ToggleButton>
+                        <ToggleButton value="update">Güncellenecek</ToggleButton>
+                        <ToggleButton value="warning">Uyarılı</ToggleButton>
                         <ToggleButton value="problem">Sorunlu</ToggleButton>
                     </ToggleButtonGroup>
                 </Stack>
@@ -736,12 +799,24 @@ function ResultStatus({ row }: { row: CompanyImportResultRow }) {
         );
     }
 
+    if (row.status === 'UPDATED') {
+        return (
+            <Chip
+                color="info"
+                icon={<CheckCircleOutlineOutlinedIcon />}
+                label="Güncellendi"
+                size="small"
+                variant="outlined"
+            />
+        );
+    }
+
     if (row.status === 'DUPLICATE') {
         return (
             <Chip
                 color="warning"
                 icon={<WarningAmberOutlinedIcon />}
-                label="Tekrarlanan"
+                label="Tekrarlı"
                 size="small"
                 variant="outlined"
             />
@@ -760,7 +835,7 @@ function ResultStatus({ row }: { row: CompanyImportResultRow }) {
 }
 
 function ImportResultCard({ row }: { row: CompanyImportResultRow }) {
-    const tone = row.status === 'IMPORTED'
+    const tone = row.status === 'IMPORTED' || row.status === 'UPDATED'
         ? 'success'
         : row.status === 'DUPLICATE'
             ? 'warning'
@@ -819,22 +894,23 @@ function ImportResultCard({ row }: { row: CompanyImportResultRow }) {
                 </Typography>
 
                 {row.messages.length > 0 && (
-                    <Typography
-                        variant="caption"
-                        sx={{
-                            color: tone === 'error'
-                                ? 'error.main'
-                                : tone === 'warning'
-                                    ? 'warning.dark'
-                                    : 'success.dark',
-                            display: '-webkit-box',
-                            overflow: 'hidden',
-                            WebkitBoxOrient: 'vertical',
-                            WebkitLineClamp: 2,
-                        }}
-                    >
-                        {row.messages.join(', ')}
-                    </Typography>
+                    <Stack spacing={0.25}>
+                        {row.messages.map((message, index) => (
+                            <Typography
+                                key={`${row.sheetName}-${row.rowNumber}-${index}-${message}`}
+                                variant="caption"
+                                sx={{
+                                    color: tone === 'error'
+                                        ? 'error.main'
+                                        : tone === 'warning'
+                                            ? 'warning.dark'
+                                            : 'success.dark',
+                                }}
+                            >
+                                {message}
+                            </Typography>
+                        ))}
+                    </Stack>
                 )}
             </Stack>
         </Paper>
@@ -932,8 +1008,11 @@ function ImportResultSummary({
     result: CompanyImportResultResponse;
     resultSectionRef: RefObject<HTMLDivElement | null>;
 }) {
-    const duplicateRows = result.rows.filter((row) => row.status === 'DUPLICATE');
-    const invalidRows = result.rows.filter((row) => row.status === 'INVALID');
+    const successfulRows = result.rows.filter((row) =>
+        row.status === 'IMPORTED' || row.status === 'UPDATED');
+    const skippedRows = result.rows.filter((row) =>
+        row.status !== 'IMPORTED' && row.status !== 'UPDATED');
+    const skippedCount = result.duplicateCount + result.invalidCount;
 
     return (
         <Paper
@@ -960,7 +1039,13 @@ function ImportResultSummary({
                         tone="success"
                     />
                     <SummaryMetric
-                        label="Tekrarlanan"
+                        label="Güncellenen"
+                        value={result.updatedCount}
+                        color="info.main"
+                        tone="info"
+                    />
+                    <SummaryMetric
+                        label="Tekrarlı"
                         value={result.duplicateCount}
                         color="warning.main"
                         tone="warning"
@@ -973,13 +1058,13 @@ function ImportResultSummary({
                     />
                 </Stack>
 
-                {duplicateRows.length === 0 && invalidRows.length === 0 && (
+                {skippedCount === 0 && (
                     <Alert severity="success" sx={{ borderRadius: '8px' }}>
                         Tüm geçerli kayıtlar başarıyla aktarıldı.
                     </Alert>
                 )}
 
-                {(duplicateRows.length > 0 || invalidRows.length > 0) && (
+                {(successfulRows.length > 0 || skippedRows.length > 0) && (
                     <Box
                         sx={{
                             display: 'grid',
@@ -991,14 +1076,14 @@ function ImportResultSummary({
                         }}
                     >
                         <ResultRowsPanel
-                            title="Tekrarlanan kayıtlar"
-                            rows={duplicateRows}
-                            tone="warning"
+                            title="Başarılı İşlemler"
+                            rows={successfulRows}
+                            tone="success"
                         />
                         <ResultRowsPanel
-                            title="Hatalı olduğu için aktarılmayan kayıtlar"
-                            rows={invalidRows}
-                            tone="error"
+                            title="Aktarılmayan Kayıtlar"
+                            rows={skippedRows}
+                            tone="warning"
                         />
                     </Box>
                 )}

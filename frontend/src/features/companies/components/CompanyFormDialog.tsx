@@ -133,6 +133,11 @@ function buildRequest(
     const companyFields = {
         name: values.name.trim(),
         activityArea: normalizeOptional(values.activityArea),
+        city: null,
+        district: null,
+        osb: null,
+        address: null,
+        building: null,
         logoUrl: normalizeOptional(values.logoUrl),
         contactMethods: values.contactMethods.map((contactMethod) => ({
             id: contactMethod.id,

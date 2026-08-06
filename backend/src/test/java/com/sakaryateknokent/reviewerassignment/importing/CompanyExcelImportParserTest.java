@@ -171,7 +171,7 @@ class CompanyExcelImportParserTest {
     }
 
     @Test
-    void keepsNoBuildingAndWebInIgnoredHeaders() {
+    void keepsOnlyNoAndWebInIgnoredHeaders() {
         CompanyImportPreview preview = parse(workbook -> {
             Sheet sheet = workbook.createSheet("Sirketler");
             writeRow(sheet, 0, "No", "Firma Unvanı", "Bina", "Web");
@@ -179,13 +179,13 @@ class CompanyExcelImportParserTest {
         });
 
         assertTrue(preview.getIgnoredHeaders().contains("No"));
-        assertTrue(preview.getIgnoredHeaders().contains("Bina"));
         assertTrue(preview.getIgnoredHeaders().contains("Web"));
         assertFalse(preview.getDetectedHeaders().contains("No"));
-        assertFalse(preview.getDetectedHeaders().contains("Bina"));
+        assertTrue(preview.getDetectedHeaders().contains("Bina"));
         assertFalse(preview.getDetectedHeaders().contains("Web"));
+        assertEquals("A Blok", preview.getRows().getFirst().getBuilding());
         assertTrue(preview.getGeneralInformationMessages().contains(
-                "No, Bina ve Web sutunlari bu aktarimda kullanilmayacaktir."
+                "No ve Web sutunlari bu aktarimda kullanilmayacaktir."
         ));
     }
 
@@ -331,7 +331,7 @@ class CompanyExcelImportParserTest {
     }
 
     @Test
-    void parsesExternalCompanyAliasesAndIgnoresUnsupportedAddressColumns() {
+    void parsesExternalCompanyAliasesAndLocationColumns() {
         CompanyImportPreview preview = parse(CompanyType.EXTERNAL, workbook -> {
             Sheet sheet = workbook.createSheet("Dis Sirketler");
             writeRow(
@@ -366,15 +366,94 @@ class CompanyExcelImportParserTest {
 
         CompanyImportRow row = preview.getRows().getFirst();
         assertEquals("Dis Teknoloji", row.getName());
+        assertEquals("Sakarya", row.getCity());
+        assertEquals("Serdivan", row.getDistrict());
+        assertEquals("1. OSB", row.getOsb());
+        assertEquals("Adres", row.getAddress());
         assertEquals(List.of("555"), row.getCompanyPhones());
         assertEquals(List.of("info@example.com"), row.getCompanyEmails());
         assertEquals("Makine", row.getActivityArea());
-        assertTrue(preview.getIgnoredHeaders().contains("İL"));
-        assertTrue(preview.getIgnoredHeaders().contains("İLÇE"));
-        assertTrue(preview.getIgnoredHeaders().contains("OSB"));
-        assertTrue(preview.getIgnoredHeaders().contains("AÇIK ADRES"));
+        assertTrue(preview.getDetectedHeaders().contains("İL"));
+        assertTrue(preview.getDetectedHeaders().contains("İLÇE"));
+        assertTrue(preview.getDetectedHeaders().contains("OSB"));
+        assertTrue(preview.getDetectedHeaders().contains("AÇIK ADRES"));
+        assertFalse(preview.getIgnoredHeaders().contains("AÇIK ADRES"));
         assertTrue(preview.getIgnoredHeaders().contains("WEB SİTESİ"));
         assertTrue(row.isValid());
+    }
+
+    @Test
+    void parsesTgbBuildingLocationAndFutureSharedHeaders() {
+        CompanyImportRow row = parseFirstRow(CompanyType.TGB, workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            writeRow(
+                    sheet,
+                    0,
+                    "Firma Unvan\u0131",
+                    "B\u0130NA",
+                    "\u0130L",
+                    "A\u00C7IK ADRES"
+            );
+            writeRow(
+                    sheet,
+                    1,
+                    "ABC Teknoloji",
+                    "B Blok",
+                    "Sakarya",
+                    "Teknokent Kampusu"
+            );
+        });
+
+        assertEquals("B Blok", row.getBuilding());
+        assertEquals("Sakarya", row.getCity());
+        assertEquals("Teknokent Kampusu", row.getAddress());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void parsesExternalBuildingWhenHeaderExists() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "F\u0130RMA", "B\u0130NA");
+            writeRow(sheet, 1, "Dis Teknoloji", "C Blok");
+        });
+
+        assertEquals("C Blok", row.getBuilding());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void keepsLocationFieldsNullWhenColumnsAreMissingOrBlank() {
+        CompanyImportPreview preview = parse(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(
+                    sheet,
+                    0,
+                    "F\u0130RMA",
+                    "\u0130L",
+                    "\u0130L\u00C7E",
+                    "OSB",
+                    "A\u00C7IK ADRES",
+                    "B\u0130NA"
+            );
+            writeRow(sheet, 1, "Blank Lokasyon", " ", "\t", "", "  ", " ");
+            writeRow(sheet, 2, "Kolonsuz Firma");
+        });
+
+        CompanyImportRow blankLocationRow = preview.getRows().getFirst();
+        CompanyImportRow missingLocationRow = preview.getRows().get(1);
+
+        assertNull(blankLocationRow.getCity());
+        assertNull(blankLocationRow.getDistrict());
+        assertNull(blankLocationRow.getOsb());
+        assertNull(blankLocationRow.getAddress());
+        assertNull(blankLocationRow.getBuilding());
+        assertNull(missingLocationRow.getCity());
+        assertNull(missingLocationRow.getDistrict());
+        assertNull(missingLocationRow.getOsb());
+        assertNull(missingLocationRow.getAddress());
+        assertNull(missingLocationRow.getBuilding());
+        assertTrue(preview.getRows().stream().allMatch(CompanyImportRow::isValid));
     }
 
     @Test

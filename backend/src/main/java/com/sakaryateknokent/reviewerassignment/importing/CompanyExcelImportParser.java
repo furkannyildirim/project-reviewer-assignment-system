@@ -42,15 +42,10 @@ public class CompanyExcelImportParser {
     private static final Set<HeaderType> IGNORED_KNOWN_HEADER_TYPES =
             Set.of(
                     HeaderType.NO,
-                    HeaderType.BUILDING,
-                    HeaderType.WEB,
-                    HeaderType.CITY,
-                    HeaderType.DISTRICT,
-                    HeaderType.OSB,
-                    HeaderType.ADDRESS
+                    HeaderType.WEB
             );
     private static final String UNUSED_COMPANY_COLUMNS_MESSAGE =
-            "No, Bina ve Web sutunlari bu aktarimda kullanilmayacaktir.";
+            "No ve Web sutunlari bu aktarimda kullanilmayacaktir.";
     private static final Map<String, HeaderType> HEADER_ALIASES =
             createHeaderAliases();
 
@@ -269,6 +264,21 @@ public class CompanyExcelImportParser {
                     "E-posta"
             );
             importRow.setActivityArea(resolveActivityArea(row, mapping));
+            importRow.setCity(normalizeOptionalImportText(
+                    cellValue(row, mapping.columnRange(HeaderType.CITY))
+            ));
+            importRow.setDistrict(normalizeOptionalImportText(
+                    cellValue(row, mapping.columnRange(HeaderType.DISTRICT))
+            ));
+            importRow.setOsb(normalizeOptionalImportText(
+                    cellValue(row, mapping.columnRange(HeaderType.OSB))
+            ));
+            importRow.setAddress(normalizeOptionalImportText(
+                    cellValue(row, mapping.columnRange(HeaderType.ADDRESS))
+            ));
+            importRow.setBuilding(normalizeOptionalImportText(
+                    cellValue(row, mapping.columnRange(HeaderType.BUILDING))
+            ));
             importRow.setContactFullName(
                     normalizeOptionalImportText(
                             cellValue(row, mapping.columnRange(HeaderType.CONTACT_NAME))
@@ -776,7 +786,6 @@ public class CompanyExcelImportParser {
                 .stream()
                 .map(CompanyExcelImportParser::normalizeHeader)
                 .anyMatch(header -> header.equals(normalizeHeader("No"))
-                        || header.equals(normalizeHeader("Bina"))
                         || header.equals(normalizeHeader("Web")));
 
         if (hasUnusedCompanyColumn

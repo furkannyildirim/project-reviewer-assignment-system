@@ -36,6 +36,21 @@ public class Company {
     @Column(name = "activity_area", columnDefinition = "text")
     private String activityArea;
 
+    @Column(length = 150)
+    private String city;
+
+    @Column(length = 150)
+    private String district;
+
+    @Column(length = 255)
+    private String osb;
+
+    @Column(columnDefinition = "text")
+    private String address;
+
+    @Column(length = 255)
+    private String building;
+
     @Column(name = "logo_url", length = 500)
     private String logoUrl;
 

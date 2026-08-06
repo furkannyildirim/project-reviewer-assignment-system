@@ -33,6 +33,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -74,6 +75,83 @@ class CompanyServiceTest {
         assertTrue(response.contactMethods().isEmpty());
         assertEquals("contact@example.com",
                 savedCompany.getContacts().getFirst().getEmail());
+    }
+
+    @Test
+    void createsCompanyWithLocationFieldsAndReturnsThem() {
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CompanyResponse response = companyService.createCompany(
+                createRequest(
+                        CompanyType.TGB,
+                        List.of(),
+                        "Yazilim",
+                        " Sakarya ",
+                        " Serdivan ",
+                        " Sakarya 1. OSB ",
+                        " 1. Cadde No: 10 ",
+                        " A Blok "
+                )
+        );
+
+        Company savedCompany = savedCompany();
+        assertEquals("Sakarya", savedCompany.getCity());
+        assertEquals("Serdivan", savedCompany.getDistrict());
+        assertEquals("Sakarya 1. OSB", savedCompany.getOsb());
+        assertEquals("1. Cadde No: 10", savedCompany.getAddress());
+        assertEquals("A Blok", savedCompany.getBuilding());
+        assertEquals("Sakarya", response.city());
+        assertEquals("Serdivan", response.district());
+        assertEquals("Sakarya 1. OSB", response.osb());
+        assertEquals("1. Cadde No: 10", response.address());
+        assertEquals("A Blok", response.building());
+    }
+
+    @Test
+    void createsCompanyWhenLocationFieldsAreNull() {
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CompanyResponse response = companyService.createCompany(
+                createRequest(CompanyType.EXTERNAL, List.of())
+        );
+
+        Company savedCompany = savedCompany();
+        assertNull(savedCompany.getCity());
+        assertNull(savedCompany.getDistrict());
+        assertNull(savedCompany.getOsb());
+        assertNull(savedCompany.getAddress());
+        assertNull(savedCompany.getBuilding());
+        assertNull(response.city());
+        assertNull(response.district());
+        assertNull(response.osb());
+        assertNull(response.address());
+        assertNull(response.building());
+    }
+
+    @Test
+    void normalizesBlankLocationFieldsToNullWithoutChangingCase() {
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        companyService.createCompany(createRequest(
+                CompanyType.TGB,
+                List.of(),
+                "Yazilim",
+                "  ",
+                "\t",
+                "",
+                "  ",
+                " B Blok "
+        ));
+
+        Company savedCompany = savedCompany();
+        assertNull(savedCompany.getCity());
+        assertNull(savedCompany.getDistrict());
+        assertNull(savedCompany.getOsb());
+        assertNull(savedCompany.getAddress());
+        assertEquals("B Blok", savedCompany.getBuilding());
     }
 
     @Test
@@ -242,6 +320,11 @@ class CompanyServiceTest {
     @Test
     void updatesExistingMethodDeletesMissingMethodAndAddsNewMethod() {
         Company company = company(1L, "Eski Sirket", CompanyType.EXTERNAL);
+        company.setCity("Eski Il");
+        company.setDistrict("Eski Ilce");
+        company.setOsb("Eski OSB");
+        company.setAddress("Eski Adres");
+        company.setBuilding("Eski Bina");
         CompanyContact contact = contact(10L, company, true);
         company.addContact(contact);
         company.addContactMethod(contactMethod(
@@ -274,12 +357,94 @@ class CompanyServiceTest {
         );
 
         assertEquals("Yeni Sirket", company.getName());
+        assertEquals("Kocaeli", company.getCity());
+        assertEquals("Gebze", company.getDistrict());
+        assertEquals("GOSB", company.getOsb());
+        assertEquals("Yeni Adres", company.getAddress());
+        assertEquals("Bina 2", company.getBuilding());
         assertEquals(2, company.getContactMethods().size());
         assertEquals("222", company.getContactMethods().getFirst().getValue());
         assertEquals("Yeni", company.getContactMethods().getFirst().getLabel());
         assertEquals("new@example.com",
                 company.getContactMethods().get(1).getValue());
         assertEquals(2, response.contactMethods().size());
+        assertEquals("Kocaeli", response.city());
+        assertEquals("Gebze", response.district());
+        assertEquals("GOSB", response.osb());
+        assertEquals("Yeni Adres", response.address());
+        assertEquals("Bina 2", response.building());
+    }
+
+    @Test
+    void updateCanClearLocationFieldsWithBlankValues() {
+        Company company = company(1L, "Eski Sirket", CompanyType.EXTERNAL);
+        company.setCity("Kocaeli");
+        company.setDistrict("Gebze");
+        company.setOsb("GOSB");
+        company.setAddress("Adres");
+        company.setBuilding("Bina");
+        CompanyContact contact = contact(10L, company, true);
+        company.addContact(contact);
+
+        when(companyRepository.findById(1L)).thenReturn(Optional.of(company));
+
+        CompanyResponse response = companyService.updateCompany(
+                1L,
+                updateRequest(
+                        List.of(),
+                        "Yazilim",
+                        " ",
+                        "",
+                        "\t",
+                        "  ",
+                        null
+                )
+        );
+
+        assertNull(company.getCity());
+        assertNull(company.getDistrict());
+        assertNull(company.getOsb());
+        assertNull(company.getAddress());
+        assertNull(company.getBuilding());
+        assertNull(response.city());
+        assertNull(response.district());
+        assertNull(response.osb());
+        assertNull(response.address());
+        assertNull(response.building());
+    }
+
+    @Test
+    void locationFieldsAreAvailableForTgbAndExternalCompanies() {
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CompanyResponse tgbResponse = companyService.createCompany(
+                createRequest(
+                        CompanyType.TGB,
+                        List.of(),
+                        "Yazilim",
+                        "Sakarya",
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+        CompanyResponse externalResponse = companyService.createCompany(
+                createRequest(
+                        CompanyType.EXTERNAL,
+                        List.of(),
+                        "Danismanlik",
+                        "Istanbul",
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals("Sakarya", tgbResponse.city());
+        assertEquals("Istanbul", externalResponse.city());
     }
 
     @Test
@@ -554,9 +719,36 @@ class CompanyServiceTest {
             List<CompanyContactMethodRequest> contactMethods,
             String activityArea
     ) {
+        return createRequest(
+                companyType,
+                contactMethods,
+                activityArea,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private CreateCompanyRequest createRequest(
+            CompanyType companyType,
+            List<CompanyContactMethodRequest> contactMethods,
+            String activityArea,
+            String city,
+            String district,
+            String osb,
+            String address,
+            String building
+    ) {
         return new CreateCompanyRequest(
                 "TGB Sirket",
                 activityArea,
+                city,
+                district,
+                osb,
+                address,
+                building,
                 null,
                 companyType,
                 contactMethods,
@@ -580,9 +772,34 @@ class CompanyServiceTest {
             List<CompanyContactMethodRequest> contactMethods,
             String activityArea
     ) {
+        return updateRequest(
+                contactMethods,
+                activityArea,
+                "Kocaeli",
+                "Gebze",
+                "GOSB",
+                "Yeni Adres",
+                "Bina 2"
+        );
+    }
+
+    private UpdateCompanyRequest updateRequest(
+            List<CompanyContactMethodRequest> contactMethods,
+            String activityArea,
+            String city,
+            String district,
+            String osb,
+            String address,
+            String building
+    ) {
         return new UpdateCompanyRequest(
                 "Yeni Sirket",
                 activityArea,
+                city,
+                district,
+                osb,
+                address,
+                building,
                 null,
                 contactMethods,
                 List.of(new UpdateCompanyContactRequest(

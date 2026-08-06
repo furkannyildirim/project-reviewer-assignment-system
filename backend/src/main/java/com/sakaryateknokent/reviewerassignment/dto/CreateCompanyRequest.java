@@ -18,6 +18,20 @@ public record CreateCompanyRequest(
         @Size(max = 2000, message = "Faaliyet alani en fazla 2000 karakter olabilir")
         String activityArea,
 
+        @Size(max = 150, message = "Il en fazla 150 karakter olabilir")
+        String city,
+
+        @Size(max = 150, message = "Ilce en fazla 150 karakter olabilir")
+        String district,
+
+        @Size(max = 255, message = "OSB en fazla 255 karakter olabilir")
+        String osb,
+
+        String address,
+
+        @Size(max = 255, message = "Bina en fazla 255 karakter olabilir")
+        String building,
+
         @Size(max = 500, message = "Logo adresi en fazla 500 karakter olabilir")
         String logoUrl,
 

@@ -68,6 +68,9 @@ class CompanyExportServiceTest {
         assertEquals("Firma", sheet.getRow(0).getCell(0).getStringCellValue());
         assertEquals("A Yazilim", sheet.getRow(1).getCell(0).getStringCellValue());
         assertEquals("TGB", sheet.getRow(1).getCell(1).getStringCellValue());
+        assertEquals(8, sheet.getRow(0).getLastCellNum() - 1);
+        assertEquals("Yetkili E-posta",
+                sheet.getRow(0).getCell(8).getStringCellValue());
 
         ArgumentCaptor<Pageable> pageableCaptor =
                 ArgumentCaptor.forClass(Pageable.class);

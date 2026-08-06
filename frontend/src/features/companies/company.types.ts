@@ -42,6 +42,11 @@ export type CompanyDetail = {
     id: number;
     name: string;
     activityArea: string | null;
+    city: string | null;
+    district: string | null;
+    osb: string | null;
+    address: string | null;
+    building: string | null;
     logoUrl: string | null;
     companyType: CompanyType;
     contactMethods: CompanyContactMethod[];
@@ -65,6 +70,11 @@ export type UpdateCompanyContactRequest = CreateCompanyContactRequest & {
 export type CreateCompanyRequest = {
     name: string;
     activityArea: string | null;
+    city: string | null;
+    district: string | null;
+    osb: string | null;
+    address: string | null;
+    building: string | null;
     logoUrl: string | null;
     companyType: CompanyType;
     contactMethods: CompanyContactMethodRequest[];
@@ -83,12 +93,19 @@ export type CompanyImportPreviewRow = {
     rowNumber: number;
     name: string | null;
     activityArea: string | null;
+    status: 'NEW' | 'UPDATE' | 'DUPLICATE' | 'WARNING' | 'INVALID';
+    city: string | null;
+    district: string | null;
+    osb: string | null;
+    address: string | null;
+    building: string | null;
     companyPhones: string[];
     companyEmails: string[];
     contactFullName: string | null;
     contactPosition: string | null;
     contactPhone: string | null;
     contactEmail: string | null;
+    updateMessages: string[];
     errors: string[];
     warnings: string[];
     valid: boolean;
@@ -108,13 +125,18 @@ export type CompanyImportPreviewResponse = {
     rows: CompanyImportPreviewRow[];
 };
 
-export type CompanyImportResultStatus = 'IMPORTED' | 'DUPLICATE' | 'INVALID';
+export type CompanyImportResultStatus = 'IMPORTED' | 'UPDATED' | 'DUPLICATE' | 'INVALID' | 'FAILED';
 
 export type CompanyImportResultRow = {
     sheetName: string;
     rowNumber: number;
     name: string | null;
     activityArea: string | null;
+    city: string | null;
+    district: string | null;
+    osb: string | null;
+    address: string | null;
+    building: string | null;
     companyPhones: string[];
     companyEmails: string[];
     contactFullName: string | null;
@@ -129,6 +151,7 @@ export type CompanyImportResultResponse = {
     fileName: string;
     totalRowCount: number;
     importedCount: number;
+    updatedCount: number;
     duplicateCount: number;
     invalidCount: number;
     rows: CompanyImportResultRow[];

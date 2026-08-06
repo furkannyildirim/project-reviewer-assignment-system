@@ -11,6 +11,11 @@ public class CompanyImportRow {
     private final List<String> companyPhones = new ArrayList<>();
     private final List<String> companyEmails = new ArrayList<>();
     private String activityArea;
+    private String city;
+    private String district;
+    private String osb;
+    private String address;
+    private String building;
     private String contactFullName;
     private String contactPosition;
     private String contactPhone;
@@ -61,6 +66,46 @@ public class CompanyImportRow {
 
     public void setActivityArea(String activityArea) {
         this.activityArea = activityArea;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public void setCity(String city) {
+        this.city = city;
+    }
+
+    public String getDistrict() {
+        return district;
+    }
+
+    public void setDistrict(String district) {
+        this.district = district;
+    }
+
+    public String getOsb() {
+        return osb;
+    }
+
+    public void setOsb(String osb) {
+        this.osb = osb;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public String getBuilding() {
+        return building;
+    }
+
+    public void setBuilding(String building) {
+        this.building = building;
     }
 
     public String getContactFullName() {

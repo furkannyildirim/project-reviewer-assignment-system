@@ -6,6 +6,7 @@ public record CompanyImportResultResponse(
         String fileName,
         int totalRowCount,
         int importedCount,
+        int updatedCount,
         int duplicateCount,
         int invalidCount,
         List<CompanyImportResultRowResponse> rows

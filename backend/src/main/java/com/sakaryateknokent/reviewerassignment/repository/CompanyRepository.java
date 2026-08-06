@@ -36,6 +36,8 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
             @Param("companyType") CompanyType companyType
     );
 
+    List<Company> findByCompanyType(CompanyType companyType);
+
     List<Company> findByCompanyTypeAndIdIn(
             CompanyType companyType,
             Collection<Long> ids,
