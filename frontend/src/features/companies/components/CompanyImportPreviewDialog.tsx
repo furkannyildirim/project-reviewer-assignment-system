@@ -53,7 +53,7 @@ type CompanyImportPreviewDialogProps = {
     onImported: () => void;
 };
 
-type PreviewRowFilter = 'all' | 'valid' | 'update' | 'warning' | 'problem';
+type PreviewRowFilter = 'all' | 'valid' | 'update' | 'existing' | 'duplicate' | 'warning' | 'problem';
 
 const optionalFallback = '—';
 const defaultRowsPerPage = 25;
@@ -266,7 +266,7 @@ function RowStatus({ row }: { row: CompanyImportPreviewRow }) {
         );
     }
 
-    if (row.status === 'WARNING' || row.warnings.length > 0) {
+    if (row.status === 'WARNING' || row.locationWarnings.length > 0) {
         return (
             <Chip
                 color="warning"
@@ -278,11 +278,23 @@ function RowStatus({ row }: { row: CompanyImportPreviewRow }) {
         );
     }
 
+    if (row.status === 'EXISTING') {
+        return (
+            <Chip
+                color="default"
+                icon={<CheckCircleOutlineOutlinedIcon />}
+                label="Mevcut"
+                size="small"
+                variant="outlined"
+            />
+        );
+    }
+
     return (
         <Chip
             color="success"
             icon={<CheckCircleOutlineOutlinedIcon />}
-            label="Geçerli"
+            label="Yeni"
             size="small"
             variant="outlined"
         />
@@ -290,22 +302,30 @@ function RowStatus({ row }: { row: CompanyImportPreviewRow }) {
 }
 
 function RowMessages({ row }: { row: CompanyImportPreviewRow }) {
+    const seenMessages = new Set<string>();
+    const uniqueMessages = (
+        messages: string[],
+        color: string,
+        type: string,
+    ) => messages
+        .filter((message) => {
+            if (seenMessages.has(message)) {
+                return false;
+            }
+
+            seenMessages.add(message);
+            return true;
+        })
+        .map((message) => ({
+            color,
+            message,
+            type,
+        }));
     const messages = [
-        ...row.errors.map((message) => ({
-            color: 'error.main',
-            message,
-            type: 'error',
-        })),
-        ...row.updateMessages.map((message) => ({
-            color: 'info.main',
-            message,
-            type: 'update',
-        })),
-        ...row.warnings.map((message) => ({
-            color: 'warning.main',
-            message,
-            type: 'warning',
-        })),
+        ...uniqueMessages(row.errors, 'error.main', 'error'),
+        ...uniqueMessages(row.updateMessages, 'info.main', 'update'),
+        ...uniqueMessages(row.locationWarnings, 'warning.main', 'location-warning'),
+        ...uniqueMessages(row.warnings, 'warning.main', 'warning'),
     ];
 
     if (messages.length === 0) {
@@ -520,8 +540,16 @@ function PreviewList({
                 return row.valid && row.status === 'UPDATE';
             }
 
+            if (rowFilter === 'existing') {
+                return row.status === 'EXISTING';
+            }
+
+            if (rowFilter === 'duplicate') {
+                return row.status === 'DUPLICATE';
+            }
+
             if (rowFilter === 'warning') {
-                return row.warnings.length > 0 || row.status === 'WARNING';
+                return row.locationWarnings.length > 0;
             }
 
             if (rowFilter === 'problem') {
@@ -545,6 +573,8 @@ function PreviewList({
         all: 'Gösterilecek kayıt yok.',
         valid: 'Yeni kayıt bulunmuyor.',
         update: 'Güncellenecek kayıt bulunmuyor.',
+        existing: 'Mevcut kayıt bulunmuyor.',
+        duplicate: 'Tekrarlı kayıt bulunmuyor.',
         warning: 'Uyarılı kayıt bulunmuyor.',
         problem: 'Sorunlu kayıt bulunmuyor.',
     };
@@ -599,7 +629,7 @@ function PreviewList({
                         value={rowFilter}
                         onChange={handleRowFilterChange}
                         sx={{
-                            width: { xs: '100%', sm: 620 },
+                            width: { xs: '100%', sm: 840 },
                             maxWidth: '100%',
                             '& .MuiToggleButton-root': {
                                 flex: 1,
@@ -612,6 +642,8 @@ function PreviewList({
                         <ToggleButton value="all">Tümü</ToggleButton>
                         <ToggleButton value="valid">Yeni</ToggleButton>
                         <ToggleButton value="update">Güncellenecek</ToggleButton>
+                        <ToggleButton value="existing">Mevcut</ToggleButton>
+                        <ToggleButton value="duplicate">Tekrarlı</ToggleButton>
                         <ToggleButton value="warning">Uyarılı</ToggleButton>
                         <ToggleButton value="problem">Sorunlu</ToggleButton>
                     </ToggleButtonGroup>

@@ -93,7 +93,7 @@ export type CompanyImportPreviewRow = {
     rowNumber: number;
     name: string | null;
     activityArea: string | null;
-    status: 'NEW' | 'UPDATE' | 'DUPLICATE' | 'WARNING' | 'INVALID';
+    status: 'NEW' | 'UPDATE' | 'EXISTING' | 'DUPLICATE' | 'WARNING' | 'INVALID';
     city: string | null;
     district: string | null;
     osb: string | null;
@@ -106,6 +106,7 @@ export type CompanyImportPreviewRow = {
     contactPhone: string | null;
     contactEmail: string | null;
     updateMessages: string[];
+    locationWarnings: string[];
     errors: string[];
     warnings: string[];
     valid: boolean;

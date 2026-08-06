@@ -18,17 +18,27 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CompanyImportPreviewService {
+
+    private static final String FILE_EMAIL_MESSAGE =
+            "Dosya icinde ayni e-posta birden fazla kullanilmis.";
+    private static final String FILE_NAME_MESSAGE =
+            "Dosya icinde ayni sirket adi birden fazla kullanilmis.";
+    private static final String PARSER_FILE_EMAIL_MESSAGE =
+            "Dosya icinde ayni e-posta birden fazla kullanilmis";
 
     private final CompanyExcelImportParser parser;
     private final CompanyRepository companyRepository;
@@ -63,13 +73,13 @@ public class CompanyImportPreviewService {
             CompanyImportPreview preview,
             CompanyType companyType
     ) {
-        Map<String, Company> existingCompaniesByName =
-                existingCompaniesByName(companyType);
-        List<CompanyImportPreviewRowResponse> rowResponses =
-                preview.getRows()
-                        .stream()
-                        .map(row -> toRowResponse(row, existingCompaniesByName))
-                        .toList();
+        PreviewState state = previewState(companyType);
+        FileDuplicateKeys fileDuplicateKeys =
+                findFileDuplicateKeys(preview.getRows(), companyType);
+        List<CompanyImportPreviewRowResponse> rowResponses = new ArrayList<>();
+        for (CompanyImportRow row : preview.getRows()) {
+            rowResponses.add(toRowResponse(row, state, fileDuplicateKeys));
+        }
 
         int validRowCount = 0;
         int warningCount = preview.getGeneralWarnings().size()
@@ -77,8 +87,8 @@ public class CompanyImportPreviewService {
                 .mapToInt(row -> row.warnings().size())
                 .sum();
 
-        for (CompanyImportRow row : preview.getRows()) {
-            if (row.isValid()) {
+        for (CompanyImportPreviewRowResponse row : rowResponses) {
+            if (row.valid()) {
                 validRowCount++;
             }
         }
@@ -100,24 +110,45 @@ public class CompanyImportPreviewService {
 
     private CompanyImportPreviewRowResponse toRowResponse(
             CompanyImportRow row,
-            Map<String, Company> existingCompaniesByName
+            PreviewState state,
+            FileDuplicateKeys fileDuplicateKeys
     ) {
         String status = CompanyLocationMergeClassifier.STATUS_INVALID;
         List<String> warnings = row.getWarnings();
         List<String> updateMessages = List.of();
+        List<String> locationWarnings = List.of();
+        List<String> errors = validationErrors(row);
+        boolean valid = errors.isEmpty();
 
-        if (row.isValid()) {
-            Optional<Company> existingCompany =
-                    findExistingCompany(row, existingCompaniesByName);
-            CompanyLocationMergeClassifier.LocationMergeDecision decision =
-                    locationMergeClassifier.classify(
+        if (valid) {
+            DuplicateCheck fileDuplicateCheck =
+                    fileDuplicateCheck(row, fileDuplicateKeys, state.companyType());
+            if (fileDuplicateCheck.duplicate()) {
+                status = CompanyLocationMergeClassifier.STATUS_DUPLICATE;
+                warnings = new ArrayList<>(row.getWarnings());
+                warnings.add(fileDuplicateCheck.message());
+            } else {
+                Optional<Company> existingCompany =
+                        findExistingCompany(row, state);
+                CompanyLocationMergeClassifier.LocationMergeDecision decision =
+                        locationMergeClassifier.classify(
+                                row,
+                                existingCompany.orElse(null)
+                        );
+                status = decision.status();
+                updateMessages = decision.updateMessages();
+                locationWarnings = decision.warnings();
+                warnings = new ArrayList<>(row.getWarnings());
+                warnings.addAll(decision.warnings());
+                if (decision.update() && existingCompany.isPresent()) {
+                    locationMergeClassifier.applyUpdates(
                             row,
-                            existingCompany.orElse(null)
+                            existingCompany.get()
                     );
-            status = decision.status();
-            updateMessages = decision.updateMessages();
-            warnings = new java.util.ArrayList<>(row.getWarnings());
-            warnings.addAll(decision.warnings());
+                } else if (existingCompany.isEmpty()) {
+                    rememberNewRow(row, state);
+                }
+            }
         }
 
         return new CompanyImportPreviewRowResponse(
@@ -138,29 +169,47 @@ public class CompanyImportPreviewService {
                 row.getContactPhone(),
                 row.getContactEmail(),
                 List.copyOf(updateMessages),
-                List.copyOf(row.getErrors()),
+                List.copyOf(locationWarnings),
+                List.copyOf(errors),
                 List.copyOf(warnings),
-                row.isValid()
+                valid
         );
     }
 
-    private Map<String, Company> existingCompaniesByName(
+    private PreviewState previewState(
             CompanyType companyType
     ) {
         Map<String, Company> companiesByName = new LinkedHashMap<>();
+        Map<String, Company> externalCompaniesByNameAndAddress =
+                new LinkedHashMap<>();
+        Map<Company, Company> virtualCompanies =
+                new IdentityHashMap<>();
         for (Company company : companyRepository.findByCompanyType(companyType)) {
+            Company virtualCompany = virtualCompany(company, virtualCompanies);
             companiesByName.putIfAbsent(
                     canonicalName(company.getName()),
-                    company
+                    virtualCompany
             );
+            if (CompanyType.EXTERNAL.equals(companyType)
+                    && company.getAddress() != null) {
+                externalCompaniesByNameAndAddress.putIfAbsent(
+                        canonicalNameAddress(company.getName(), company.getAddress()),
+                        virtualCompany
+                );
+            }
         }
 
-        return companiesByName;
+        return new PreviewState(
+                companyType,
+                companiesByName,
+                externalCompaniesByNameAndAddress,
+                virtualCompanies
+        );
     }
 
     private Optional<Company> findExistingCompany(
             CompanyImportRow row,
-            Map<String, Company> existingCompaniesByName
+            PreviewState state
     ) {
         if (!row.getCompanyEmails().isEmpty()) {
             for (String email : row.getCompanyEmails()) {
@@ -170,7 +219,10 @@ public class CompanyImportPreviewService {
                                 canonicalEmail(email)
                         );
                 if (!matches.isEmpty()) {
-                    return Optional.of(matches.getFirst().getCompany());
+                    return Optional.of(virtualCompany(
+                            matches.getFirst().getCompany(),
+                            state.virtualCompanies()
+                    ));
                 }
             }
 
@@ -181,9 +233,167 @@ public class CompanyImportPreviewService {
             return Optional.empty();
         }
 
+        if (CompanyType.EXTERNAL.equals(state.companyType())
+                && row.getAddress() != null) {
+            return Optional.ofNullable(
+                    state.externalCompaniesByNameAndAddress().get(
+                            canonicalNameAddress(row.getName(), row.getAddress())
+                    )
+            );
+        }
+
         return Optional.ofNullable(
-                existingCompaniesByName.get(canonicalName(row.getName()))
+                state.companiesByName().get(canonicalName(row.getName()))
         );
+    }
+
+    private void rememberNewRow(
+            CompanyImportRow row,
+            PreviewState state
+    ) {
+        if (row.getCompanyEmails().isEmpty() && row.getName() != null) {
+            Company virtualCompany = virtualCompany(row);
+            if (CompanyType.EXTERNAL.equals(state.companyType())
+                    && row.getAddress() != null) {
+                state.externalCompaniesByNameAndAddress().putIfAbsent(
+                        canonicalNameAddress(row.getName(), row.getAddress()),
+                        virtualCompany
+                );
+            } else {
+                state.companiesByName().putIfAbsent(
+                        canonicalName(row.getName()),
+                        virtualCompany
+                );
+            }
+        }
+    }
+
+    private Company virtualCompany(
+            Company company,
+            Map<Company, Company> virtualCompanies
+    ) {
+        return virtualCompanies.computeIfAbsent(company, ignored -> {
+            Company virtualCompany = new Company();
+            virtualCompany.setName(company.getName());
+            virtualCompany.setActivityArea(company.getActivityArea());
+            virtualCompany.setCity(company.getCity());
+            virtualCompany.setDistrict(company.getDistrict());
+            virtualCompany.setOsb(company.getOsb());
+            virtualCompany.setAddress(company.getAddress());
+            virtualCompany.setBuilding(company.getBuilding());
+            virtualCompany.setCompanyType(company.getCompanyType());
+            return virtualCompany;
+        });
+    }
+
+    private Company virtualCompany(CompanyImportRow row) {
+        Company company = new Company();
+        company.setName(row.getName());
+        company.setActivityArea(row.getActivityArea());
+        company.setCity(row.getCity());
+        company.setDistrict(row.getDistrict());
+        company.setOsb(row.getOsb());
+        company.setAddress(row.getAddress());
+        company.setBuilding(row.getBuilding());
+        return company;
+    }
+
+    private FileDuplicateKeys findFileDuplicateKeys(
+            List<CompanyImportRow> rows,
+            CompanyType companyType
+    ) {
+        Map<String, Integer> emailCounts = new LinkedHashMap<>();
+        Map<String, Integer> noEmailNameCounts = new LinkedHashMap<>();
+        Map<String, Integer> noEmailNameAddressCounts = new LinkedHashMap<>();
+
+        for (CompanyImportRow row : rows) {
+            if (!validationErrors(row).isEmpty()) {
+                continue;
+            }
+
+            if (!row.getCompanyEmails().isEmpty()) {
+                for (String email : row.getCompanyEmails()) {
+                    increment(emailCounts, canonicalEmail(email));
+                }
+                continue;
+            }
+
+            if (CompanyType.EXTERNAL.equals(companyType)
+                    && row.getAddress() != null
+                    && row.getName() != null) {
+                increment(
+                        noEmailNameAddressCounts,
+                        canonicalNameAddress(row.getName(), row.getAddress())
+                );
+                continue;
+            }
+
+            if (row.getName() != null) {
+                increment(noEmailNameCounts, canonicalName(row.getName()));
+            }
+        }
+
+        return new FileDuplicateKeys(
+                duplicateKeys(emailCounts),
+                duplicateKeys(noEmailNameCounts),
+                duplicateKeys(noEmailNameAddressCounts)
+        );
+    }
+
+    private List<String> validationErrors(CompanyImportRow row) {
+        return row.getErrors()
+                .stream()
+                .filter(error -> !PARSER_FILE_EMAIL_MESSAGE.equals(error))
+                .toList();
+    }
+
+    private void increment(Map<String, Integer> counts, String key) {
+        counts.put(key, counts.getOrDefault(key, 0) + 1);
+    }
+
+    private Set<String> duplicateKeys(Map<String, Integer> counts) {
+        Set<String> duplicates = new LinkedHashSet<>();
+        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+            if (entry.getValue() > 1) {
+                duplicates.add(entry.getKey());
+            }
+        }
+
+        return duplicates;
+    }
+
+    private DuplicateCheck fileDuplicateCheck(
+            CompanyImportRow row,
+            FileDuplicateKeys duplicateKeys,
+            CompanyType companyType
+    ) {
+        if (!row.getCompanyEmails().isEmpty()
+                && row.getCompanyEmails()
+                .stream()
+                .map(this::canonicalEmail)
+                .anyMatch(duplicateKeys.emails()::contains)) {
+            return DuplicateCheck.duplicate(FILE_EMAIL_MESSAGE);
+        }
+
+        if (CompanyType.EXTERNAL.equals(companyType)
+                && row.getCompanyEmails().isEmpty()
+                && row.getAddress() != null
+                && row.getName() != null
+                && duplicateKeys.noEmailNameAddresses().contains(
+                canonicalNameAddress(row.getName(), row.getAddress())
+        )) {
+            return DuplicateCheck.duplicate(FILE_NAME_MESSAGE);
+        }
+
+        if (row.getCompanyEmails().isEmpty()
+                && row.getName() != null
+                && duplicateKeys.noEmailNames().contains(
+                canonicalName(row.getName())
+        )) {
+            return DuplicateCheck.duplicate(FILE_NAME_MESSAGE);
+        }
+
+        return DuplicateCheck.unique();
     }
 
     private String canonicalEmail(String email) {
@@ -197,5 +407,47 @@ public class CompanyImportPreviewService {
 
         return AcademicianTextNormalizer.normalizeWhitespace(name)
                 .toLowerCase(Locale.forLanguageTag("tr"));
+    }
+
+    private String canonicalAddress(String address) {
+        if (address == null || address.isBlank()) {
+            return "";
+        }
+
+        return AcademicianTextNormalizer.normalizeWhitespace(address)
+                .toLowerCase(Locale.forLanguageTag("tr"));
+    }
+
+    private String canonicalNameAddress(String name, String address) {
+        return canonicalName(name) + "|" + canonicalAddress(address);
+    }
+
+    private record PreviewState(
+            CompanyType companyType,
+            Map<String, Company> companiesByName,
+            Map<String, Company> externalCompaniesByNameAndAddress,
+            Map<Company, Company> virtualCompanies
+    ) {
+    }
+
+    private record FileDuplicateKeys(
+            Set<String> emails,
+            Set<String> noEmailNames,
+            Set<String> noEmailNameAddresses
+    ) {
+    }
+
+    private record DuplicateCheck(
+            boolean duplicate,
+            String message
+    ) {
+
+        private static DuplicateCheck unique() {
+            return new DuplicateCheck(false, "");
+        }
+
+        private static DuplicateCheck duplicate(String message) {
+            return new DuplicateCheck(true, message);
+        }
     }
 }

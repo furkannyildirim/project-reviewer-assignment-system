@@ -78,9 +78,8 @@ public class CompanyImportService {
     ) {
         CompanyImportPreview preview = parse(file, companyType);
         FileDuplicateKeys fileDuplicateKeys =
-                findFileDuplicateKeys(preview.getRows());
-        Map<String, Company> existingCompaniesByName =
-                existingCompaniesByName(companyType);
+                findFileDuplicateKeys(preview.getRows(), companyType);
+        ImportState state = importState(companyType);
 
         List<CompanyImportResultRowResponse> resultRows = new ArrayList<>();
         int importedCount = 0;
@@ -101,7 +100,7 @@ public class CompanyImportService {
             }
 
             DuplicateCheck fileDuplicateCheck =
-                    fileDuplicateCheck(row, fileDuplicateKeys);
+                    fileDuplicateCheck(row, fileDuplicateKeys, companyType);
             if (fileDuplicateCheck.duplicate()) {
                 duplicateCount++;
                 resultRows.add(toResultRow(
@@ -113,7 +112,7 @@ public class CompanyImportService {
             }
 
             Optional<Company> existingCompany =
-                    findExistingCompany(row, existingCompaniesByName);
+                    findExistingCompany(row, state);
 
             try {
                 if (existingCompany.isPresent()) {
@@ -151,7 +150,7 @@ public class CompanyImportService {
                 Company savedCompany = companyRepository.saveAndFlush(
                         toCompany(row, companyType)
                 );
-                rememberSavedRow(row, existingCompaniesByName, savedCompany);
+                rememberSavedRow(row, state, savedCompany);
                 importedCount++;
                 resultRows.add(toResultRow(
                         row,
@@ -198,25 +197,40 @@ public class CompanyImportService {
         }
     }
 
-    private Map<String, Company> existingCompaniesByName(
+    private ImportState importState(
             CompanyType companyType
     ) {
         Map<String, Company> companiesByName = new LinkedHashMap<>();
+        Map<String, Company> externalCompaniesByNameAndAddress =
+                new LinkedHashMap<>();
         for (Company company : companyRepository.findByCompanyType(companyType)) {
             companiesByName.putIfAbsent(
                     canonicalName(company.getName()),
                     company
             );
+            if (CompanyType.EXTERNAL.equals(companyType)
+                    && company.getAddress() != null) {
+                externalCompaniesByNameAndAddress.putIfAbsent(
+                        canonicalNameAddress(company.getName(), company.getAddress()),
+                        company
+                );
+            }
         }
 
-        return companiesByName;
+        return new ImportState(
+                companyType,
+                companiesByName,
+                externalCompaniesByNameAndAddress
+        );
     }
 
     private FileDuplicateKeys findFileDuplicateKeys(
-            List<CompanyImportRow> rows
+            List<CompanyImportRow> rows,
+            CompanyType companyType
     ) {
         Map<String, Integer> emailCounts = new LinkedHashMap<>();
         Map<String, Integer> noEmailNameCounts = new LinkedHashMap<>();
+        Map<String, Integer> noEmailNameAddressCounts = new LinkedHashMap<>();
 
         for (CompanyImportRow row : rows) {
             if (!validationErrors(row).isEmpty()) {
@@ -230,6 +244,16 @@ public class CompanyImportService {
                 continue;
             }
 
+            if (CompanyType.EXTERNAL.equals(companyType)
+                    && row.getAddress() != null
+                    && row.getName() != null) {
+                increment(
+                        noEmailNameAddressCounts,
+                        canonicalNameAddress(row.getName(), row.getAddress())
+                );
+                continue;
+            }
+
             if (row.getName() != null) {
                 increment(noEmailNameCounts, canonicalName(row.getName()));
             }
@@ -237,7 +261,8 @@ public class CompanyImportService {
 
         return new FileDuplicateKeys(
                 duplicateKeys(emailCounts),
-                duplicateKeys(noEmailNameCounts)
+                duplicateKeys(noEmailNameCounts),
+                duplicateKeys(noEmailNameAddressCounts)
         );
     }
 
@@ -265,7 +290,8 @@ public class CompanyImportService {
 
     private DuplicateCheck fileDuplicateCheck(
             CompanyImportRow row,
-            FileDuplicateKeys duplicateKeys
+            FileDuplicateKeys duplicateKeys,
+            CompanyType companyType
     ) {
         if (!row.getCompanyEmails().isEmpty()
                 && row.getCompanyEmails()
@@ -273,6 +299,16 @@ public class CompanyImportService {
                 .map(this::canonicalEmail)
                 .anyMatch(duplicateKeys.emails()::contains)) {
             return DuplicateCheck.duplicate(FILE_EMAIL_MESSAGE);
+        }
+
+        if (CompanyType.EXTERNAL.equals(companyType)
+                && row.getCompanyEmails().isEmpty()
+                && row.getAddress() != null
+                && row.getName() != null
+                && duplicateKeys.noEmailNameAddresses().contains(
+                canonicalNameAddress(row.getName(), row.getAddress())
+        )) {
+            return DuplicateCheck.duplicate(FILE_NAME_MESSAGE);
         }
 
         if (row.getCompanyEmails().isEmpty()
@@ -288,7 +324,7 @@ public class CompanyImportService {
 
     private Optional<Company> findExistingCompany(
             CompanyImportRow row,
-            Map<String, Company> existingCompaniesByName
+            ImportState state
     ) {
         if (!row.getCompanyEmails().isEmpty()) {
             for (String rowEmail : row.getCompanyEmails()) {
@@ -311,8 +347,17 @@ public class CompanyImportService {
             return Optional.empty();
         }
 
+        if (CompanyType.EXTERNAL.equals(state.companyType())
+                && row.getAddress() != null) {
+            return Optional.ofNullable(
+                    state.externalCompaniesByNameAndAddress().get(
+                            canonicalNameAddress(row.getName(), row.getAddress())
+                    )
+            );
+        }
+
         return Optional.ofNullable(
-                existingCompaniesByName.get(canonicalName(row.getName()))
+                state.companiesByName().get(canonicalName(row.getName()))
         );
     }
 
@@ -340,14 +385,23 @@ public class CompanyImportService {
 
     private void rememberSavedRow(
             CompanyImportRow row,
-            Map<String, Company> existingCompaniesByName,
+            ImportState state,
             Company savedCompany
     ) {
         if (row.getCompanyEmails().isEmpty()) {
-            existingCompaniesByName.putIfAbsent(
-                    canonicalName(row.getName()),
-                    savedCompany
-            );
+            if (CompanyType.EXTERNAL.equals(state.companyType())
+                    && row.getAddress() != null
+                    && row.getName() != null) {
+                state.externalCompaniesByNameAndAddress().putIfAbsent(
+                        canonicalNameAddress(row.getName(), row.getAddress()),
+                        savedCompany
+                );
+            } else {
+                state.companiesByName().putIfAbsent(
+                        canonicalName(row.getName()),
+                        savedCompany
+                );
+            }
         }
     }
 
@@ -434,9 +488,30 @@ public class CompanyImportService {
                 .toLowerCase(TURKISH_LOCALE);
     }
 
+    private String canonicalAddress(String address) {
+        if (address == null || address.isBlank()) {
+            return "";
+        }
+
+        return AcademicianTextNormalizer.normalizeWhitespace(address)
+                .toLowerCase(TURKISH_LOCALE);
+    }
+
+    private String canonicalNameAddress(String name, String address) {
+        return canonicalName(name) + "|" + canonicalAddress(address);
+    }
+
+    private record ImportState(
+            CompanyType companyType,
+            Map<String, Company> companiesByName,
+            Map<String, Company> externalCompaniesByNameAndAddress
+    ) {
+    }
+
     private record FileDuplicateKeys(
             Set<String> emails,
-            Set<String> noEmailNames
+            Set<String> noEmailNames,
+            Set<String> noEmailNameAddresses
     ) {
     }
 

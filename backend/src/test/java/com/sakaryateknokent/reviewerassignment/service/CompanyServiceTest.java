@@ -280,6 +280,32 @@ class CompanyServiceTest {
     }
 
     @Test
+    void rejectsCreateContactWithoutPhoneOrEmail() {
+        CreateCompanyRequest request = new CreateCompanyRequest(
+                "TGB Sirket",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                CompanyType.TGB,
+                List.of(),
+                List.of(new CreateCompanyContactRequest(
+                        "Yetkili Kisi",
+                        "Mudur",
+                        null,
+                        null,
+                        true
+                ))
+        );
+
+        assertThrows(InvalidRequestException.class, () ->
+                companyService.createCompany(request));
+    }
+
+    @Test
     void defaultsFirstMethodOfEachTypeToPrimaryWhenNoneSelected() {
         when(companyRepository.saveAndFlush(any(Company.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));

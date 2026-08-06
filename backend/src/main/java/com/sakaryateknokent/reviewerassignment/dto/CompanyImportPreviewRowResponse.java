@@ -20,6 +20,7 @@ public record CompanyImportPreviewRowResponse(
         String contactPhone,
         String contactEmail,
         List<String> updateMessages,
+        List<String> locationWarnings,
         List<String> errors,
         List<String> warnings,
         boolean valid

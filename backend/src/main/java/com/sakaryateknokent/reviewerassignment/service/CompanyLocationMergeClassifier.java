@@ -13,6 +13,7 @@ public class CompanyLocationMergeClassifier {
 
     public static final String STATUS_NEW = "NEW";
     public static final String STATUS_UPDATE = "UPDATE";
+    public static final String STATUS_EXISTING = "EXISTING";
     public static final String STATUS_DUPLICATE = "DUPLICATE";
     public static final String STATUS_WARNING = "WARNING";
     public static final String STATUS_INVALID = "INVALID";
@@ -89,7 +90,7 @@ public class CompanyLocationMergeClassifier {
         }
 
         return new LocationMergeDecision(
-                STATUS_DUPLICATE,
+                STATUS_EXISTING,
                 false,
                 List.of(),
                 List.of()
