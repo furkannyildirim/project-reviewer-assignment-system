@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
     Avatar,
     Box,
+    Checkbox,
     Chip,
     IconButton,
     Pagination,
@@ -33,7 +34,13 @@ type CompanyTableProps = {
     isLoading: boolean;
     isAdmin: boolean;
     isMutating: boolean;
+    selectedIds: Set<number>;
+    isAllSelected: boolean;
+    isSelectionIndeterminate: boolean;
+    isSelectionLoading: boolean;
     onPageChange: (page: number) => void;
+    onToggleAll: () => void;
+    onToggleOne: (id: number) => void;
     onEdit: (company: Company) => void;
     onDelete: (company: Company) => void;
 };
@@ -323,6 +330,9 @@ function LoadingRows() {
         <>
             {Array.from({ length: 5 }).map((_, index) => (
                 <TableRow key={index}>
+                    <TableCell padding="checkbox">
+                        <Skeleton variant="rectangular" width={24} height={24} />
+                    </TableCell>
                     <TableCell>
                         <Skeleton variant="circular" width={40} height={40} />
                     </TableCell>
@@ -343,7 +353,13 @@ export function CompanyTable({
     isLoading,
     isAdmin,
     isMutating,
+    selectedIds,
+    isAllSelected,
+    isSelectionIndeterminate,
+    isSelectionLoading,
     onPageChange,
+    onToggleAll,
+    onToggleOne,
     onEdit,
     onDelete,
 }: CompanyTableProps) {
@@ -364,6 +380,19 @@ export function CompanyTable({
                 <Table sx={{ minWidth: 860 }} aria-label="Sirket tablosu">
                     <TableHead>
                         <TableRow>
+                            <TableCell padding="checkbox">
+                                <Tooltip title="Filtreye uyan tüm kayıtları seç">
+                                    <span>
+                                        <Checkbox
+                                            aria-label="Tum firmalari sec"
+                                            checked={isAllSelected}
+                                            disabled={isSelectionLoading}
+                                            indeterminate={isSelectionIndeterminate}
+                                            onChange={onToggleAll}
+                                        />
+                                    </span>
+                                </Tooltip>
+                            </TableCell>
                             <TableCell>Logo</TableCell>
                             <TableCell>Sirket adi</TableCell>
                             <TableCell>Yetkili Kisi</TableCell>
@@ -378,6 +407,14 @@ export function CompanyTable({
                         ) : (
                             companies.map((company) => (
                                 <TableRow key={company.id} hover>
+                                    <TableCell padding="checkbox">
+                                        <Checkbox
+                                            aria-label="Firma sec"
+                                            checked={selectedIds.has(company.id)}
+                                            onClick={(event) => event.stopPropagation()}
+                                            onChange={() => onToggleOne(company.id)}
+                                        />
+                                    </TableCell>
                                     <TableCell>
                                         <CompanyLogo company={company} />
                                     </TableCell>

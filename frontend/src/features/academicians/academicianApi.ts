@@ -3,6 +3,7 @@ import type { PageResponse } from '../../types/api';
 import type {
     Academician,
     AcademicianExportParams,
+    AcademicianIdParams,
     AcademicianImportPreviewResponse,
     AcademicianImportResultResponse,
     AcademicianPageParams,
@@ -29,17 +30,28 @@ export async function getAcademicians(
 export async function exportAcademicians(
     params: AcademicianExportParams,
 ): Promise<Blob> {
+    const response = await httpClient.post<Blob>(
+        '/academicians/export',
+        { ids: params.ids },
+        {
+            responseType: 'blob',
+        },
+    );
+
+    return response.data;
+}
+
+export async function getAcademicianIds(
+    params: AcademicianIdParams,
+): Promise<number[]> {
     const requestParams = {
         search: params.search || undefined,
         initial: params.initial || undefined,
     };
 
-    const response = await httpClient.get<Blob>(
-        '/academicians/export',
-        {
-            params: requestParams,
-            responseType: 'blob',
-        },
+    const response = await httpClient.get<number[]>(
+        '/academicians/ids',
+        { params: requestParams },
     );
 
     return response.data;

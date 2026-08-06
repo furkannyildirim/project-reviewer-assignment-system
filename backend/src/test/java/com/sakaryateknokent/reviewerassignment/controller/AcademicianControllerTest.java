@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.controller;
 
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ExportSelectionRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.entity.Academician;
 import com.sakaryateknokent.reviewerassignment.exception.GlobalExceptionHandler;
@@ -91,6 +92,51 @@ class AcademicianControllerTest {
                 .getFirst(HttpHeaders.CONTENT_DISPOSITION)
                 .contains("akademisyenler.xlsx"));
         verify(academicianService).getAcademiciansForExport(" yapay ", " A ");
+        verify(academicianExportService).exportToExcel(academicians);
+    }
+
+    @Test
+    void getAcademicianIdsReturnsFilteredIds() {
+        when(academicianService.getAcademicianIds("yazilim", "A"))
+                .thenReturn(List.of(1L, 2L));
+
+        ResponseEntity<List<Long>> response =
+                academicianController.getAcademicianIds("yazilim", "A");
+
+        assertEquals(List.of(1L, 2L), response.getBody());
+        verify(academicianService).getAcademicianIds("yazilim", "A");
+    }
+
+    @Test
+    void exportSelectedAcademiciansUsesSelectedIds() {
+        List<AcademicianResponse> academicians = List.of(
+                new AcademicianResponse(
+                        1L,
+                        0L,
+                        "Ayse",
+                        "Yilmaz",
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+        byte[] fileContent = new byte[]{7};
+        when(academicianService.getAcademiciansForExport(List.of(1L, 1L)))
+                .thenReturn(academicians);
+        when(academicianExportService.exportToExcel(academicians))
+                .thenReturn(fileContent);
+
+        ResponseEntity<byte[]> response =
+                academicianController.exportSelectedAcademicians(
+                        new ExportSelectionRequest(List.of(1L, 1L))
+                );
+
+        assertArrayEquals(fileContent, response.getBody());
+        assertTrue(response.getHeaders()
+                .getFirst(HttpHeaders.CONTENT_DISPOSITION)
+                .contains("akademisyenler.xlsx"));
+        verify(academicianService).getAcademiciansForExport(List.of(1L, 1L));
         verify(academicianExportService).exportToExcel(academicians);
     }
 

@@ -109,6 +109,10 @@ export type AcademicianPageParams = {
 };
 
 export type AcademicianExportParams = {
+    ids: number[];
+};
+
+export type AcademicianIdParams = {
     search: string;
     initial?: string;
 };

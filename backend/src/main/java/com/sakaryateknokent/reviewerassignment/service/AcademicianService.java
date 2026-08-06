@@ -109,6 +109,22 @@ public class AcademicianService {
     }
 
     @Transactional(readOnly = true)
+    public List<Long> getAcademicianIds(String search, String initial) {
+        String normalizedSearch = normalizeSearch(search);
+        String normalizedInitial = normalizeInitial(initial);
+
+        return academicianRepository
+                .search(
+                        normalizedSearch,
+                        normalizedInitial,
+                        Pageable.unpaged(DEFAULT_ACADEMICIAN_SORT)
+                )
+                .stream()
+                .map(Academician::getId)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<AcademicianResponse> getAcademiciansForExport(
             String search,
             String initial
@@ -124,6 +140,22 @@ public class AcademicianService {
                 )
                 .map(this::toResponse)
                 .getContent();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AcademicianResponse> getAcademiciansForExport(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        return academicianRepository
+                .findByIdIn(
+                        new LinkedHashSet<>(ids),
+                        DEFAULT_ACADEMICIAN_SORT
+                )
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)

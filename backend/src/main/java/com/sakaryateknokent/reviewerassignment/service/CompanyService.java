@@ -156,6 +156,31 @@ public class CompanyService {
     }
 
     @Transactional(readOnly = true)
+    public List<Long> getCompanyIds(
+            CompanyType companyType,
+            String search,
+            String initial
+    ) {
+        String normalizedSearch = search == null
+                ? ""
+                : search.trim();
+        String normalizedInitial = initial == null
+                ? ""
+                : initial.trim();
+
+        return companyRepository
+                .search(
+                        companyType,
+                        normalizedSearch,
+                        normalizedInitial,
+                        Pageable.unpaged(DEFAULT_COMPANY_SORT)
+                )
+                .stream()
+                .map(Company::getId)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public CompanyResponse getCompanyById(Long id) {
         return toResponse(findCompanyById(id));
     }

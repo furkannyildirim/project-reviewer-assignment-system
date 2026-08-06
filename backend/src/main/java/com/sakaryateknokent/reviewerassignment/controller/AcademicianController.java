@@ -4,6 +4,7 @@ import com.sakaryateknokent.reviewerassignment.dto.AcademicianResponse;
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportPreviewResponse;
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportResultResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateAcademicianRequest;
+import com.sakaryateknokent.reviewerassignment.dto.ExportSelectionRequest;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.service.AcademicianExportService;
@@ -74,6 +75,16 @@ public class AcademicianController {
         return ResponseEntity.ok(academicianService.countAcademicians());
     }
 
+    @GetMapping("/ids")
+    public ResponseEntity<java.util.List<Long>> getAcademicianIds(
+            @RequestParam(defaultValue = "") String search,
+            @RequestParam(required = false) String initial
+    ) {
+        return ResponseEntity.ok(
+                academicianService.getAcademicianIds(search, initial)
+        );
+    }
+
     @GetMapping("/export")
     public ResponseEntity<byte[]> exportAcademicians(
             @RequestParam(defaultValue = "") String search,
@@ -95,6 +106,17 @@ public class AcademicianController {
                                 .toString()
                 )
                 .body(fileContent);
+    }
+
+    @PostMapping("/export")
+    public ResponseEntity<byte[]> exportSelectedAcademicians(
+            @RequestBody ExportSelectionRequest request
+    ) {
+        byte[] fileContent = academicianExportService.exportToExcel(
+                academicianService.getAcademiciansForExport(request.ids())
+        );
+
+        return excelResponse(fileContent);
     }
 
     @GetMapping("/{id}")
@@ -122,5 +144,20 @@ public class AcademicianController {
     ) {
         academicianService.deleteAcademician(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private ResponseEntity<byte[]> excelResponse(byte[] fileContent) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename("akademisyenler.xlsx")
+                                .build()
+                                .toString()
+                )
+                .body(fileContent);
     }
 }

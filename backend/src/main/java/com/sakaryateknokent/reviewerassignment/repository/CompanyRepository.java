@@ -4,9 +4,13 @@ import com.sakaryateknokent.reviewerassignment.entity.Company;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import java.util.Collection;
+import java.util.List;
 
 public interface CompanyRepository extends JpaRepository<Company, Long> {
 
@@ -28,8 +32,14 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
             FROM Company company
             WHERE company.companyType = :companyType
             """)
-    java.util.List<String> findNamesByCompanyType(
+    List<String> findNamesByCompanyType(
             @Param("companyType") CompanyType companyType
+    );
+
+    List<Company> findByCompanyTypeAndIdIn(
+            CompanyType companyType,
+            Collection<Long> ids,
+            Sort sort
     );
 
     @Query("""

@@ -398,17 +398,26 @@ public class CompanyExcelImportParser {
             String value,
             ContactPartType type
     ) {
-        String normalized = AcademicianTextNormalizer.normalizeOptionalText(value);
-        if (normalized == null || isOptionalPlaceholder(normalized)) {
+        String trimmedValue = value == null
+                ? null
+                : value.trim();
+        if (trimmedValue == null
+                || trimmedValue.isBlank()
+                || isOptionalPlaceholder(trimmedValue)) {
             return java.util.List.of();
         }
 
-        String[] explicitParts = normalized.split("\\R|[;&/]");
+        String[] explicitParts = trimmedValue.split("\\R|[;&/]");
         if (explicitParts.length > 1) {
             return java.util.Arrays.stream(explicitParts)
-                    .map(String::trim)
-                    .filter(part -> !part.isBlank())
+                    .map(AcademicianTextNormalizer::normalizeOptionalText)
+                    .filter(part -> part != null && !part.isBlank())
                     .toList();
+        }
+
+        String normalized = AcademicianTextNormalizer.normalizeOptionalText(trimmedValue);
+        if (normalized == null || isOptionalPlaceholder(normalized)) {
+            return java.util.List.of();
         }
 
         if (ContactPartType.PHONE.equals(type)) {

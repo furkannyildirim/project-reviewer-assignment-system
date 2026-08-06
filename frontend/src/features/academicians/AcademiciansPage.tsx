@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
@@ -24,6 +24,7 @@ import {
     deleteAcademician,
     exportAcademicians,
     getAcademicianCount,
+    getAcademicianIds,
     getAcademicians,
     updateAcademician,
 } from './academicianApi';
@@ -45,8 +46,13 @@ type FormMode = {
 
 type SnackbarState = {
     message: string;
-    severity: 'success' | 'error';
+    severity: 'success' | 'error' | 'warning';
 } | null;
+
+type SelectionState = {
+    filterKey: string;
+    ids: Set<number>;
+};
 
 const academicianInitialOptions = [
     'A',
@@ -99,6 +105,14 @@ export function AcademiciansPage() {
     const [snackbar, setSnackbar] = useState<SnackbarState>(null);
     const debouncedSearch = useDebouncedValue(search.trim(), 400);
     const isAdmin = role === 'ADMIN';
+    const selectionFilterKey = `${debouncedSearch}|${initial}`;
+    const [selection, setSelection] = useState<SelectionState>(() => ({
+        filterKey: selectionFilterKey,
+        ids: new Set(),
+    }));
+    const selectedIds = selection.filterKey === selectionFilterKey
+        ? selection.ids
+        : new Set<number>();
 
     const queryParams = {
         search: debouncedSearch,
@@ -117,6 +131,17 @@ export function AcademiciansPage() {
         queryKey: academicianQueryKeys.count(),
         queryFn: getAcademicianCount,
         staleTime: 5 * 60 * 1000,
+    });
+
+    const idQueryParams = {
+        search: debouncedSearch,
+        initial: initial || undefined,
+    };
+
+    const academicianIdsQuery = useQuery({
+        queryKey: academicianQueryKeys.ids(idQueryParams),
+        queryFn: () => getAcademicianIds(idQueryParams),
+        placeholderData: keepPreviousData,
     });
 
     const invalidateAcademicians = () =>
@@ -210,6 +235,16 @@ export function AcademiciansPage() {
     const isSaving = createMutation.isPending || updateMutation.isPending;
     const isMutating = isSaving || deleteMutation.isPending;
     const academicians = academiciansQuery.data?.content ?? [];
+    const filteredIds = useMemo(
+        () => academicianIdsQuery.data ?? [],
+        [academicianIdsQuery.data],
+    );
+    const selectedFilteredCount = filteredIds.filter((id) =>
+        selectedIds.has(id)).length;
+    const isAllSelected =
+        filteredIds.length > 0 && selectedFilteredCount === filteredIds.length;
+    const isSelectionIndeterminate =
+        selectedFilteredCount > 0 && selectedFilteredCount < filteredIds.length;
     const showEmptyState =
         !academiciansQuery.isLoading
         && !academiciansQuery.isError
@@ -250,6 +285,59 @@ export function AcademiciansPage() {
         setPage(0);
     }
 
+    function handleToggleOne(id: number) {
+        setSelection((currentSelection) => {
+            const currentIds = currentSelection.filterKey === selectionFilterKey
+                ? currentSelection.ids
+                : new Set<number>();
+            const nextIds = new Set(currentIds);
+            if (nextIds.has(id)) {
+                nextIds.delete(id);
+            } else {
+                nextIds.add(id);
+            }
+            return { filterKey: selectionFilterKey, ids: nextIds };
+        });
+    }
+
+    async function handleToggleAll() {
+        if (academicianIdsQuery.isFetching) {
+            return;
+        }
+
+        try {
+            const result = academicianIdsQuery.data
+                ? { data: academicianIdsQuery.data, error: null }
+                : await academicianIdsQuery.refetch();
+            if (result.error) {
+                throw result.error;
+            }
+            const nextFilteredIds = result.data ?? [];
+
+            setSelection((currentSelection) => {
+                const currentIds = currentSelection.filterKey === selectionFilterKey
+                    ? currentSelection.ids
+                    : new Set<number>();
+                const nextIds = new Set(currentIds);
+                const allSelected = nextFilteredIds.length > 0
+                    && nextFilteredIds.every((id) => nextIds.has(id));
+
+                if (allSelected) {
+                    nextFilteredIds.forEach((id) => nextIds.delete(id));
+                    return { filterKey: selectionFilterKey, ids: nextIds };
+                }
+
+                nextFilteredIds.forEach((id) => nextIds.add(id));
+                return { filterKey: selectionFilterKey, ids: nextIds };
+            });
+        } catch {
+            setSnackbar({
+                message: 'Secilecek akademisyen listesi alinamadi',
+                severity: 'error',
+            });
+        }
+    }
+
     function handleDeleteConfirm() {
         if (!academicianToDelete || deleteMutation.isPending) {
             return;
@@ -263,9 +351,16 @@ export function AcademiciansPage() {
             return;
         }
 
+        if (selectedIds.size === 0) {
+            setSnackbar({
+                message: 'Excel’e aktarmak için en az bir kayıt seçmelisiniz.',
+                severity: 'warning',
+            });
+            return;
+        }
+
         exportMutation.mutate({
-            search: debouncedSearch,
-            initial: initial || undefined,
+            ids: [...selectedIds],
         });
     }
 
@@ -293,7 +388,11 @@ export function AcademiciansPage() {
                             disabled={exportMutation.isPending}
                             onClick={handleExport}
                         >
-                            {exportMutation.isPending ? 'Aktarılıyor' : "Excel'e Aktar"}
+                            {exportMutation.isPending
+                                ? 'Aktarılıyor'
+                                : `Excel'e Aktar${selectedIds.size > 0
+                                    ? ` (${selectedIds.size})`
+                                    : ''}`}
                         </Button>
                         <Button
                             variant="contained"
@@ -429,7 +528,13 @@ export function AcademiciansPage() {
                         isLoading={academiciansQuery.isLoading}
                         isAdmin={isAdmin}
                         isMutating={isMutating}
+                        selectedIds={selectedIds}
+                        isAllSelected={isAllSelected}
+                        isSelectionIndeterminate={isSelectionIndeterminate}
+                        isSelectionLoading={academicianIdsQuery.isFetching}
                         onPageChange={setPage}
+                        onToggleAll={() => void handleToggleAll()}
+                        onToggleOne={handleToggleOne}
                         onEdit={(academician) => setFormMode({
                             type: 'edit',
                             academician,

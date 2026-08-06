@@ -1,5 +1,6 @@
 import {
     Box,
+    Checkbox,
     Chip,
     IconButton,
     Pagination,
@@ -27,7 +28,13 @@ type AcademicianTableProps = {
     isLoading: boolean;
     isAdmin: boolean;
     isMutating: boolean;
+    selectedIds: Set<number>;
+    isAllSelected: boolean;
+    isSelectionIndeterminate: boolean;
+    isSelectionLoading: boolean;
     onPageChange: (page: number) => void;
+    onToggleAll: () => void;
+    onToggleOne: (id: number) => void;
     onEdit: (academician: Academician) => void;
     onDelete: (academician: Academician) => void;
 };
@@ -72,6 +79,9 @@ function LoadingRows() {
         <>
             {Array.from({ length: 5 }).map((_, index) => (
                 <TableRow key={index}>
+                    <TableCell padding="checkbox">
+                        <Skeleton variant="rectangular" width={24} height={24} />
+                    </TableCell>
                     <TableCell><Skeleton width="70%" /></TableCell>
                     <TableCell><Skeleton width="70%" /></TableCell>
                     <TableCell><Skeleton width="80%" /></TableCell>
@@ -91,7 +101,13 @@ export function AcademicianTable({
     isLoading,
     isAdmin,
     isMutating,
+    selectedIds,
+    isAllSelected,
+    isSelectionIndeterminate,
+    isSelectionLoading,
     onPageChange,
+    onToggleAll,
+    onToggleOne,
     onEdit,
     onDelete,
 }: AcademicianTableProps) {
@@ -112,6 +128,19 @@ export function AcademicianTable({
                 <Table sx={{ minWidth: 980 }} aria-label="Akademisyen tablosu">
                     <TableHead>
                         <TableRow>
+                            <TableCell padding="checkbox">
+                                <Tooltip title="Filtreye uyan tüm kayıtları seç">
+                                    <span>
+                                        <Checkbox
+                                            aria-label="Tum akademisyenleri sec"
+                                            checked={isAllSelected}
+                                            disabled={isSelectionLoading}
+                                            indeterminate={isSelectionIndeterminate}
+                                            onChange={onToggleAll}
+                                        />
+                                    </span>
+                                </Tooltip>
+                            </TableCell>
                             <TableCell>Ad</TableCell>
                             <TableCell>Soyad</TableCell>
                             <TableCell>E-posta</TableCell>
@@ -127,6 +156,14 @@ export function AcademicianTable({
                         ) : (
                             academicians.map((academician) => (
                                 <TableRow key={academician.id} hover>
+                                    <TableCell padding="checkbox">
+                                        <Checkbox
+                                            aria-label="Akademisyen sec"
+                                            checked={selectedIds.has(academician.id)}
+                                            onClick={(event) => event.stopPropagation()}
+                                            onChange={() => onToggleOne(academician.id)}
+                                        />
+                                    </TableCell>
                                     <TableCell>
                                         <Typography sx={{ fontWeight: 600 }}>
                                             {academician.firstName}

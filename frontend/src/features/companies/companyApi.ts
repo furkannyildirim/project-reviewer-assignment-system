@@ -2,6 +2,8 @@ import { httpClient } from '../../api/httpClient';
 import type { PageResponse } from '../../types/api';
 import type {
     CompanyDetail,
+    CompanyExportParams,
+    CompanyIdParams,
     CompanyImportPreviewResponse,
     CompanyImportResultResponse,
     CompanyListItem,
@@ -21,6 +23,36 @@ export async function getCompanies(
 
     const response = await httpClient.get<PageResponse<CompanyListItem>>(
         '/companies',
+        { params: requestParams },
+    );
+
+    return response.data;
+}
+
+export async function exportCompanies(
+    params: CompanyExportParams,
+): Promise<Blob> {
+    const response = await httpClient.post<Blob>(
+        '/companies/export',
+        { ids: params.ids },
+        {
+            params: { companyType: params.companyType },
+            responseType: 'blob',
+        },
+    );
+
+    return response.data;
+}
+
+export async function getCompanyIds(params: CompanyIdParams): Promise<number[]> {
+    const requestParams = {
+        companyType: params.companyType,
+        search: params.search || undefined,
+        initial: params.initial || undefined,
+    };
+
+    const response = await httpClient.get<number[]>(
+        '/companies/ids',
         { params: requestParams },
     );
 

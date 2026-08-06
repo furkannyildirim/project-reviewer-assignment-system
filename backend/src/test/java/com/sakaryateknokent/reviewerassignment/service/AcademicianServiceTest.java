@@ -375,6 +375,65 @@ class AcademicianServiceTest {
         );
     }
 
+    @Test
+    void returnsFilteredAcademicianIdsWithoutPagination() {
+        when(academicianRepository.search(
+                eq("yazilim"),
+                eq("A"),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(
+                academician(1L, "Ayse", "Yilmaz"),
+                academician(2L, "Ali", "Kaya")
+        )));
+
+        List<Long> ids = academicianService.getAcademicianIds(
+                " yazilim ",
+                " A "
+        );
+
+        ArgumentCaptor<Pageable> pageableCaptor =
+                ArgumentCaptor.forClass(Pageable.class);
+        assertEquals(List.of(1L, 2L), ids);
+        verify(academicianRepository).search(
+                eq("yazilim"),
+                eq("A"),
+                pageableCaptor.capture()
+        );
+        assertFalse(pageableCaptor.getValue().isPaged());
+    }
+
+    @Test
+    void exportsSelectedAcademiciansWithUniqueIdsAndIgnoresMissingIds() {
+        when(academicianRepository.findByIdIn(
+                eq(new java.util.LinkedHashSet<>(List.of(2L, 1L, 999L))),
+                any(org.springframework.data.domain.Sort.class)
+        )).thenReturn(List.of(
+                academician(1L, "Ayse", "Yilmaz"),
+                academician(2L, "Ali", "Kaya")
+        ));
+
+        List<AcademicianResponse> response =
+                academicianService.getAcademiciansForExport(
+                        List.of(2L, 1L, 2L, 999L)
+                );
+
+        assertEquals(List.of(1L, 2L), response.stream()
+                .map(AcademicianResponse::id)
+                .toList());
+    }
+
+    @Test
+    void selectedAcademicianExportWithEmptyIdsDoesNotQueryRepository() {
+        List<AcademicianResponse> response =
+                academicianService.getAcademiciansForExport(List.of());
+
+        assertEquals(List.of(), response);
+        verify(academicianRepository, never()).findByIdIn(
+                any(),
+                any(org.springframework.data.domain.Sort.class)
+        );
+    }
+
     private Academician academician(Long id, String firstName, String lastName) {
         Academician academician = new Academician();
         academician.setId(id);

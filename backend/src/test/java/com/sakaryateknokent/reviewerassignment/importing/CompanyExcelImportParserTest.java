@@ -726,6 +726,18 @@ class CompanyExcelImportParserTest {
     }
 
     @Test
+    void keepsSpacedSinglePhoneWhole() {
+        CompanyImportRow row = parseFirstRow(workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            writeRow(sheet, 0, "Firma Unvan\u0131", "Telefon 1");
+            writeRow(sheet, 1, "ABC Teknoloji", "0532 123 45 67");
+        });
+
+        assertEquals(List.of("0532 123 45 67"), row.getCompanyPhones());
+        assertTrue(row.isValid());
+    }
+
+    @Test
     void marksInvalidCompanyContactPartsInvalid() {
         CompanyImportRow row = parseFirstRow(workbook -> {
             Sheet sheet = workbook.createSheet("Sirketler");

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import {
     Alert,
@@ -21,8 +22,10 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import {
     createCompany,
     deleteCompany,
+    exportCompanies,
     getCompanyCount,
     getCompanyById,
+    getCompanyIds,
     getCompanies,
     updateCompany,
 } from './companyApi';
@@ -45,8 +48,13 @@ type FormMode = {
 
 type SnackbarState = {
     message: string;
-    severity: 'success' | 'error';
+    severity: 'success' | 'error' | 'warning';
 } | null;
+
+type SelectionState = {
+    filterKey: string;
+    ids: Set<number>;
+};
 
 type CompaniesPageProps = {
     companyType: CompanyType;
@@ -106,6 +114,14 @@ export function CompaniesPage({
     const [snackbar, setSnackbar] = useState<SnackbarState>(null);
     const debouncedSearch = useDebouncedValue(search.trim(), 400);
     const isAdmin = role === 'ADMIN';
+    const selectionFilterKey = `${companyType}|${debouncedSearch}|${initial}`;
+    const [selection, setSelection] = useState<SelectionState>(() => ({
+        filterKey: selectionFilterKey,
+        ids: new Set(),
+    }));
+    const selectedIds = selection.filterKey === selectionFilterKey
+        ? selection.ids
+        : new Set<number>();
 
     const queryParams = {
         companyType,
@@ -125,6 +141,18 @@ export function CompaniesPage({
         queryKey: companyQueryKeys.count(companyType),
         queryFn: () => getCompanyCount(companyType),
         staleTime: 5 * 60 * 1000,
+    });
+
+    const idQueryParams = {
+        companyType,
+        search: debouncedSearch,
+        initial: initial || undefined,
+    };
+
+    const companyIdsQuery = useQuery({
+        queryKey: companyQueryKeys.ids(idQueryParams),
+        queryFn: () => getCompanyIds(idQueryParams),
+        placeholderData: keepPreviousData,
     });
 
     const editCompanyId =
@@ -206,9 +234,45 @@ export function CompaniesPage({
         },
     });
 
+    const exportMutation = useMutation({
+        mutationFn: exportCompanies,
+        onSuccess: (blob) => {
+            const fileName = companyType === 'EXTERNAL'
+                ? 'dis-sirketler.xlsx'
+                : 'tgb-sirketleri.xlsx';
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = fileName;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(url);
+        },
+        onError: (error) => {
+            setSnackbar({
+                message: getApiErrorMessage(
+                    error,
+                    'Şirketler Excel dosyasına aktarılamadı',
+                ),
+                severity: 'error',
+            });
+        },
+    });
+
     const isSaving = createMutation.isPending || updateMutation.isPending;
     const isMutating = isSaving || deleteMutation.isPending;
     const companies = companiesQuery.data?.content ?? [];
+    const filteredIds = useMemo(
+        () => companyIdsQuery.data ?? [],
+        [companyIdsQuery.data],
+    );
+    const selectedFilteredCount = filteredIds.filter((id) =>
+        selectedIds.has(id)).length;
+    const isAllSelected =
+        filteredIds.length > 0 && selectedFilteredCount === filteredIds.length;
+    const isSelectionIndeterminate =
+        selectedFilteredCount > 0 && selectedFilteredCount < filteredIds.length;
     const showEmptyState =
         !companiesQuery.isLoading
         && !companiesQuery.isError
@@ -249,12 +313,84 @@ export function CompaniesPage({
         setPage(0);
     }
 
+    function handleToggleOne(id: number) {
+        setSelection((currentSelection) => {
+            const currentIds = currentSelection.filterKey === selectionFilterKey
+                ? currentSelection.ids
+                : new Set<number>();
+            const nextIds = new Set(currentIds);
+            if (nextIds.has(id)) {
+                nextIds.delete(id);
+            } else {
+                nextIds.add(id);
+            }
+            return { filterKey: selectionFilterKey, ids: nextIds };
+        });
+    }
+
+    async function handleToggleAll() {
+        if (companyIdsQuery.isFetching) {
+            return;
+        }
+
+        try {
+            const result = companyIdsQuery.data
+                ? { data: companyIdsQuery.data, error: null }
+                : await companyIdsQuery.refetch();
+            if (result.error) {
+                throw result.error;
+            }
+            const nextFilteredIds = result.data ?? [];
+
+            setSelection((currentSelection) => {
+                const currentIds = currentSelection.filterKey === selectionFilterKey
+                    ? currentSelection.ids
+                    : new Set<number>();
+                const nextIds = new Set(currentIds);
+                const allSelected = nextFilteredIds.length > 0
+                    && nextFilteredIds.every((id) => nextIds.has(id));
+
+                if (allSelected) {
+                    nextFilteredIds.forEach((id) => nextIds.delete(id));
+                    return { filterKey: selectionFilterKey, ids: nextIds };
+                }
+
+                nextFilteredIds.forEach((id) => nextIds.add(id));
+                return { filterKey: selectionFilterKey, ids: nextIds };
+            });
+        } catch {
+            setSnackbar({
+                message: 'Secilecek firma listesi alinamadi',
+                severity: 'error',
+            });
+        }
+    }
+
     function handleDeleteConfirm() {
         if (!companyToDelete || deleteMutation.isPending) {
             return;
         }
 
         deleteMutation.mutate(companyToDelete.id);
+    }
+
+    function handleExport() {
+        if (exportMutation.isPending) {
+            return;
+        }
+
+        if (selectedIds.size === 0) {
+            setSnackbar({
+                message: 'Excel’e aktarmak için en az bir kayıt seçmelisiniz.',
+                severity: 'warning',
+            });
+            return;
+        }
+
+        exportMutation.mutate({
+            companyType,
+            ids: [...selectedIds],
+        });
     }
 
     return (
@@ -274,6 +410,19 @@ export function CompaniesPage({
                             onClick={() => setImportDialogOpen(true)}
                         >
                             Excel'den Aktar
+                        </Button>
+
+                        <Button
+                            variant="outlined"
+                            startIcon={<FileDownloadOutlinedIcon />}
+                            disabled={exportMutation.isPending}
+                            onClick={handleExport}
+                        >
+                            {exportMutation.isPending
+                                ? 'Aktarılıyor'
+                                : `Excel'e Aktar${selectedIds.size > 0
+                                    ? ` (${selectedIds.size})`
+                                    : ''}`}
                         </Button>
 
                         <Button
@@ -396,7 +545,13 @@ export function CompaniesPage({
                         isLoading={companiesQuery.isLoading}
                         isAdmin={isAdmin}
                         isMutating={isMutating}
+                        selectedIds={selectedIds}
+                        isAllSelected={isAllSelected}
+                        isSelectionIndeterminate={isSelectionIndeterminate}
+                        isSelectionLoading={companyIdsQuery.isFetching}
                         onPageChange={setPage}
+                        onToggleAll={() => void handleToggleAll()}
+                        onToggleOne={handleToggleOne}
                         onEdit={(company) => setFormMode({ type: 'edit', company })}
                         onDelete={(company) => {
                             setDeleteError(null);

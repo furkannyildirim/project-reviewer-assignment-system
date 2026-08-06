@@ -1,4 +1,4 @@
-import type { CompanyPageParams } from './company.types';
+import type { CompanyIdParams, CompanyPageParams } from './company.types';
 
 export const companyQueryKeys = {
     all: ['companies'] as const,
@@ -16,5 +16,10 @@ export const companyQueryKeys = {
         ...companyQueryKeys.all,
         'count',
         companyType,
+    ] as const,
+    ids: (params: CompanyIdParams) => [
+        ...companyQueryKeys.all,
+        'ids',
+        params,
     ] as const,
 };

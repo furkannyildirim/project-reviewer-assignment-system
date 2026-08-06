@@ -142,6 +142,17 @@ export type CompanyPageParams = {
     size: number;
 };
 
+export type CompanyExportParams = {
+    companyType: CompanyType;
+    ids: number[];
+};
+
+export type CompanyIdParams = {
+    companyType: CompanyType;
+    search: string;
+    initial?: string;
+};
+
 export type CompanyFormValues = {
     name: string;
     activityArea: string;

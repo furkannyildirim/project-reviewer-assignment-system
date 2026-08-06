@@ -460,6 +460,35 @@ class CompanyServiceTest {
     }
 
     @Test
+    void returnsFilteredCompanyIdsWithoutPagination() {
+        Company first = company(1L, "Delta", CompanyType.TGB);
+        Company second = company(2L, "Dora", CompanyType.TGB);
+        when(companyRepository.search(
+                eq(CompanyType.TGB),
+                eq("yazilim"),
+                eq("D"),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(first, second)));
+
+        List<Long> ids = companyService.getCompanyIds(
+                CompanyType.TGB,
+                " yazilim ",
+                " D "
+        );
+
+        ArgumentCaptor<Pageable> pageableCaptor =
+                ArgumentCaptor.forClass(Pageable.class);
+        assertEquals(List.of(1L, 2L), ids);
+        verify(companyRepository).search(
+                eq(CompanyType.TGB),
+                eq("yazilim"),
+                eq("D"),
+                pageableCaptor.capture()
+        );
+        assertFalse(pageableCaptor.getValue().isPaged());
+    }
+
+    @Test
     void createCompanyRequestAllowsActivityAreaWith2000Characters() {
         CreateCompanyRequest request = createRequest(
                 CompanyType.EXTERNAL,
