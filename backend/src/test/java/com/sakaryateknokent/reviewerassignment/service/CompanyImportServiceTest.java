@@ -6,7 +6,6 @@ import com.sakaryateknokent.reviewerassignment.entity.CompanyContactMethod;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyContactMethodType;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.importing.CompanyExcelImportParser;
-import com.sakaryateknokent.reviewerassignment.repository.CompanyContactMethodRepository;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyRepository;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -41,13 +40,10 @@ class CompanyImportServiceTest {
 
     private final CompanyRepository companyRepository =
             mock(CompanyRepository.class);
-    private final CompanyContactMethodRepository companyContactMethodRepository =
-            mock(CompanyContactMethodRepository.class);
     private final CompanyImportService companyImportService =
             new CompanyImportService(
                     new CompanyExcelImportParser(),
                     companyRepository,
-                    companyContactMethodRepository,
                     new CompanyLocationMergeClassifier()
             );
 
@@ -165,7 +161,7 @@ class CompanyImportServiceTest {
     }
 
     @Test
-    void updatesExistingTgbMissingBuildingFromDuplicateName() {
+    void skipsExistingTgbMissingBuildingFromDuplicateName() {
         Company existingCompany = company("ABC Teknoloji", CompanyType.TGB);
         when(companyRepository.findByCompanyType(CompanyType.TGB))
                 .thenReturn(List.of(existingCompany));
@@ -178,11 +174,13 @@ class CompanyImportServiceTest {
                 }));
 
         assertEquals(0, response.importedCount());
-        assertEquals(1, response.updatedCount());
-        assertEquals(0, response.duplicateCount());
-        assertEquals("UPDATED", response.rows().getFirst().status());
-        assertEquals("A Blok", existingCompany.getBuilding());
-        verify(companyRepository).saveAndFlush(existingCompany);
+        assertEquals(0, response.updatedCount());
+        assertEquals(1, response.duplicateCount());
+        assertEquals("DUPLICATE", response.rows().getFirst().status());
+        assertNull(existingCompany.getBuilding());
+        assertTrue(response.rows().getFirst().messages().getFirst()
+                .contains("manuel kontrol"));
+        verify(companyRepository, never()).saveAndFlush(existingCompany);
     }
 
     @Test
@@ -207,13 +205,12 @@ class CompanyImportServiceTest {
     }
 
     @Test
-    void updatesExistingExternalMissingLocationFromDuplicateEmailWithoutOverwrite() {
+    void skipsExistingExternalLocationEnrichmentFromDuplicateEmail() {
         Company existingCompany = company("Dis Teknoloji", CompanyType.EXTERNAL);
         existingCompany.setBuilding("A Blok");
-        when(companyContactMethodRepository.findByTypeAndValueIgnoreCaseOrderByIdAsc(
-                CompanyContactMethodType.EMAIL,
-                "info@example.com"
-        )).thenReturn(List.of(emailMethod(existingCompany, "info@example.com")));
+        emailMethod(existingCompany, "info@example.com");
+        when(companyRepository.findByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(List.of(existingCompany));
 
         CompanyImportResultResponse response = companyImportService
                 .importExternalCompanies(file(workbook -> {
@@ -226,17 +223,17 @@ class CompanyImportServiceTest {
                 }));
 
         assertEquals(0, response.importedCount());
-        assertEquals(1, response.updatedCount());
-        assertEquals(0, response.duplicateCount());
-        assertEquals("UPDATED", response.rows().getFirst().status());
-        assertEquals("Sakarya", existingCompany.getCity());
-        assertEquals("Adapazari", existingCompany.getDistrict());
-        assertEquals("1. OSB", existingCompany.getOsb());
-        assertEquals("Baris Mahallesi", existingCompany.getAddress());
+        assertEquals(0, response.updatedCount());
+        assertEquals(1, response.duplicateCount());
+        assertEquals("DUPLICATE", response.rows().getFirst().status());
+        assertNull(existingCompany.getCity());
+        assertNull(existingCompany.getDistrict());
+        assertNull(existingCompany.getOsb());
+        assertNull(existingCompany.getAddress());
         assertEquals("A Blok", existingCompany.getBuilding());
-        assertTrue(response.rows().getFirst().messages().getFirst()
-                .contains("Bina bilgisi"));
-        verify(companyRepository).saveAndFlush(existingCompany);
+        assertTrue(response.rows().getFirst().messages().stream()
+                .anyMatch(message -> message.contains("Bina bilgisi")));
+        verify(companyRepository, never()).saveAndFlush(existingCompany);
     }
 
     @Test
@@ -277,13 +274,13 @@ class CompanyImportServiceTest {
         assertEquals(0, response.updatedCount());
         assertEquals(1, response.duplicateCount());
         assertEquals("A Blok", existingCompany.getBuilding());
-        assertTrue(response.rows().getFirst().messages().getFirst()
-                .contains("Bina bilgisi"));
+        assertTrue(response.rows().getFirst().messages().stream()
+                .anyMatch(message -> message.contains("Bina bilgisi")));
         verify(companyRepository, never()).saveAndFlush(existingCompany);
     }
 
     @Test
-    void updatesMissingCityAndKeepsConflictingBuilding() {
+    void skipsMissingCityEnrichmentAndKeepsConflictingBuilding() {
         Company existingCompany = company("ABC Teknoloji", CompanyType.TGB);
         existingCompany.setBuilding("A Blok");
         when(companyRepository.findByCompanyType(CompanyType.TGB))
@@ -296,12 +293,14 @@ class CompanyImportServiceTest {
                     writeRow(sheet, 1, "ABC Teknoloji", "Sakarya", "B Blok");
                 }));
 
-        assertEquals(1, response.updatedCount());
-        assertEquals("UPDATED", response.rows().getFirst().status());
-        assertEquals("Sakarya", existingCompany.getCity());
+        assertEquals(0, response.updatedCount());
+        assertEquals(1, response.duplicateCount());
+        assertEquals("DUPLICATE", response.rows().getFirst().status());
+        assertNull(existingCompany.getCity());
         assertEquals("A Blok", existingCompany.getBuilding());
-        assertTrue(response.rows().getFirst().messages().getFirst()
-                .contains("Bina bilgisi"));
+        assertTrue(response.rows().getFirst().messages().stream()
+                .anyMatch(message -> message.contains("Bina bilgisi")));
+        verify(companyRepository, never()).saveAndFlush(existingCompany);
     }
 
     @Test
@@ -324,13 +323,14 @@ class CompanyImportServiceTest {
     }
 
     @Test
-    void fillsMultipleMissingLocationFieldsWithoutChangingOtherCompanyData() {
+    void doesNotFillAnyMissingLocationOrOtherCompanyData() {
         Company existingCompany = company("ABC Teknoloji", CompanyType.TGB);
         existingCompany.setActivityArea("Eski Faaliyet");
         when(companyRepository.findByCompanyType(CompanyType.TGB))
                 .thenReturn(List.of(existingCompany));
 
-        companyImportService.importTgbCompanies(file(workbook -> {
+        CompanyImportResultResponse response = companyImportService
+                .importTgbCompanies(file(workbook -> {
             Sheet sheet = workbook.createSheet("Sirketler");
             writeRow(
                     sheet,
@@ -358,13 +358,16 @@ class CompanyImportServiceTest {
             );
         }));
 
-        assertEquals("Sakarya", existingCompany.getCity());
-        assertEquals("Serdivan", existingCompany.getDistrict());
-        assertEquals("1. OSB", existingCompany.getOsb());
-        assertEquals("Adres", existingCompany.getAddress());
-        assertEquals("A Blok", existingCompany.getBuilding());
+        assertEquals(0, response.updatedCount());
+        assertEquals(1, response.duplicateCount());
+        assertNull(existingCompany.getCity());
+        assertNull(existingCompany.getDistrict());
+        assertNull(existingCompany.getOsb());
+        assertNull(existingCompany.getAddress());
+        assertNull(existingCompany.getBuilding());
         assertEquals("Eski Faaliyet", existingCompany.getActivityArea());
         assertTrue(existingCompany.getContactMethods().isEmpty());
+        verify(companyRepository, never()).saveAndFlush(existingCompany);
     }
 
     @Test
@@ -382,7 +385,7 @@ class CompanyImportServiceTest {
                     writeRow(sheet, 1, "ABC Teknoloji", "Sakarya", "B Blok");
                 }));
 
-        assertEquals(2, response.rows().getFirst().messages().size());
+        assertEquals(3, response.rows().getFirst().messages().size());
         assertEquals("Kocaeli", existingCompany.getCity());
         assertEquals("A Blok", existingCompany.getBuilding());
     }
@@ -414,15 +417,7 @@ class CompanyImportServiceTest {
     }
 
     @Test
-    void marksExistingTgbEmailAsDuplicate() {
-        when(companyContactMethodRepository.findByTypeAndValueIgnoreCaseOrderByIdAsc(
-                CompanyContactMethodType.EMAIL,
-                "info@example.com"
-        )).thenReturn(List.of(emailMethod(
-                company("Existing", CompanyType.TGB),
-                "info@example.com"
-        )));
-
+    void allowsDifferentTgbNameWhenExistingTgbUsesSameEmail() {
         CompanyImportResultResponse response = companyImportService
                 .importTgbCompanies(file(workbook -> {
                     Sheet sheet = workbook.createSheet("Sirketler");
@@ -430,20 +425,13 @@ class CompanyImportServiceTest {
                     writeRow(sheet, 1, "ABC Teknoloji", "INFO@EXAMPLE.COM");
                 }));
 
-        assertDuplicate(response, "Bu e-posta adresine sahip bir sirket");
+        assertEquals(1, response.importedCount());
+        assertEquals(0, response.duplicateCount());
+        assertEquals("IMPORTED", response.rows().getFirst().status());
     }
 
     @Test
-    void marksExternalEmailAsDuplicateBecauseEmailIsGloballyUnique() {
-        when(companyContactMethodRepository.findByTypeAndValueIgnoreCaseOrderByIdAsc(
-                CompanyContactMethodType.EMAIL,
-                "info@example.com"
-        ))
-                .thenReturn(List.of(emailMethod(
-                        company("Existing", CompanyType.EXTERNAL),
-                        "info@example.com"
-                )));
-
+    void allowsTgbWhenExternalUsesSameCanonicalNameAndEmail() {
         CompanyImportResultResponse response = companyImportService
                 .importTgbCompanies(file(workbook -> {
                     Sheet sheet = workbook.createSheet("Sirketler");
@@ -451,25 +439,35 @@ class CompanyImportServiceTest {
                     writeRow(sheet, 1, "ABC Teknoloji", "INFO@EXAMPLE.COM");
                 }));
 
-        assertDuplicate(response, "Bu e-posta adresine sahip bir sirket");
+        assertEquals(1, response.importedCount());
+        assertEquals(0, response.duplicateCount());
+        assertEquals("IMPORTED", response.rows().getFirst().status());
     }
 
     @Test
-    void marksNoEmailExistingTgbNameAsDuplicate() {
+    void marksExistingCanonicalTgbNameAsDuplicateWithoutInsertOrUpdate() {
+        Company existingCompany = company(
+                "  sakarya   teknoloji a.\u015f. ",
+                CompanyType.TGB
+        );
+        existingCompany.setActivityArea("Mevcut Faaliyet");
         when(companyRepository.findByCompanyType(CompanyType.TGB))
-                .thenReturn(List.of(company(
-                        "  sakarya   teknoloji a.\u015f. ",
-                        CompanyType.TGB
-                )));
+                .thenReturn(List.of(existingCompany));
 
         CompanyImportResultResponse response = companyImportService
                 .importTgbCompanies(file(workbook -> {
                     Sheet sheet = workbook.createSheet("Sirketler");
-                    writeRow(sheet, 0, "Firma Unvan\u0131");
-                    writeRow(sheet, 1, "Sakarya Teknoloji A.\u015e.");
+                    writeRow(sheet, 0, "Firma Unvan\u0131", "Email",
+                            "Faaliyet Alani");
+                    writeRow(sheet, 1, "Sakarya Teknoloji A.\u015e.",
+                            "new@example.com", "Yeni Faaliyet");
                 }));
 
         assertDuplicate(response, "Bu sirket adiyla bir TGB sirketi");
+        assertEquals(0, response.importedCount());
+        assertEquals(0, response.updatedCount());
+        assertEquals("Mevcut Faaliyet", existingCompany.getActivityArea());
+        verify(companyRepository, never()).saveAndFlush(any(Company.class));
     }
 
     @Test
@@ -486,34 +484,39 @@ class CompanyImportServiceTest {
     }
 
     @Test
-    void allowsRowsWithSameNameWhenEmailsAreDifferent() {
+    void marksSameCanonicalNamesAsDuplicateWhenEmailsAreDifferent() {
         CompanyImportResultResponse response = companyImportService
                 .importTgbCompanies(file(workbook -> {
                     Sheet sheet = workbook.createSheet("Sirketler");
                     writeRow(sheet, 0, "Firma Unvan\u0131", "Email");
                     writeRow(sheet, 1, "ABC Teknoloji", "a@example.com");
-                    writeRow(sheet, 2, "ABC Teknoloji", "b@example.com");
-                }));
-
-        assertEquals(2, response.importedCount());
-        verify(companyRepository, times(2)).saveAndFlush(any(Company.class));
-    }
-
-    @Test
-    void marksBothFileDuplicateEmailsAsDuplicate() {
-        CompanyImportResultResponse response = companyImportService
-                .importTgbCompanies(file(workbook -> {
-                    Sheet sheet = workbook.createSheet("Sirketler");
-                    writeRow(sheet, 0, "Firma Unvan\u0131", "Email");
-                    writeRow(sheet, 1, "ABC Teknoloji", "INFO@EXAMPLE.COM");
-                    writeRow(sheet, 2, "XYZ Teknoloji", "info@example.com");
+                    writeRow(sheet, 2, " abc   teknoloji ", "b@example.com");
                 }));
 
         assertEquals(0, response.importedCount());
         assertEquals(2, response.duplicateCount());
-        assertEquals(List.of("DUPLICATE", "DUPLICATE"),
-                response.rows().stream().map(row -> row.status()).toList());
+        assertTrue(response.rows().stream()
+                .allMatch(row -> "DUPLICATE".equals(row.status())));
         verify(companyRepository, never()).saveAndFlush(any(Company.class));
+    }
+
+    @Test
+    void importsDifferentTgbNamesWithSameEmailAndPhone() {
+        CompanyImportResultResponse response = companyImportService
+                .importTgbCompanies(file(workbook -> {
+                    Sheet sheet = workbook.createSheet("Sirketler");
+                    writeRow(sheet, 0, "Firma Unvan\u0131", "Email", "Telefon 1");
+                    writeRow(sheet, 1, "ABC Teknoloji", "INFO@EXAMPLE.COM",
+                            "111");
+                    writeRow(sheet, 2, "XYZ Teknoloji", "info@example.com",
+                            "111");
+                }));
+
+        assertEquals(2, response.importedCount());
+        assertEquals(0, response.duplicateCount());
+        assertEquals(List.of("IMPORTED", "IMPORTED"),
+                response.rows().stream().map(row -> row.status()).toList());
+        verify(companyRepository, times(2)).saveAndFlush(any(Company.class));
     }
 
     @Test
@@ -559,16 +562,7 @@ class CompanyImportServiceTest {
     }
 
     @Test
-    void invalidOrDuplicateRowsDoNotBlockOtherValidRowsAndCountsAreCorrect() {
-        when(companyContactMethodRepository.findByTypeAndValueIgnoreCaseOrderByIdAsc(
-                CompanyContactMethodType.EMAIL,
-                "duplicate@example.com"
-        ))
-                .thenReturn(List.of(emailMethod(
-                        company("Duplicate", CompanyType.TGB),
-                        "duplicate@example.com"
-                )));
-
+    void invalidRowDoesNotMakeExistingEmailBlockDifferentTgbNames() {
         CompanyImportResultResponse response = companyImportService
                 .importTgbCompanies(file(workbook -> {
                     Sheet sheet = workbook.createSheet("Sirketler");
@@ -579,10 +573,10 @@ class CompanyImportServiceTest {
                 }));
 
         assertEquals(3, response.totalRowCount());
-        assertEquals(1, response.importedCount());
-        assertEquals(1, response.duplicateCount());
+        assertEquals(2, response.importedCount());
+        assertEquals(0, response.duplicateCount());
         assertEquals(1, response.invalidCount());
-        verify(companyRepository, times(1)).saveAndFlush(any(Company.class));
+        verify(companyRepository, times(2)).saveAndFlush(any(Company.class));
     }
 
     @Test
@@ -787,15 +781,11 @@ class CompanyImportServiceTest {
     }
 
     @Test
-    void marksExternalEmailDuplicateGlobally() {
-        when(companyContactMethodRepository.findByTypeAndValueIgnoreCaseOrderByIdAsc(
-                CompanyContactMethodType.EMAIL,
-                "info@example.com"
-        ))
-                .thenReturn(List.of(emailMethod(
-                        company("Existing", CompanyType.EXTERNAL),
-                        "info@example.com"
-                )));
+    void importsExternalCompanyWhenDifferentNameUsesExistingEmail() {
+        Company existingCompany = company("Existing", CompanyType.EXTERNAL);
+        emailMethod(existingCompany, "info@example.com");
+        when(companyRepository.findByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(List.of(existingCompany));
 
         CompanyImportResultResponse response = companyImportService
                 .importExternalCompanies(file(workbook -> {
@@ -804,36 +794,45 @@ class CompanyImportServiceTest {
                     writeRow(sheet, 1, "Dis Teknoloji", "INFO@EXAMPLE.COM");
                 }));
 
-        assertDuplicate(response, "Bu e-posta adresine sahip bir sirket");
+        assertEquals(1, response.importedCount());
+        assertEquals(0, response.duplicateCount());
+        assertEquals("IMPORTED", response.rows().getFirst().status());
     }
 
     @Test
-    void marksExternalSameEmailAsDuplicateIgnoringDifferentNameAndAddress() {
-        Company existingCompany = company("Existing", CompanyType.EXTERNAL);
-        existingCompany.setAddress("Eski Adres");
-        when(companyContactMethodRepository.findByTypeAndValueIgnoreCaseOrderByIdAsc(
-                CompanyContactMethodType.EMAIL,
-                "info@example.com"
-        )).thenReturn(List.of(emailMethod(existingCompany, "info@example.com")));
+    void importsExternalWhenTgbUsesSameNameEmailPhoneAndAddress() {
+        Company tgbCompany = company("Baska Sirket", CompanyType.TGB);
+        tgbCompany.setAddress("Yeni Adres");
+        emailMethod(tgbCompany, "info@example.com");
+        phoneMethod(tgbCompany, "555");
+        lenient().when(companyRepository.findByCompanyType(CompanyType.TGB))
+                .thenReturn(List.of(tgbCompany));
 
         CompanyImportResultResponse response = companyImportService
                 .importExternalCompanies(file(workbook -> {
                     Sheet sheet = workbook.createSheet("Dis Sirketler");
-                    writeRow(sheet, 0, "FIRMA", "E-POSTA", "A\u00C7IK ADRES");
+                    writeRow(sheet, 0, "FIRMA", "E-POSTA", "TELEFON",
+                            "A\u00C7IK ADRES");
                     writeRow(sheet, 1, "Baska Sirket", "INFO@EXAMPLE.COM",
-                            "Yeni Adres");
+                            "555", "Yeni Adres");
                 }));
 
-        assertEquals(0, response.importedCount());
-        assertEquals(1, response.duplicateCount());
-        assertEquals("DUPLICATE", response.rows().getFirst().status());
-        verify(companyRepository, never()).saveAndFlush(any(Company.class));
+        assertEquals(1, response.importedCount());
+        assertEquals(0, response.duplicateCount());
+        assertEquals("IMPORTED", response.rows().getFirst().status());
+        verify(companyRepository, never())
+                .findByCompanyType(CompanyType.TGB);
     }
 
     @Test
-    void importsExternalSameNameWhenEmailIsDifferent() {
+    void importsExternalSameNameWhenBothSidesHaveDifferentEmails() {
+        Company existingCompany = company(
+                "Dis Teknoloji",
+                CompanyType.EXTERNAL
+        );
+        emailMethod(existingCompany, "old@example.com");
         when(companyRepository.findByCompanyType(CompanyType.EXTERNAL))
-                .thenReturn(List.of(company("Dis Teknoloji", CompanyType.EXTERNAL)));
+                .thenReturn(List.of(existingCompany));
 
         CompanyImportResultResponse response = companyImportService
                 .importExternalCompanies(file(workbook -> {
@@ -848,9 +847,14 @@ class CompanyImportServiceTest {
     }
 
     @Test
-    void marksNoEmailExternalNameDuplicateOnlyAgainstExternalCompanies() {
+    void skipsWeakExternalNameFallbackWithManualReviewMessage() {
+        Company existingCompany = company(
+                "dis teknoloji",
+                CompanyType.EXTERNAL
+        );
+        existingCompany.setAddress("Ankara");
         when(companyRepository.findByCompanyType(CompanyType.EXTERNAL))
-                .thenReturn(List.of(company("dis teknoloji", CompanyType.EXTERNAL)));
+                .thenReturn(List.of(existingCompany));
 
         CompanyImportResultResponse response = companyImportService
                 .importExternalCompanies(file(workbook -> {
@@ -859,7 +863,8 @@ class CompanyImportServiceTest {
                     writeRow(sheet, 1, "Dis Teknoloji");
                 }));
 
-        assertDuplicate(response, "Bu sirket adiyla bir dis sirket");
+        assertDuplicate(response, "yalnizca sirket adina gore eslesti");
+        assertEquals("Ankara", existingCompany.getAddress());
     }
 
     @Test
@@ -917,13 +922,13 @@ class CompanyImportServiceTest {
     }
 
     @Test
-    void marksExternalFileDuplicatesUsingEmailNameAddressOrNameOnlyRules() {
+    void marksExternalFileDuplicatesUsingNameAddressAndContactRules() {
         CompanyImportResultResponse response = companyImportService
                 .importExternalCompanies(file(workbook -> {
                     Sheet sheet = workbook.createSheet("Dis Sirketler");
-                    writeRow(sheet, 0, "FIRMA", "E-POSTA", "A\u00C7IK ADRES");
-                    writeRow(sheet, 1, "Bir", "INFO@EXAMPLE.COM");
-                    writeRow(sheet, 2, "Iki", "info@example.com");
+                    writeRow(sheet, 0, "FIRMA", "TELEFON", "A\u00C7IK ADRES");
+                    writeRow(sheet, 1, "Bir", "0532");
+                    writeRow(sheet, 2, "Iki", "0532");
                     writeRow(sheet, 3, "Uc", " ", "Adres A");
                     writeRow(sheet, 4, " uc ", " ", " adres   a ");
                     writeRow(sheet, 5, "Uc", " ", "Adres B");
@@ -932,11 +937,11 @@ class CompanyImportServiceTest {
                     writeRow(sheet, 8, " bes ", " ", " ");
                 }));
 
-        assertEquals(6, response.duplicateCount());
-        assertEquals(2, response.importedCount());
+        assertEquals(4, response.duplicateCount());
+        assertEquals(4, response.importedCount());
         assertEquals(List.of(
-                "DUPLICATE",
-                "DUPLICATE",
+                "IMPORTED",
+                "IMPORTED",
                 "DUPLICATE",
                 "DUPLICATE",
                 "IMPORTED",
@@ -944,6 +949,143 @@ class CompanyImportServiceTest {
                 "DUPLICATE",
                 "DUPLICATE"
         ), response.rows().stream().map(row -> row.status()).toList());
+    }
+
+    @Test
+    void importsExternalRowsWithDifferentNamesAndSameEmail() {
+        CompanyImportResultResponse response = companyImportService
+                .importExternalCompanies(file(workbook -> {
+                    Sheet sheet = workbook.createSheet("Dis Sirketler");
+                    writeRow(sheet, 0, "FIRMA", "E-POSTA", "A\u00C7IK ADRES");
+                    writeRow(sheet, 1, "ABC", "same@email.com", "Adres A");
+                    writeRow(sheet, 2, "XYZ", "same@email.com", "Adres B");
+                }));
+
+        assertEquals(2, response.importedCount());
+        assertEquals(0, response.updatedCount());
+        assertEquals(0, response.duplicateCount());
+        assertEquals(List.of("IMPORTED", "IMPORTED"), response.rows()
+                .stream()
+                .map(row -> row.status())
+                .toList());
+        verify(companyRepository, times(2)).saveAndFlush(any(Company.class));
+    }
+
+    @Test
+    void importsBothSameAddressRowsWhenTheirPhonesDiffer() {
+        CompanyImportResultResponse response = companyImportService
+                .importExternalCompanies(file(workbook -> {
+                    Sheet sheet = workbook.createSheet("Dis Sirketler");
+                    writeRow(sheet, 0, "FIRMA", "TELEFON", "A\u00C7IK ADRES");
+                    writeRow(sheet, 1, "ABC", "111", "Sakarya");
+                    writeRow(sheet, 2, "ABC", "222", "Sakarya");
+                }));
+
+        assertEquals(2, response.importedCount());
+        assertEquals(0, response.duplicateCount());
+        assertEquals(List.of("IMPORTED", "IMPORTED"), response.rows()
+                .stream()
+                .map(row -> row.status())
+                .toList());
+    }
+
+    @Test
+    void skipsPreExistingExternalCompanyWithSameEmailAndMissingAddress() {
+        Company existingCompany = company("ABC", CompanyType.EXTERNAL);
+        emailMethod(existingCompany, "same@email.com");
+        when(companyRepository.findByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(List.of(existingCompany));
+
+        CompanyImportResultResponse response = companyImportService
+                .importExternalCompanies(file(workbook -> {
+                    Sheet sheet = workbook.createSheet("Dis Sirketler");
+                    writeRow(sheet, 0, "FIRMA", "E-POSTA", "A\u00C7IK ADRES");
+                    writeRow(sheet, 1, "ABC", "same@email.com", "Sakarya");
+                }));
+
+        assertEquals(0, response.importedCount());
+        assertEquals(0, response.updatedCount());
+        assertEquals(1, response.duplicateCount());
+        assertEquals("DUPLICATE", response.rows().getFirst().status());
+        assertNull(existingCompany.getAddress());
+        verify(companyRepository, never()).saveAndFlush(existingCompany);
+    }
+
+    @Test
+    void skipsPreExistingExternalCompanyWithSamePhoneAndMissingAddress() {
+        Company existingCompany = company("ABC", CompanyType.EXTERNAL);
+        phoneMethod(existingCompany, "555");
+        when(companyRepository.findByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(List.of(existingCompany));
+
+        CompanyImportResultResponse response = companyImportService
+                .importExternalCompanies(file(workbook -> {
+                    Sheet sheet = workbook.createSheet("Dis Sirketler");
+                    writeRow(sheet, 0, "FIRMA", "TELEFON", "A\u00C7IK ADRES");
+                    writeRow(sheet, 1, "ABC", "555", "Sakarya");
+                }));
+
+        assertEquals(0, response.importedCount());
+        assertEquals(0, response.updatedCount());
+        assertEquals(1, response.duplicateCount());
+        assertEquals("DUPLICATE", response.rows().getFirst().status());
+        assertNull(existingCompany.getAddress());
+        verify(companyRepository, never()).saveAndFlush(existingCompany);
+    }
+
+    @Test
+    void keepsPreExistingLocationUnchangedForEveryMatchingRow() {
+        Company existingCompany = company("ABC", CompanyType.EXTERNAL);
+        emailMethod(existingCompany, "same@email.com");
+        phoneMethod(existingCompany, "555");
+        when(companyRepository.findByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(List.of(existingCompany));
+
+        CompanyImportResultResponse response = companyImportService
+                .importExternalCompanies(file(workbook -> {
+                    Sheet sheet = workbook.createSheet("Dis Sirketler");
+                    writeRow(sheet, 0, "FIRMA", "E-POSTA", "TELEFON",
+                            "A\u00C7IK ADRES");
+                    writeRow(sheet, 1, "ABC", "same@email.com", " ",
+                            "Sakarya");
+                    writeRow(sheet, 2, "ABC", " ", "555", "Sakarya");
+                }));
+
+        assertEquals(0, response.updatedCount());
+        assertEquals(2, response.duplicateCount());
+        assertEquals(List.of("DUPLICATE", "DUPLICATE"), response.rows()
+                .stream()
+                .map(row -> row.status())
+                .toList());
+        assertNull(existingCompany.getAddress());
+        verify(companyRepository, never()).saveAndFlush(existingCompany);
+    }
+
+    @Test
+    void doesNotMergeArbitrarilyWhenMultipleExternalCompaniesMatch() {
+        Company first = company("ABC", CompanyType.EXTERNAL);
+        Company second = company("ABC", CompanyType.EXTERNAL);
+        emailMethod(first, "shared@email.com");
+        emailMethod(second, "shared@email.com");
+        when(companyRepository.findByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(List.of(first, second));
+
+        CompanyImportResultResponse response = companyImportService
+                .importExternalCompanies(file(workbook -> {
+                    Sheet sheet = workbook.createSheet("Dis Sirketler");
+                    writeRow(sheet, 0, "FIRMA", "E-POSTA", "A\u00C7IK ADRES");
+                    writeRow(sheet, 1, "ABC", "shared@email.com", "Sakarya");
+                }));
+
+        assertEquals(0, response.importedCount());
+        assertEquals(0, response.updatedCount());
+        assertEquals(1, response.duplicateCount());
+        assertEquals("DUPLICATE", response.rows().getFirst().status());
+        assertTrue(response.rows().getFirst().messages().getFirst()
+                .contains("birden fazla mevcut dis sirketle"));
+        assertNull(first.getAddress());
+        assertNull(second.getAddress());
+        verify(companyRepository, never()).saveAndFlush(any(Company.class));
     }
 
     private void assertDuplicate(
@@ -991,9 +1133,17 @@ class CompanyImportServiceTest {
 
     private CompanyContactMethod emailMethod(Company company, String email) {
         CompanyContactMethod contactMethod = new CompanyContactMethod();
-        contactMethod.setCompany(company);
         contactMethod.setType(CompanyContactMethodType.EMAIL);
         contactMethod.setValue(email);
+        company.addContactMethod(contactMethod);
+        return contactMethod;
+    }
+
+    private CompanyContactMethod phoneMethod(Company company, String phone) {
+        CompanyContactMethod contactMethod = new CompanyContactMethod();
+        contactMethod.setType(CompanyContactMethodType.PHONE);
+        contactMethod.setValue(phone);
+        company.addContactMethod(contactMethod);
         return contactMethod;
     }
 

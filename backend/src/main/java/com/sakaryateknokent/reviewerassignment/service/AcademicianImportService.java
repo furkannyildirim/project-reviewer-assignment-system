@@ -11,8 +11,6 @@ import com.sakaryateknokent.reviewerassignment.service.AcademicianImportClassifi
 import com.sakaryateknokent.reviewerassignment.service.AcademicianImportClassifier.ImportStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
-import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -28,10 +26,6 @@ public class AcademicianImportService {
     private static final String FAILED_DEFAULT_MESSAGE =
             "Kayit veritabanina yazilirken hata olustu. "
                     + "Diger kayitlarin aktarimina devam edildi.";
-    private static final String FAILED_OPTIMISTIC_LOCKING_MESSAGE =
-            "Kayit baska bir islem tarafindan guncellendi. "
-                    + "Bu kayit aktarilmadi.";
-
     private final AcademicianExcelImportParser parser;
     private final AcademicianImportClassifier classifier;
     private final AcademicianImportPersistenceService persistenceService;
@@ -43,8 +37,6 @@ public class AcademicianImportService {
         AcademicianImportPlan plan = classifier.classify(preview);
 
         List<AcademicianImportResultRowResponse> createdRows =
-                new ArrayList<>();
-        List<AcademicianImportResultRowResponse> updatedRows =
                 new ArrayList<>();
         List<AcademicianImportResultRowResponse> duplicateRows =
                 new ArrayList<>();
@@ -58,8 +50,6 @@ public class AcademicianImportService {
         for (AcademicianImportDecision decision : plan.decisions()) {
             if (decision.status() == ImportStatus.NEW) {
                 persistNew(decision, createdRows, failedRows);
-            } else if (decision.status() == ImportStatus.UPDATE) {
-                persistUpdate(decision, updatedRows, failedRows);
             } else if (decision.status() == ImportStatus.DUPLICATE) {
                 duplicateRows.add(toResultRow(
                         decision,
@@ -91,14 +81,14 @@ public class AcademicianImportService {
                 preview.getFileName(),
                 preview.getRows().size(),
                 createdRows.size(),
-                updatedRows.size(),
+                0,
                 duplicateRows.size(),
                 conflictRows.size(),
                 invalidRows.size(),
                 failedRows.size(),
                 warningCount,
                 List.copyOf(createdRows),
-                List.copyOf(updatedRows),
+                List.of(),
                 List.copyOf(duplicateRows),
                 List.copyOf(conflictRows),
                 List.copyOf(invalidRows),
@@ -128,33 +118,7 @@ public class AcademicianImportService {
         }
     }
 
-    private void persistUpdate(
-            AcademicianImportDecision decision,
-            List<AcademicianImportResultRowResponse> updatedRows,
-            List<AcademicianImportResultRowResponse> failedRows
-    ) {
-        try {
-            persistenceService.update(decision);
-            updatedRows.add(toResultRow(
-                    decision,
-                    "UPDATED",
-                    decision.changes()
-            ));
-        } catch (DataAccessException exception) {
-            failedRows.add(toResultRow(
-                    decision,
-                    "FAILED",
-                    List.of(failureMessage(exception))
-            ));
-        }
-    }
-
     private String failureMessage(DataAccessException exception) {
-        if (exception instanceof OptimisticLockingFailureException
-                || exception instanceof ObjectOptimisticLockingFailureException) {
-            return FAILED_OPTIMISTIC_LOCKING_MESSAGE;
-        }
-
         return FAILED_DEFAULT_MESSAGE;
     }
 

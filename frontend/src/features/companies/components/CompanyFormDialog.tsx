@@ -60,6 +60,11 @@ const emptyContact: CompanyContactFormValues = {
 const emptyValues: CompanyFormValues = {
     name: '',
     activityArea: '',
+    city: '',
+    district: '',
+    osb: '',
+    address: '',
+    building: '',
     logoUrl: '',
     contactMethods: [],
     contacts: [emptyContact],
@@ -107,6 +112,11 @@ function toFormValues(company: CompanyDetail | null): CompanyFormValues {
     return {
         name: company.name,
         activityArea: company.activityArea ?? '',
+        city: company.city ?? '',
+        district: company.district ?? '',
+        osb: company.osb ?? '',
+        address: company.address ?? '',
+        building: company.building ?? '',
         logoUrl: company.logoUrl ?? '',
         contactMethods: company.contactMethods.map((contactMethod) => ({
             id: contactMethod.id,
@@ -133,11 +143,11 @@ function buildRequest(
     const companyFields = {
         name: values.name.trim(),
         activityArea: normalizeOptional(values.activityArea),
-        city: null,
-        district: null,
-        osb: null,
-        address: null,
-        building: null,
+        city: normalizeOptional(values.city),
+        district: normalizeOptional(values.district),
+        osb: normalizeOptional(values.osb),
+        address: normalizeOptional(values.address),
+        building: normalizeOptional(values.building),
         logoUrl: normalizeOptional(values.logoUrl),
         contactMethods: values.contactMethods.map((contactMethod) => ({
             id: contactMethod.id,
@@ -198,6 +208,22 @@ function validate(values: CompanyFormValues): FormErrors {
 
     if (values.activityArea.trim().length > 2000) {
         errors.activityArea = 'Faaliyet alani en fazla 2000 karakter olabilir';
+    }
+
+    if (values.city.trim().length > 150) {
+        errors.city = 'Il en fazla 150 karakter olabilir';
+    }
+
+    if (values.district.trim().length > 150) {
+        errors.district = 'Ilce en fazla 150 karakter olabilir';
+    }
+
+    if (values.osb.trim().length > 255) {
+        errors.osb = 'OSB en fazla 255 karakter olabilir';
+    }
+
+    if (values.building.trim().length > 255) {
+        errors.building = 'Bina en fazla 255 karakter olabilir';
     }
 
     if (values.logoUrl.trim().length > 500) {
@@ -722,6 +748,85 @@ export function CompanyFormDialog({
                             htmlInput: { maxLength: 2000 },
                         }}
                     />
+
+                    <Stack spacing={1.5}>
+                        <Typography variant="h6">
+                            Konum Bilgileri
+                        </Typography>
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1.5}
+                        >
+                            <TextField
+                                label="Il"
+                                value={values.city}
+                                onChange={(event) =>
+                                    handleChange('city', event.target.value)}
+                                error={Boolean(errors.city)}
+                                helperText={errors.city}
+                                fullWidth
+                                disabled={isFormDisabled}
+                                slotProps={{
+                                    htmlInput: { maxLength: 150 },
+                                }}
+                            />
+                            <TextField
+                                label="Ilce"
+                                value={values.district}
+                                onChange={(event) =>
+                                    handleChange('district', event.target.value)}
+                                error={Boolean(errors.district)}
+                                helperText={errors.district}
+                                fullWidth
+                                disabled={isFormDisabled}
+                                slotProps={{
+                                    htmlInput: { maxLength: 150 },
+                                }}
+                            />
+                        </Stack>
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1.5}
+                        >
+                            <TextField
+                                label="OSB"
+                                value={values.osb}
+                                onChange={(event) =>
+                                    handleChange('osb', event.target.value)}
+                                error={Boolean(errors.osb)}
+                                helperText={errors.osb}
+                                fullWidth
+                                disabled={isFormDisabled}
+                                slotProps={{
+                                    htmlInput: { maxLength: 255 },
+                                }}
+                            />
+                            <TextField
+                                label="Bina"
+                                value={values.building}
+                                onChange={(event) =>
+                                    handleChange('building', event.target.value)}
+                                error={Boolean(errors.building)}
+                                helperText={errors.building}
+                                fullWidth
+                                disabled={isFormDisabled}
+                                slotProps={{
+                                    htmlInput: { maxLength: 255 },
+                                }}
+                            />
+                        </Stack>
+                        <TextField
+                            label="Acik Adres"
+                            value={values.address}
+                            onChange={(event) =>
+                                handleChange('address', event.target.value)}
+                            fullWidth
+                            multiline
+                            minRows={2}
+                            maxRows={5}
+                            disabled={isFormDisabled}
+                        />
+                    </Stack>
 
                     <TextField
                         label="Logo URL"

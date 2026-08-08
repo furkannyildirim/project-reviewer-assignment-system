@@ -9,6 +9,11 @@ export type Academician = {
     keywords: string[];
 };
 
+export type AcademicianIdentityWarningResponse = {
+    warning: boolean;
+    message: string | null;
+};
+
 export type CreateAcademicianRequest = {
     firstName: string;
     lastName: string;
@@ -40,7 +45,6 @@ export type AcademicianImportPreviewRow = {
 
 export type AcademicianImportPreviewRowStatus =
     | 'NEW'
-    | 'UPDATE'
     | 'DUPLICATE'
     | 'CONFLICT'
     | 'INVALID';
@@ -65,7 +69,6 @@ export type AcademicianImportPreviewResponse = {
 
 export type AcademicianImportResultRowStatus =
     | 'CREATED'
-    | 'UPDATED'
     | 'DUPLICATE'
     | 'CONFLICT'
     | 'INVALID'

@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.controller;
 
 import com.sakaryateknokent.reviewerassignment.dto.CompanyListResponse;
+import com.sakaryateknokent.reviewerassignment.dto.CompanyNameWarningResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ExportSelectionRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyImportResultResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyResponse;
@@ -96,6 +97,16 @@ public class CompanyController {
             @RequestParam CompanyType companyType
     ) {
         return ResponseEntity.ok(companyService.countCompanies(companyType));
+    }
+
+    @GetMapping("/external-name-warning")
+    public ResponseEntity<CompanyNameWarningResponse> getExternalNameWarning(
+            @RequestParam String name,
+            @RequestParam(required = false) Long excludeCompanyId
+    ) {
+        return ResponseEntity.ok(
+                companyService.getExternalNameWarning(name, excludeCompanyId)
+        );
     }
 
     @GetMapping("/ids")

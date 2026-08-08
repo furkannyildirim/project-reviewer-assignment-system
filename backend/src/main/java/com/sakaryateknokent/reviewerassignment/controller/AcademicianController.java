@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.controller;
 
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianResponse;
+import com.sakaryateknokent.reviewerassignment.dto.AcademicianIdentityWarningResponse;
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportPreviewResponse;
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportResultResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateAcademicianRequest;
@@ -73,6 +74,22 @@ public class AcademicianController {
     @GetMapping("/count")
     public ResponseEntity<Long> countAcademicians() {
         return ResponseEntity.ok(academicianService.countAcademicians());
+    }
+
+    @GetMapping("/identity-warning")
+    public ResponseEntity<AcademicianIdentityWarningResponse>
+    getIdentityWarning(
+            @RequestParam String firstName,
+            @RequestParam String lastName,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) Long excludeAcademicianId
+    ) {
+        return ResponseEntity.ok(academicianService.getIdentityWarning(
+                firstName,
+                lastName,
+                title,
+                excludeAcademicianId
+        ));
     }
 
     @GetMapping("/ids")

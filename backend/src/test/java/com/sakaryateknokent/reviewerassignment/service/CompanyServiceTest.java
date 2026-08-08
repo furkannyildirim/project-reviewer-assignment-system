@@ -2,6 +2,7 @@ package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.CompanyContactMethodRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyListResponse;
+import com.sakaryateknokent.reviewerassignment.dto.CompanyNameWarningResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyContactRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyRequest;
@@ -329,17 +330,252 @@ class CompanyServiceTest {
     }
 
     @Test
-    void rejectsGlobalCaseInsensitiveEmailDuplicateOnCreate() {
-        when(contactMethodRepository.existsByTypeAndValueIgnoreCase(
-                CompanyContactMethodType.EMAIL,
-                "duplicate@example.com"
-        )).thenReturn(true);
+    void rejectsTgbCreateWhenCanonicalNameAlreadyExists() {
+        when(companyRepository.findNamesByCompanyType(CompanyType.TGB))
+                .thenReturn(List.of("  İNOVA   Teknoloji "));
 
         assertThrows(DuplicateResourceException.class, () ->
                 companyService.createCompany(createRequest(
+                        "inova teknoloji",
                         CompanyType.TGB,
-                        List.of(method(null, CompanyContactMethodType.EMAIL,
-                                "DUPLICATE@EXAMPLE.COM", null, true))
+                        "new@example.com"
+                )));
+    }
+
+    @Test
+    void allowsTgbAndExternalCompaniesToUseSameCanonicalName() {
+        when(companyRepository.findNamesByCompanyType(CompanyType.TGB))
+                .thenReturn(List.of());
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        companyService.createCompany(createRequest(
+                "  İNOVA   Teknoloji ",
+                CompanyType.EXTERNAL,
+                "external@example.com"
+        ));
+        companyService.createCompany(createRequest(
+                "inova teknoloji",
+                CompanyType.TGB,
+                "tgb@example.com"
+        ));
+
+        verify(companyRepository, never())
+                .findNamesByCompanyType(CompanyType.EXTERNAL);
+        verify(companyRepository, org.mockito.Mockito.times(2))
+                .saveAndFlush(any(Company.class));
+    }
+
+    @Test
+    void warnsForSameCanonicalExternalNameAndStillAllowsCreate() {
+        when(companyRepository.findNamesByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(List.of("  İNOVA   Teknoloji "));
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CompanyNameWarningResponse warning =
+                companyService.getExternalNameWarning("inova teknoloji");
+        CompanyResponse created = companyService.createCompany(createRequest(
+                "inova teknoloji",
+                CompanyType.EXTERNAL,
+                "new@example.com"
+        ));
+
+        assertTrue(warning.warning());
+        assertEquals(
+                "Bu isimde bir dış şirket zaten mevcut. "
+                        + "Kaydetmeden önce mevcut kaydı kontrol edin.",
+                warning.message()
+        );
+        assertEquals("inova teknoloji", created.name());
+        verify(companyRepository).saveAndFlush(any(Company.class));
+    }
+
+    @Test
+    void doesNotWarnExternalCreateForSameNamedTgbCompany() {
+        when(companyRepository.findNamesByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(List.of());
+
+        CompanyNameWarningResponse warning =
+                companyService.getExternalNameWarning("ABC Teknoloji");
+
+        assertFalse(warning.warning());
+        assertNull(warning.message());
+        verify(companyRepository).findNamesByCompanyType(CompanyType.EXTERNAL);
+        verify(companyRepository, never())
+                .findNamesByCompanyType(CompanyType.TGB);
+    }
+
+    @Test
+    void createsExternalCompanyNormallyWhenCanonicalNameIsDifferent() {
+        when(companyRepository.findNamesByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(List.of("Mevcut Dis Sirket"));
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CompanyNameWarningResponse warning =
+                companyService.getExternalNameWarning("Yeni Dis Sirket");
+        CompanyResponse created = companyService.createCompany(createRequest(
+                "Yeni Dis Sirket",
+                CompanyType.EXTERNAL,
+                "shared@example.com"
+        ));
+
+        assertFalse(warning.warning());
+        assertNull(warning.message());
+        assertEquals("Yeni Dis Sirket", created.name());
+    }
+
+    @Test
+    void doesNotWarnWhenExternalCompanyKeepsItsOwnCanonicalName() {
+        Company company = company(
+                1L,
+                "  İNOVA   Teknoloji ",
+                CompanyType.EXTERNAL
+        );
+        when(companyRepository.findById(1L)).thenReturn(Optional.of(company));
+
+        CompanyNameWarningResponse warning =
+                companyService.getExternalNameWarning(
+                        "inova teknoloji",
+                        1L
+                );
+
+        assertFalse(warning.warning());
+        assertNull(warning.message());
+        verify(companyRepository, never())
+                .findNamesByCompanyType(CompanyType.EXTERNAL);
+    }
+
+    @Test
+    void warnsForAnotherExternalCanonicalNameAndStillAllowsUpdate() {
+        Company company = company(1L, "Mevcut Sirket", CompanyType.EXTERNAL);
+        CompanyContact contact = contact(10L, company, true);
+        company.addContact(contact);
+        when(companyRepository.findById(1L)).thenReturn(Optional.of(company));
+        when(companyRepository.findNamesByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(List.of(
+                        "Mevcut Sirket",
+                        "  RAKİP   Teknoloji "
+                ));
+
+        CompanyNameWarningResponse warning =
+                companyService.getExternalNameWarning(
+                        "rakip teknoloji",
+                        1L
+                );
+        CompanyResponse updated = companyService.updateCompany(
+                1L,
+                updateRequest("rakip teknoloji", List.of())
+        );
+
+        assertTrue(warning.warning());
+        assertEquals(
+                "Bu isimde başka bir dış şirket zaten mevcut. "
+                        + "Kaydetmeden önce mevcut kaydı kontrol edin.",
+                warning.message()
+        );
+        assertEquals("rakip teknoloji", updated.name());
+    }
+
+    @Test
+    void doesNotWarnExternalEditForSameNamedTgbCompany() {
+        Company company = company(1L, "Mevcut Dis Sirket", CompanyType.EXTERNAL);
+        when(companyRepository.findById(1L)).thenReturn(Optional.of(company));
+        when(companyRepository.findNamesByCompanyType(CompanyType.EXTERNAL))
+                .thenReturn(List.of("Baska Dis Sirket"));
+
+        CompanyNameWarningResponse warning =
+                companyService.getExternalNameWarning(
+                        "TGB Ortak Isim",
+                        1L
+                );
+
+        assertFalse(warning.warning());
+        assertNull(warning.message());
+        verify(companyRepository, never())
+                .findNamesByCompanyType(CompanyType.TGB);
+    }
+
+    @Test
+    void allowsTwoDifferentTgbCompaniesToUseSameCorporateEmailOnCreate() {
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        companyService.createCompany(createRequest(
+                "TGB ABC",
+                CompanyType.TGB,
+                "SHARED@EXAMPLE.COM"
+        ));
+        companyService.createCompany(createRequest(
+                "TGB XYZ",
+                CompanyType.TGB,
+                "shared@example.com"
+        ));
+
+        ArgumentCaptor<Company> captor = ArgumentCaptor.forClass(Company.class);
+        verify(companyRepository, org.mockito.Mockito.times(2))
+                .saveAndFlush(captor.capture());
+        assertEquals(List.of("TGB ABC", "TGB XYZ"), captor.getAllValues()
+                .stream()
+                .map(Company::getName)
+                .toList());
+        assertTrue(captor.getAllValues().stream()
+                .allMatch(company -> "shared@example.com".equals(
+                        company.getContactMethods().getFirst().getValue()
+                )));
+    }
+
+    @Test
+    void allowsTwoDifferentExternalCompaniesToUseSameCorporateEmailOnCreate() {
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        companyService.createCompany(createRequest(
+                "External ABC",
+                CompanyType.EXTERNAL,
+                "SHARED@EXAMPLE.COM"
+        ));
+        companyService.createCompany(createRequest(
+                "External XYZ",
+                CompanyType.EXTERNAL,
+                "shared@example.com"
+        ));
+
+        ArgumentCaptor<Company> captor = ArgumentCaptor.forClass(Company.class);
+        verify(companyRepository, org.mockito.Mockito.times(2))
+                .saveAndFlush(captor.capture());
+        assertTrue(captor.getAllValues().stream()
+                .allMatch(company -> CompanyType.EXTERNAL.equals(
+                        company.getCompanyType()
+                )));
+    }
+
+    @Test
+    void rejectsDuplicateCorporateEmailInSameCreateRequest() {
+        assertThrows(DuplicateResourceException.class, () ->
+                companyService.createCompany(createRequest(
+                        CompanyType.TGB,
+                        List.of(
+                                method(null, CompanyContactMethodType.EMAIL,
+                                        "info@test.com", null, true),
+                                method(null, CompanyContactMethodType.EMAIL,
+                                        "info@test.com", null, false)
+                        )
+                )));
+    }
+
+    @Test
+    void rejectsCaseInsensitiveDuplicateCorporateEmailInSameCreateRequest() {
+        assertThrows(DuplicateResourceException.class, () ->
+                companyService.createCompany(createRequest(
+                        CompanyType.TGB,
+                        List.of(
+                                method(null, CompanyContactMethodType.EMAIL,
+                                        "INFO@TEST.COM", null, true),
+                                method(null, CompanyContactMethodType.EMAIL,
+                                        "info@test.com", null, false)
+                        )
                 )));
     }
 
@@ -440,6 +676,40 @@ class CompanyServiceTest {
     }
 
     @Test
+    void updatePreservesLocationWhenRequestKeepsExistingValues() {
+        Company company = company(1L, "Eski Sirket", CompanyType.EXTERNAL);
+        company.setActivityArea("Eski Faaliyet");
+        company.setCity("Sakarya");
+        company.setDistrict("Arifiye");
+        company.setOsb("1.OSB");
+        company.setAddress("Mevcut Adres");
+        company.setBuilding("A Blok");
+        CompanyContact contact = contact(10L, company, true);
+        company.addContact(contact);
+        when(companyRepository.findById(1L)).thenReturn(Optional.of(company));
+
+        CompanyResponse response = companyService.updateCompany(
+                1L,
+                updateRequest(
+                        List.of(),
+                        "Yeni Faaliyet",
+                        "Sakarya",
+                        "Arifiye",
+                        "1.OSB",
+                        "Mevcut Adres",
+                        "A Blok"
+                )
+        );
+
+        assertEquals("Yeni Faaliyet", response.activityArea());
+        assertEquals("Sakarya", response.city());
+        assertEquals("Arifiye", response.district());
+        assertEquals("1.OSB", response.osb());
+        assertEquals("Mevcut Adres", response.address());
+        assertEquals("A Blok", response.building());
+    }
+
+    @Test
     void locationFieldsAreAvailableForTgbAndExternalCompanies() {
         when(companyRepository.saveAndFlush(any(Company.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -495,28 +765,137 @@ class CompanyServiceTest {
     }
 
     @Test
-    void rejectsDuplicateEmailOnUpdateWhenAnotherCompanyHasIt() {
+    void rejectsTgbUpdateToAnotherTgbCanonicalName() {
+        Company company = company(1L, "Mevcut Sirket", CompanyType.TGB);
+        when(companyRepository.findById(1L)).thenReturn(Optional.of(company));
+        when(companyRepository.findNamesByCompanyType(CompanyType.TGB))
+                .thenReturn(List.of(
+                        "Mevcut Sirket",
+                        "  RAKİP   Teknoloji "
+                ));
+
+        assertThrows(DuplicateResourceException.class, () ->
+                companyService.updateCompany(
+                        1L,
+                        updateRequest("rakip teknoloji", List.of())
+                ));
+    }
+
+    @Test
+    void allowsTgbCompanyToKeepItsOwnCanonicalName() {
+        Company company = company(
+                1L,
+                "  İNOVA   Teknoloji ",
+                CompanyType.TGB
+        );
+        CompanyContact contact = contact(10L, company, true);
+        company.addContact(contact);
+        when(companyRepository.findById(1L)).thenReturn(Optional.of(company));
+
+        CompanyResponse response = companyService.updateCompany(
+                1L,
+                updateRequest("inova teknoloji", List.of())
+        );
+
+        assertEquals("inova teknoloji", response.name());
+        verify(companyRepository, never())
+                .findNamesByCompanyType(CompanyType.TGB);
+    }
+
+    @Test
+    void allowsCompanyToUseAnotherCompanyCorporateEmailOnUpdate() {
         Company company = company(1L, "Eski Sirket", CompanyType.EXTERNAL);
         CompanyContact contact = contact(10L, company, true);
         company.addContact(contact);
 
         when(companyRepository.findById(1L)).thenReturn(Optional.of(company));
-        when(contactMethodRepository.existsByTypeAndValueIgnoreCaseAndCompanyIdNot(
+
+        CompanyResponse response = companyService.updateCompany(
+                1L,
+                updateRequest(List.of(method(
+                        null,
+                        CompanyContactMethodType.EMAIL,
+                        "TAKEN@EXAMPLE.COM",
+                        null,
+                        true
+                )))
+        );
+
+        assertEquals("taken@example.com",
+                response.contactMethods().getFirst().value());
+    }
+
+    @Test
+    void allowsCompanyToKeepItsOwnEmailOnUpdate() {
+        Company company = company(1L, "Eski Sirket", CompanyType.TGB);
+        CompanyContact contact = contact(10L, company, true);
+        company.addContact(contact);
+        company.addContactMethod(contactMethod(
+                100L,
+                company,
                 CompanyContactMethodType.EMAIL,
-                "taken@example.com",
-                1L
-        )).thenReturn(true);
+                "own@example.com",
+                true
+        ));
+        when(companyRepository.findById(1L)).thenReturn(Optional.of(company));
+
+        CompanyResponse response = companyService.updateCompany(
+                1L,
+                updateRequest(List.of(method(
+                        100L,
+                        CompanyContactMethodType.EMAIL,
+                        "OWN@EXAMPLE.COM",
+                        null,
+                        true
+                )))
+        );
+
+        assertEquals("own@example.com",
+                response.contactMethods().getFirst().value());
+    }
+
+    @Test
+    void allowsTgbAndExternalCompaniesToUseSameCorporateEmailOnCreate() {
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        companyService.createCompany(createRequest(
+                "TGB ABC",
+                CompanyType.TGB,
+                "CROSS-TYPE@EXAMPLE.COM"
+        ));
+        companyService.createCompany(createRequest(
+                "External XYZ",
+                CompanyType.EXTERNAL,
+                "cross-type@example.com"
+        ));
+
+        ArgumentCaptor<Company> captor = ArgumentCaptor.forClass(Company.class);
+        verify(companyRepository, org.mockito.Mockito.times(2))
+                .saveAndFlush(captor.capture());
+        assertEquals(List.of(CompanyType.TGB, CompanyType.EXTERNAL),
+                captor.getAllValues()
+                        .stream()
+                        .map(Company::getCompanyType)
+                        .toList());
+    }
+
+    @Test
+    void rejectsCaseInsensitiveDuplicateCorporateEmailInSameUpdateRequest() {
+        Company company = company(1L, "Eski Sirket", CompanyType.TGB);
+        CompanyContact contact = contact(10L, company, true);
+        company.addContact(contact);
+        when(companyRepository.findById(1L)).thenReturn(Optional.of(company));
 
         assertThrows(DuplicateResourceException.class, () ->
                 companyService.updateCompany(
                         1L,
-                        updateRequest(List.of(method(
-                                null,
-                                CompanyContactMethodType.EMAIL,
-                                "TAKEN@EXAMPLE.COM",
-                                null,
-                                true
-                        )))
+                        updateRequest(List.of(
+                                method(null, CompanyContactMethodType.EMAIL,
+                                        "INFO@TEST.COM", null, true),
+                                method(null, CompanyContactMethodType.EMAIL,
+                                        "info@test.com", null, false)
+                        ))
                 ));
     }
 
@@ -741,6 +1120,38 @@ class CompanyServiceTest {
     }
 
     private CreateCompanyRequest createRequest(
+            String name,
+            CompanyType companyType,
+            String corporateEmail
+    ) {
+        return new CreateCompanyRequest(
+                name,
+                "Yazilim",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                companyType,
+                List.of(method(
+                        null,
+                        CompanyContactMethodType.EMAIL,
+                        corporateEmail,
+                        null,
+                        true
+                )),
+                List.of(new CreateCompanyContactRequest(
+                        "Yetkili Kisi",
+                        "Mudur",
+                        "contact@example.com",
+                        null,
+                        true
+                ))
+        );
+    }
+
+    private CreateCompanyRequest createRequest(
             CompanyType companyType,
             List<CompanyContactMethodRequest> contactMethods,
             String activityArea
@@ -792,6 +1203,31 @@ class CompanyServiceTest {
             List<CompanyContactMethodRequest> contactMethods
     ) {
         return updateRequest(contactMethods, "Yazilim");
+    }
+
+    private UpdateCompanyRequest updateRequest(
+            String name,
+            List<CompanyContactMethodRequest> contactMethods
+    ) {
+        return new UpdateCompanyRequest(
+                name,
+                "Yazilim",
+                "Kocaeli",
+                "Gebze",
+                "GOSB",
+                "Yeni Adres",
+                "Bina 2",
+                null,
+                contactMethods,
+                List.of(new UpdateCompanyContactRequest(
+                        10L,
+                        "Guncel Yetkili",
+                        "Mudur",
+                        "updated-contact@example.com",
+                        null,
+                        true
+                ))
+        );
     }
 
     private UpdateCompanyRequest updateRequest(

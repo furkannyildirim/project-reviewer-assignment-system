@@ -13,7 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -109,17 +108,10 @@ class AcademicianImportServiceTest {
         Method createMethod = AcademicianImportPersistenceService.class
                 .getMethod("create",
                         com.sakaryateknokent.reviewerassignment.importing.AcademicianImportRow.class);
-        Method updateMethod = AcademicianImportPersistenceService.class
-                .getMethod("update",
-                        AcademicianImportClassifier.AcademicianImportDecision.class);
 
         assertEquals(
                 Propagation.REQUIRES_NEW,
                 createMethod.getAnnotation(Transactional.class).propagation()
-        );
-        assertEquals(
-                Propagation.REQUIRES_NEW,
-                updateMethod.getAnnotation(Transactional.class).propagation()
         );
     }
 
@@ -130,7 +122,7 @@ class AcademicianImportServiceTest {
     }
 
     @Test
-    void updatesExistingEmailWhenIdentityMatchesAndEmailIsMissing() {
+    void canonicalIdentityWithEmailOnOnlyOneSideRequiresManualReview() {
         Academician existing = academician("Ayse", "Yilmaz", "Doc. Dr.");
         when(academicianRepository.findByNormalizedEmail("ayse@example.com"))
                 .thenReturn(List.of());
@@ -148,13 +140,17 @@ class AcademicianImportServiceTest {
                 })
         );
 
-        assertEquals(1, response.updatedCount());
-        assertEquals("UPDATED", response.updatedRows().getFirst().status());
-        assertEquals("ayse@example.com", savedAcademicians().getFirst().getEmail());
+        assertEquals(1, response.conflictCount());
+        assertEquals(0, response.updatedCount());
+        assertTrue(response.conflictRows().getFirst().messages().getFirst()
+                .contains("Otomatik güncelleme yapılmadı"));
+        assertNull(existing.getEmail());
+        verify(academicianRepository, never())
+                .saveAndFlush(any(Academician.class));
     }
 
     @Test
-    void updatesExistingPhoneWhenIdentityMatchesAndPhoneIsMissing() {
+    void additionalPhoneRequiresManualReviewWithoutUpdate() {
         Academician existing = academician("Ayse", "Yilmaz", "Doc. Dr.");
         when(academicianRepository.findByCanonicalIdentity(
                 "ayse",
@@ -170,12 +166,15 @@ class AcademicianImportServiceTest {
                 })
         );
 
-        assertEquals(1, response.updatedCount());
-        assertEquals("0532 111 22 33", savedAcademicians().getFirst().getPhone());
+        assertEquals(1, response.conflictCount());
+        assertEquals(0, response.updatedCount());
+        assertNull(existing.getPhone());
+        verify(academicianRepository, never())
+                .saveAndFlush(any(Academician.class));
     }
 
     @Test
-    void incomingBlankContactValuesDoNotClearExistingValues() {
+    void missingIncomingEmailRequiresManualReviewWithoutClearingValues() {
         Academician existing = academician("Ayse", "Yilmaz", "Doc. Dr.");
         existing.setEmail("ayse@example.com");
         existing.setPhone("0532 111 22 33");
@@ -192,7 +191,9 @@ class AcademicianImportServiceTest {
                 })
         );
 
-        assertEquals(1, response.duplicateCount());
+        assertEquals(1, response.conflictCount());
+        assertEquals("ayse@example.com", existing.getEmail());
+        assertEquals("0532 111 22 33", existing.getPhone());
         verify(academicianRepository, never()).saveAndFlush(any(Academician.class));
     }
 
@@ -261,7 +262,7 @@ class AcademicianImportServiceTest {
     }
 
     @Test
-    void conflictingExistingEmailIsNotOverwritten() {
+    void sameCanonicalIdentityWithDifferentEmailsIsNew() {
         Academician existing = academician("Ayse", "Yilmaz", "Doc. Dr.");
         existing.setEmail("old@example.com");
         when(academicianRepository.findByNormalizedEmail("new@example.com"))
@@ -280,9 +281,13 @@ class AcademicianImportServiceTest {
                 })
         );
 
-        assertEquals(1, response.conflictCount());
+        assertEquals(1, response.createdCount());
+        assertEquals(0, response.conflictCount());
         assertEquals("old@example.com", existing.getEmail());
-        verify(academicianRepository, never()).saveAndFlush(any(Academician.class));
+        assertEquals(
+                "new@example.com",
+                savedAcademicians().getFirst().getEmail()
+        );
     }
 
     @Test
@@ -324,7 +329,7 @@ class AcademicianImportServiceTest {
 
         assertEquals(1, response.conflictCount());
         assertTrue(response.conflictRows().getFirst().messages().getFirst()
-                .contains("Ayni e-posta mevcut"));
+                .contains("Otomatik güncelleme yapılmadı"));
     }
 
     @Test
@@ -350,7 +355,7 @@ class AcademicianImportServiceTest {
     }
 
     @Test
-    void updatesKeywordUnionWithoutRemovingExistingKeywords() {
+    void existingAcademicianWithAdditionalKeywordsRequiresManualReviewWithoutUpdate() {
         Academician existing = academician("Ayse", "Yilmaz", "Doc. Dr.");
         existing.getKeywords().addAll(List.of("Java", "Spring"));
         when(academicianRepository.findByCanonicalIdentity(
@@ -367,18 +372,20 @@ class AcademicianImportServiceTest {
                 })
         );
 
-        assertEquals(1, response.updatedCount());
+        assertEquals(1, response.conflictCount());
+        assertEquals(0, response.updatedCount());
         assertIterableEquals(
-                List.of("Java", "Spring", "Yapay Zeka"),
-                List.copyOf(savedAcademicians().getFirst().getKeywords())
+                List.of("Java", "Spring"),
+                List.copyOf(existing.getKeywords())
         );
-        assertEquals("ayse", existing.getCanonicalFirstName());
-        assertEquals("yilmaz", existing.getCanonicalLastName());
-        assertEquals("doc. dr.", existing.getCanonicalTitle());
+        assertTrue(response.conflictRows().getFirst().messages().getFirst()
+                .contains("Otomatik güncelleme yapılmadı"));
+        verify(academicianRepository, never())
+                .saveAndFlush(any(Academician.class));
     }
 
     @Test
-    void sameFileComplementaryRowsBecomeSingleCreatedAcademician() {
+    void sameFileCanonicalMatchWithEmailOnOnlyOneRowRequiresManualReview() {
         AcademicianImportResultResponse response = importService.importCreateOnly(
                 workbook("akademisyenler.xlsx", sheet -> {
                     writeRow(sheet, 0, "AD", "SOYAD", "UNVAN", "EMAIL", "TELEFON");
@@ -388,15 +395,14 @@ class AcademicianImportServiceTest {
                 })
         );
 
-        List<Academician> saved = savedAcademicians();
-        assertEquals(1, response.createdCount());
-        assertEquals(1, saved.size());
-        assertEquals("ayse@example.com", saved.getFirst().getEmail());
-        assertEquals("0532", saved.getFirst().getPhone());
+        assertEquals(0, response.createdCount());
+        assertEquals(2, response.conflictCount());
+        verify(academicianRepository, never())
+                .saveAndFlush(any(Academician.class));
     }
 
     @Test
-    void sameFileDifferentEmailsForSameIdentityAreConflict() {
+    void sameFileDifferentEmailsForSameIdentityAreSeparateNewAcademicians() {
         AcademicianImportResultResponse response = importService.importCreateOnly(
                 workbook("akademisyenler.xlsx", sheet -> {
                     writeRow(sheet, 0, "AD", "SOYAD", "EMAIL");
@@ -405,8 +411,9 @@ class AcademicianImportServiceTest {
                 })
         );
 
-        assertEquals(1, response.conflictCount());
-        verify(academicianRepository, never()).saveAndFlush(any(Academician.class));
+        assertEquals(2, response.createdCount());
+        assertEquals(0, response.conflictCount());
+        assertEquals(2, savedAcademicians().size());
     }
 
     @Test
@@ -433,7 +440,7 @@ class AcademicianImportServiceTest {
                 })
         );
 
-        assertEquals(2, response.conflictCount());
+        assertEquals(1, response.conflictCount());
         verify(academicianRepository, never()).saveAndFlush(any(Academician.class));
     }
 
@@ -454,7 +461,7 @@ class AcademicianImportServiceTest {
     }
 
     @Test
-    void communicationColumnContactValuesParticipateInMerge() {
+    void communicationColumnAdditionalContactValuesRequireManualReview() {
         Academician existing = academician("Ayse", "Yilmaz", null);
         when(academicianRepository.findByNormalizedEmail("ayse@example.com"))
                 .thenReturn(List.of());
@@ -472,10 +479,12 @@ class AcademicianImportServiceTest {
                 })
         );
 
-        assertEquals(1, response.updatedCount());
-        Academician saved = savedAcademicians().getFirst();
-        assertEquals("ayse@example.com", saved.getEmail());
-        assertEquals("0532 111 22 33", saved.getPhone());
+        assertEquals(1, response.conflictCount());
+        assertEquals(0, response.updatedCount());
+        assertNull(existing.getEmail());
+        assertNull(existing.getPhone());
+        verify(academicianRepository, never())
+                .saveAndFlush(any(Academician.class));
     }
 
     @Test
@@ -505,15 +514,14 @@ class AcademicianImportServiceTest {
     }
 
     @Test
-    void failedUpdateRowDoesNotStopFollowingNewRows() {
+    void manualReviewRowDoesNotStopFollowingNewRows() {
         Academician existing = academician("Ayse", "Yilmaz", "Doc. Dr.");
         when(academicianRepository.findByCanonicalIdentity(
                 "ayse",
                 "yilmaz",
                 "doc. dr."
         )).thenReturn(List.of(existing));
-        doThrow(new DataIntegrityViolationException("constraint x"))
-                .doAnswer(invocation -> invocation.getArgument(0))
+        doAnswer(invocation -> invocation.getArgument(0))
                 .when(academicianRepository)
                 .saveAndFlush(any(Academician.class));
 
@@ -529,14 +537,14 @@ class AcademicianImportServiceTest {
 
         assertEquals(0, response.updatedCount());
         assertEquals(1, response.createdCount());
-        assertEquals(1, response.failedCount());
-        assertEquals("FAILED", response.failedRows().getFirst().status());
+        assertEquals(1, response.conflictCount());
+        assertEquals(0, response.failedCount());
         verify(academicianRepository, atLeastOnce())
                 .saveAndFlush(any(Academician.class));
     }
 
     @Test
-    void optimisticLockingFailureDuringImportUpdateFailsOnlyThatRow() {
+    void existingRowsNeverInvokeImportPersistence() {
         AcademicianImportPersistenceService failingPersistenceService =
                 mock(AcademicianImportPersistenceService.class);
         AcademicianImportService service = new AcademicianImportService(
@@ -548,11 +556,6 @@ class AcademicianImportServiceTest {
                 .thenReturn(List.of(academician("Ayse", "Yilmaz", null)));
         when(academicianRepository.findByNormalizedEmail("ali@example.com"))
                 .thenReturn(List.of(academician("Ali", "Demir", null)));
-        doThrow(new OptimisticLockingFailureException("stale"))
-                .doNothing()
-                .when(failingPersistenceService)
-                .update(any(AcademicianImportClassifier.AcademicianImportDecision.class));
-
         AcademicianImportResultResponse response = service.importCreateOnly(
                 workbook("akademisyenler.xlsx", sheet -> {
                     writeRow(sheet, 0, "AD", "SOYAD", "EMAIL", "TELEFON");
@@ -563,11 +566,11 @@ class AcademicianImportServiceTest {
                 })
         );
 
-        assertEquals(1, response.updatedCount());
-        assertEquals(1, response.failedCount());
-        assertEquals("FAILED", response.failedRows().getFirst().status());
-        assertTrue(response.failedRows().getFirst().messages().getFirst()
-                .contains("baska bir islem tarafindan guncellendi"));
+        assertEquals(0, response.updatedCount());
+        assertEquals(2, response.conflictCount());
+        assertEquals(0, response.failedCount());
+        verify(failingPersistenceService, never())
+                .create(any(com.sakaryateknokent.reviewerassignment.importing.AcademicianImportRow.class));
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.sakaryateknokent.reviewerassignment.dto.CompanyContactMethodRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyContactMethodResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyContactResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyListResponse;
+import com.sakaryateknokent.reviewerassignment.dto.CompanyNameWarningResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyContactRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyRequest;
@@ -39,6 +40,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -48,6 +50,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 public class CompanyService {
+
+    private static final String EXTERNAL_NAME_WARNING_MESSAGE =
+            "Bu isimde bir dış şirket zaten mevcut. "
+                    + "Kaydetmeden önce mevcut kaydı kontrol edin.";
+    private static final String EXTERNAL_UPDATE_NAME_WARNING_MESSAGE =
+            "Bu isimde başka bir dış şirket zaten mevcut. "
+                    + "Kaydetmeden önce mevcut kaydı kontrol edin.";
 
     private static final Sort DEFAULT_COMPANY_SORT =
             Sort.by(Sort.Order.asc("name").ignoreCase());
@@ -64,15 +73,20 @@ public class CompanyService {
     private final CompanyContactMethodRepository companyContactMethodRepository;
 
     public CompanyResponse createCompany(CreateCompanyRequest request) {
+        String companyName = request.name().trim();
+        validateTgbNameAvailabilityForCreate(
+                companyName,
+                request.companyType()
+        );
+
         List<NormalizedContactMethodRequest> contactMethods =
                 normalizeCreateContactMethods(request.contactMethods());
-        validateEmailAvailabilityForCreate(contactMethods);
 
         List<NormalizedContactRequest> contacts =
                 normalizeCreateContacts(request.contacts());
 
         Company company = new Company();
-        company.setName(request.name().trim());
+        company.setName(companyName);
         company.setActivityArea(normalizeOptionalText(request.activityArea()));
         company.setCity(normalizeOptionalText(request.city()));
         company.setDistrict(normalizeOptionalText(request.district()));
@@ -161,6 +175,49 @@ public class CompanyService {
     }
 
     @Transactional(readOnly = true)
+    public CompanyNameWarningResponse getExternalNameWarning(String name) {
+        return getExternalNameWarning(name, null);
+    }
+
+    @Transactional(readOnly = true)
+    public CompanyNameWarningResponse getExternalNameWarning(
+            String name,
+            Long excludeCompanyId
+    ) {
+        String canonicalName = canonicalCompanyName(name);
+
+        if (excludeCompanyId != null) {
+            Optional<Company> excludedCompany = companyRepository.findById(
+                    excludeCompanyId
+            );
+            if (excludedCompany.isPresent()
+                    && CompanyType.EXTERNAL.equals(
+                    excludedCompany.get().getCompanyType()
+            )
+                    && canonicalName.equals(canonicalCompanyName(
+                    excludedCompany.get().getName()
+            ))) {
+                return new CompanyNameWarningResponse(false, null);
+            }
+        }
+
+        boolean warning = companyRepository
+                .findNamesByCompanyType(CompanyType.EXTERNAL)
+                .stream()
+                .map(this::canonicalCompanyName)
+                .anyMatch(canonicalName::equals);
+
+        return new CompanyNameWarningResponse(
+                warning,
+                warning
+                        ? excludeCompanyId == null
+                        ? EXTERNAL_NAME_WARNING_MESSAGE
+                        : EXTERNAL_UPDATE_NAME_WARNING_MESSAGE
+                        : null
+        );
+    }
+
+    @Transactional(readOnly = true)
     public List<Long> getCompanyIds(
             CompanyType companyType,
             String search,
@@ -195,14 +252,16 @@ public class CompanyService {
             UpdateCompanyRequest request
     ) {
         Company company = findCompanyById(id);
+        String companyName = request.name().trim();
+        validateTgbNameAvailabilityForUpdate(companyName, company);
+
         List<NormalizedContactMethodRequest> contactMethods =
                 normalizeUpdateContactMethods(request.contactMethods());
-        validateEmailAvailabilityForUpdate(contactMethods, id);
 
         List<NormalizedContactRequest> contacts =
                 normalizeUpdateContacts(request.contacts());
 
-        company.setName(request.name().trim());
+        company.setName(companyName);
         company.setActivityArea(normalizeOptionalText(request.activityArea()));
         company.setCity(normalizeOptionalText(request.city()));
         company.setDistrict(normalizeOptionalText(request.district()));
@@ -227,6 +286,50 @@ public class CompanyService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Sirket bulunamadi: " + id
                 ));
+    }
+
+    private void validateTgbNameAvailabilityForCreate(
+            String companyName,
+            CompanyType companyType
+    ) {
+        if (!CompanyType.TGB.equals(companyType)) {
+            return;
+        }
+
+        rejectExistingTgbCanonicalName(companyName);
+    }
+
+    private void validateTgbNameAvailabilityForUpdate(
+            String companyName,
+            Company company
+    ) {
+        if (!CompanyType.TGB.equals(company.getCompanyType())
+                || canonicalCompanyName(companyName).equals(
+                canonicalCompanyName(company.getName())
+        )) {
+            return;
+        }
+
+        rejectExistingTgbCanonicalName(companyName);
+    }
+
+    private void rejectExistingTgbCanonicalName(String companyName) {
+        String canonicalName = canonicalCompanyName(companyName);
+        boolean duplicateExists = companyRepository
+                .findNamesByCompanyType(CompanyType.TGB)
+                .stream()
+                .map(this::canonicalCompanyName)
+                .anyMatch(canonicalName::equals);
+
+        if (duplicateExists) {
+            throw new DuplicateResourceException(
+                    "Bu isimle kayitli bir TGB sirketi zaten var"
+            );
+        }
+    }
+
+    private String canonicalCompanyName(String companyName) {
+        return ExternalCompanyIdentityMatcher.canonicalName(companyName);
     }
 
     private List<NormalizedContactMethodRequest> normalizeCreateContactMethods(
@@ -388,42 +491,6 @@ public class CompanyService {
             if (!seenEmails.add(contactMethod.value())) {
                 throw new DuplicateResourceException(
                         "Ayni e-posta adresi birden fazla kez gonderilemez"
-                );
-            }
-        }
-    }
-
-    private void validateEmailAvailabilityForCreate(
-            List<NormalizedContactMethodRequest> contactMethods
-    ) {
-        for (NormalizedContactMethodRequest contactMethod : contactMethods) {
-            if (CompanyContactMethodType.EMAIL.equals(contactMethod.type())
-                    && companyContactMethodRepository
-                    .existsByTypeAndValueIgnoreCase(
-                            CompanyContactMethodType.EMAIL,
-                            contactMethod.value()
-                    )) {
-                throw new DuplicateResourceException(
-                        "Bu e-posta adresiyle kayitli bir sirket zaten var"
-                );
-            }
-        }
-    }
-
-    private void validateEmailAvailabilityForUpdate(
-            List<NormalizedContactMethodRequest> contactMethods,
-            Long companyId
-    ) {
-        for (NormalizedContactMethodRequest contactMethod : contactMethods) {
-            if (CompanyContactMethodType.EMAIL.equals(contactMethod.type())
-                    && companyContactMethodRepository
-                    .existsByTypeAndValueIgnoreCaseAndCompanyIdNot(
-                            CompanyContactMethodType.EMAIL,
-                            contactMethod.value(),
-                            companyId
-                    )) {
-                throw new DuplicateResourceException(
-                        "Bu e-posta adresiyle kayitli baska bir sirket zaten var"
                 );
             }
         }

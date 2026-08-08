@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianResponse;
+import com.sakaryateknokent.reviewerassignment.dto.AcademicianIdentityWarningResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateAcademicianRequest;
@@ -30,6 +31,10 @@ public class AcademicianService {
 
     private static final Set<Integer> ALLOWED_PAGE_SIZES =
             Set.of(10, 15, 20, 25);
+
+    private static final String IDENTITY_WARNING_MESSAGE =
+            "Aynı ad, soyad ve ünvanla kayıtlı bir akademisyen zaten var. "
+                    + "Yine de devam etmek istiyor musunuz?";
 
     private static final Sort DEFAULT_ACADEMICIAN_SORT = Sort.by(
             Sort.Order.asc("firstName"),
@@ -106,6 +111,35 @@ public class AcademicianService {
     @Transactional(readOnly = true)
     public long countAcademicians() {
         return academicianRepository.count();
+    }
+
+    @Transactional(readOnly = true)
+    public AcademicianIdentityWarningResponse getIdentityWarning(
+            String firstName,
+            String lastName,
+            String title,
+            Long excludeAcademicianId
+    ) {
+        boolean warning = academicianRepository.findByCanonicalIdentity(
+                        AcademicianTextNormalizer.canonicalizeIdentityPart(
+                                firstName
+                        ),
+                        AcademicianTextNormalizer.canonicalizeIdentityPart(
+                                lastName
+                        ),
+                        AcademicianTextNormalizer.canonicalizeIdentityPart(
+                                title
+                        )
+                )
+                .stream()
+                .anyMatch(academician -> !academician.getId().equals(
+                        excludeAcademicianId
+                ));
+
+        return new AcademicianIdentityWarningResponse(
+                warning,
+                warning ? IDENTITY_WARNING_MESSAGE : null
+        );
     }
 
     @Transactional(readOnly = true)

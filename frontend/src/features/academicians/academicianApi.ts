@@ -4,6 +4,7 @@ import type {
     Academician,
     AcademicianExportParams,
     AcademicianIdParams,
+    AcademicianIdentityWarningResponse,
     AcademicianImportPreviewResponse,
     AcademicianImportResultResponse,
     AcademicianPageParams,
@@ -59,6 +60,25 @@ export async function getAcademicianIds(
 
 export async function getAcademicianCount(): Promise<number> {
     const response = await httpClient.get<number>('/academicians/count');
+
+    return response.data;
+}
+
+export async function getAcademicianIdentityWarning(
+    request: CreateAcademicianRequest | UpdateAcademicianRequest,
+    excludeAcademicianId?: number,
+): Promise<AcademicianIdentityWarningResponse> {
+    const response = await httpClient.get<AcademicianIdentityWarningResponse>(
+        '/academicians/identity-warning',
+        {
+            params: {
+                firstName: request.firstName,
+                lastName: request.lastName,
+                title: request.title ?? undefined,
+                excludeAcademicianId,
+            },
+        },
+    );
 
     return response.data;
 }

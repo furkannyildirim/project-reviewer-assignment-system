@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -36,7 +37,15 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
             @Param("companyType") CompanyType companyType
     );
 
-    List<Company> findByCompanyType(CompanyType companyType);
+    @EntityGraph(attributePaths = "contactMethods")
+    @Query("""
+            SELECT DISTINCT company
+            FROM Company company
+            WHERE company.companyType = :companyType
+            """)
+    List<Company> findByCompanyType(
+            @Param("companyType") CompanyType companyType
+    );
 
     List<Company> findByCompanyTypeAndIdIn(
             CompanyType companyType,

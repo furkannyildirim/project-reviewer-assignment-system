@@ -112,7 +112,7 @@ class AcademicianImportPreviewServiceTest {
         );
 
         assertEquals(0, response.validRowCount());
-        assertEquals(2, response.conflictRowCount());
+        assertEquals(1, response.conflictRowCount());
         assertEquals(0, response.invalidRowCount());
         assertEquals("CONFLICT", response.rows().getFirst().status());
         assertTrue(response.rows().getFirst().messages().getFirst().contains(
@@ -140,7 +140,7 @@ class AcademicianImportPreviewServiceTest {
 
     @Test
     void classifiesPreviewRowsWithSameStatusesUsedByImport() {
-        Academician updateMatch = academician("Ugur", "Guzel", "Doc. Dr.");
+        Academician manualReviewMatch = academician("Ugur", "Guzel", "Doc. Dr.");
         Academician duplicateMatch = academician("Ali", "Demir", "Prof. Dr.");
         duplicateMatch.setEmail("ali@example.com");
         Academician conflictMatch = academician("Baska", "Kisi", "Prof. Dr.");
@@ -152,7 +152,7 @@ class AcademicianImportPreviewServiceTest {
                 "ugur",
                 "guzel",
                 "doc. dr."
-        )).thenReturn(List.of(updateMatch));
+        )).thenReturn(List.of(manualReviewMatch));
         when(academicianRepository.findByNormalizedEmail("ali@example.com"))
                 .thenReturn(List.of(duplicateMatch));
         when(academicianRepository.findByNormalizedEmail("conflict@example.com"))
@@ -175,14 +175,14 @@ class AcademicianImportPreviewServiceTest {
         );
 
         assertEquals(1, response.newRowCount());
-        assertEquals(1, response.updateRowCount());
+        assertEquals(0, response.updateRowCount());
         assertEquals(1, response.duplicateRowCount());
-        assertEquals(1, response.conflictRowCount());
+        assertEquals(2, response.conflictRowCount());
         assertEquals(1, response.invalidRowCount());
         assertEquals(List.of(
                 "INVALID",
                 "NEW",
-                "UPDATE",
+                "CONFLICT",
                 "DUPLICATE",
                 "CONFLICT"
         ), response.rows().stream()

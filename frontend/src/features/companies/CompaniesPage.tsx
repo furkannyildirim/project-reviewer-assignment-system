@@ -27,6 +27,7 @@ import {
     getCompanyById,
     getCompanyIds,
     getCompanies,
+    getExternalCompanyNameWarning,
     updateCompany,
 } from './companyApi';
 import { companyQueryKeys } from './companyQueryKeys';
@@ -110,6 +111,7 @@ export function CompaniesPage({
     const [formMode, setFormMode] = useState<FormMode>(null);
     const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
     const [isImportDialogOpen, setImportDialogOpen] = useState(false);
+    const [isCheckingExternalName, setIsCheckingExternalName] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [snackbar, setSnackbar] = useState<SnackbarState>(null);
     const debouncedSearch = useDebouncedValue(search.trim(), 400);
@@ -260,7 +262,9 @@ export function CompaniesPage({
         },
     });
 
-    const isSaving = createMutation.isPending || updateMutation.isPending;
+    const isSaving = createMutation.isPending
+        || updateMutation.isPending
+        || isCheckingExternalName;
     const isMutating = isSaving || deleteMutation.isPending;
     const companies = companiesQuery.data?.content ?? [];
     const filteredIds = useMemo(
@@ -286,15 +290,51 @@ export function CompaniesPage({
         }
 
         if (formMode.type === 'create') {
-            await createMutation.mutateAsync(request as CreateCompanyRequest);
+            const createRequest = request as CreateCompanyRequest;
+
+            if (!await confirmExternalName(createRequest.name)) {
+                return;
+            }
+
+            await createMutation.mutateAsync(createRequest);
             return;
         }
 
         if (formMode.company) {
+            const updateRequest = request as UpdateCompanyRequest;
+            if (!await confirmExternalName(
+                updateRequest.name,
+                formMode.company.id,
+            )) {
+                return;
+            }
+
             await updateMutation.mutateAsync({
                 id: formMode.company.id,
-                request: request as UpdateCompanyRequest,
+                request: updateRequest,
             });
+        }
+    }
+
+    async function confirmExternalName(
+        name: string,
+        excludeCompanyId?: number,
+    ): Promise<boolean> {
+        if (companyType !== 'EXTERNAL') {
+            return true;
+        }
+
+        setIsCheckingExternalName(true);
+        try {
+            const warning = await getExternalCompanyNameWarning(
+                name,
+                excludeCompanyId,
+            );
+            return !warning.warning
+                || !warning.message
+                || window.confirm(warning.message);
+        } finally {
+            setIsCheckingExternalName(false);
         }
     }
 

@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianResponse;
+import com.sakaryateknokent.reviewerassignment.dto.AcademicianIdentityWarningResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateAcademicianRequest;
@@ -193,6 +194,54 @@ class AcademicianServiceTest {
 
         verify(academicianRepository, never()).save(any(Academician.class));
         verify(academicianRepository, never()).saveAndFlush(any(Academician.class));
+    }
+
+    @Test
+    void warnsWhenCanonicalIdentityMatchesAnotherAcademician() {
+        Academician match = academician(4L, "İpek", "Öztürk");
+        match.setTitle("Doç. Dr.");
+        when(academicianRepository.findByCanonicalIdentity(
+                "ipek",
+                "öztürk",
+                "doç. dr."
+        )).thenReturn(List.of(match));
+
+        AcademicianIdentityWarningResponse response =
+                academicianService.getIdentityWarning(
+                        "  İPEK ",
+                        " ÖZTÜRK ",
+                        " DOÇ.   DR. ",
+                        null
+                );
+
+        assertEquals(true, response.warning());
+        assertEquals(
+                "Aynı ad, soyad ve ünvanla kayıtlı bir akademisyen zaten var. "
+                        + "Yine de devam etmek istiyor musunuz?",
+                response.message()
+        );
+    }
+
+    @Test
+    void identityWarningExcludesAcademicianBeingUpdated() {
+        Academician current = academician(9L, "Uğur", "Güzel");
+        current.setTitle("Prof. Dr.");
+        when(academicianRepository.findByCanonicalIdentity(
+                "uğur",
+                "güzel",
+                "prof. dr."
+        )).thenReturn(List.of(current));
+
+        AcademicianIdentityWarningResponse response =
+                academicianService.getIdentityWarning(
+                        "Uğur",
+                        "Güzel",
+                        "Prof. Dr.",
+                        9L
+                );
+
+        assertFalse(response.warning());
+        assertNull(response.message());
     }
 
     @Test

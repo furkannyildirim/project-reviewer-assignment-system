@@ -20,6 +20,10 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AcademicianImportClassifier {
 
+    private static final String MANUAL_REVIEW_MESSAGE =
+            "Mevcut akademisyen için farklı veya ek bilgiler bulundu. "
+                    + "Otomatik güncelleme yapılmadı; manuel kontrol edin.";
+
     private final AcademicianRepository academicianRepository;
 
     @Transactional(readOnly = true)
@@ -42,18 +46,12 @@ public class AcademicianImportClassifier {
             }
         }
 
-        SameFileAnalysis sameFileAnalysis = analyzeSameFile(validRows);
-        for (LogicalImportRow logicalRow : sameFileAnalysis.rows()) {
-            List<String> conflictMessages =
-                    sameFileAnalysis.conflictsByIdentity()
-                            .get(logicalRow.identity());
-            if (conflictMessages != null && !conflictMessages.isEmpty()) {
+        for (LogicalImportRow logicalRow : analyzeSameFile(validRows)) {
+            if (!logicalRow.conflictMessages().isEmpty()) {
                 decisions.add(logicalRow.toDecision(
                         ImportStatus.CONFLICT,
                         null,
-                        conflictMessages,
-                        List.of(),
-                        Set.of()
+                        logicalRow.conflictMessages()
                 ));
                 continue;
             }
@@ -61,238 +59,209 @@ public class AcademicianImportClassifier {
             decisions.add(classifyAgainstDatabase(logicalRow));
         }
 
-        return new AcademicianImportPlan(
-                preview,
-                List.copyOf(decisions)
-        );
+        return new AcademicianImportPlan(preview, List.copyOf(decisions));
     }
 
-    private SameFileAnalysis analyzeSameFile(
+    private List<LogicalImportRow> analyzeSameFile(
             List<AcademicianImportRow> validRows
     ) {
-        Map<CanonicalIdentity, SameFileGroup> groups = new LinkedHashMap<>();
-        Map<String, Set<CanonicalIdentity>> identitiesByEmail =
-                new LinkedHashMap<>();
+        Map<SameFileKey, SameFileGroup> groups = new LinkedHashMap<>();
 
         for (AcademicianImportRow row : validRows) {
             CanonicalIdentity identity = canonicalIdentity(row);
-            groups.computeIfAbsent(identity, SameFileGroup::new).add(row);
-
-            if (row.getEmail() != null) {
-                identitiesByEmail
-                        .computeIfAbsent(row.getEmail(), ignored ->
-                                new LinkedHashSet<>())
-                        .add(identity);
-            }
+            SameFileKey key = SameFileKey.of(row.getEmail(), identity);
+            groups.computeIfAbsent(key, SameFileGroup::new)
+                    .add(row, identity);
         }
 
-        Map<CanonicalIdentity, List<String>> conflictsByIdentity =
+        Map<CanonicalIdentity, List<SameFileGroup>> groupsByIdentity =
                 new LinkedHashMap<>();
         for (SameFileGroup group : groups.values()) {
-            group.conflictMessages().forEach(message ->
-                    addConflict(conflictsByIdentity, group.identity(), message));
-        }
-
-        for (Map.Entry<String, Set<CanonicalIdentity>> entry
-                : identitiesByEmail.entrySet()) {
-            if (entry.getValue().size() < 2) {
-                continue;
-            }
-
-            for (CanonicalIdentity identity : entry.getValue()) {
-                addConflict(
-                        conflictsByIdentity,
-                        identity,
-                        "Dosya icinde ayni e-posta farkli akademisyen bilgileriyle kullanilmis: "
-                                + entry.getKey()
-                );
+            for (CanonicalIdentity identity : group.identities()) {
+                groupsByIdentity
+                        .computeIfAbsent(identity, ignored -> new ArrayList<>())
+                        .add(group);
             }
         }
 
-        List<LogicalImportRow> logicalRows = groups.values().stream()
+        for (List<SameFileGroup> identityGroups : groupsByIdentity.values()) {
+            boolean hasEmail = identityGroups.stream()
+                    .anyMatch(SameFileGroup::hasEmail);
+            boolean hasNoEmail = identityGroups.stream()
+                    .anyMatch(group -> !group.hasEmail());
+
+            if (hasEmail && hasNoEmail) {
+                identityGroups.forEach(group -> group.addConflict(
+                        "Dosya içinde aynı canonical kimlik için e-posta yalnız "
+                                + "bazı satırlarda bulundu; manuel kontrol edin."
+                ));
+            }
+        }
+
+        return groups.values().stream()
                 .map(SameFileGroup::toLogicalRow)
                 .toList();
-
-        return new SameFileAnalysis(
-                logicalRows,
-                Collections.unmodifiableMap(conflictsByIdentity)
-        );
     }
 
     private AcademicianImportDecision classifyAgainstDatabase(
             LogicalImportRow logicalRow
     ) {
         AcademicianImportRow row = logicalRow.row();
-
-        if (row.getEmail() != null) {
-            List<Academician> emailMatches =
-                    nullSafe(academicianRepository.findByNormalizedEmail(
-                            row.getEmail()
-                    ));
-            if (emailMatches.size() == 1) {
-                Academician existing = emailMatches.getFirst();
-                if (!canonicalIdentity(existing).equals(logicalRow.identity())) {
-                    return logicalRow.toDecision(
-                            ImportStatus.CONFLICT,
-                            existing,
-                            List.of(
-                                    "Ayni e-posta mevcut ancak ad, soyad veya unvan bilgileri eslesmiyor."
-                            ),
-                            List.of(),
-                            Set.of()
-                    );
-                }
-
-                return evaluateMerge(logicalRow, existing);
-            }
-
-            if (emailMatches.size() > 1) {
-                return logicalRow.toDecision(
-                        ImportStatus.CONFLICT,
-                        null,
-                        List.of("Ayni e-posta ile birden fazla mevcut kayit bulundu."),
-                        List.of(),
-                        Set.of()
-                );
-            }
-        }
-
-        List<Academician> identityMatches =
-                nullSafe(academicianRepository.findByCanonicalIdentity(
+        String incomingEmail = row.getEmail();
+        List<Academician> emailMatches = incomingEmail == null
+                ? List.of()
+                : nullSafe(academicianRepository.findByNormalizedEmail(
+                        incomingEmail
+                ));
+        List<Academician> identityMatches = nullSafe(
+                academicianRepository.findByCanonicalIdentity(
                         logicalRow.identity().firstName(),
                         logicalRow.identity().lastName(),
                         logicalRow.identity().title()
-                ));
-        if (identityMatches.isEmpty()) {
+                )
+        );
+
+        Set<Academician> candidates = new LinkedHashSet<>(emailMatches);
+        for (Academician identityMatch : identityMatches) {
+            String existingEmail = AcademicianTextNormalizer.normalizeEmail(
+                    identityMatch.getEmail()
+            );
+            if (incomingEmail == null
+                    || existingEmail == null
+                    || incomingEmail.equals(existingEmail)) {
+                candidates.add(identityMatch);
+            }
+        }
+
+        if (candidates.isEmpty()) {
             return logicalRow.toDecision(
                     ImportStatus.NEW,
                     null,
-                    List.of("Yeni akademisyen olusturulacak."),
-                    List.of(),
-                    Set.of()
+                    List.of("Yeni akademisyen oluşturulacak.")
             );
         }
 
-        if (identityMatches.size() > 1) {
+        if (candidates.size() > 1) {
             return logicalRow.toDecision(
                     ImportStatus.CONFLICT,
                     null,
                     List.of(
-                            "Ayni ad, soyad ve unvan ile birden fazla mevcut kayit bulundu."
-                    ),
-                    List.of(),
-                    Set.of()
+                            MANUAL_REVIEW_MESSAGE,
+                            "Birden fazla olası mevcut akademisyen bulundu."
+                    )
             );
         }
 
-        return evaluateMerge(logicalRow, identityMatches.getFirst());
+        Academician existing = candidates.iterator().next();
+        CanonicalIdentity existingIdentity = canonicalIdentity(existing);
+        String existingEmail = AcademicianTextNormalizer.normalizeEmail(
+                existing.getEmail()
+        );
+
+        if (incomingEmail != null && existingEmail != null) {
+            if (!incomingEmail.equals(existingEmail)) {
+                return logicalRow.toDecision(
+                        ImportStatus.NEW,
+                        null,
+                        List.of("Yeni akademisyen oluşturulacak.")
+                );
+            }
+
+            if (!logicalRow.identity().equals(existingIdentity)) {
+                return logicalRow.toDecision(
+                        ImportStatus.CONFLICT,
+                        existing,
+                        List.of(
+                                MANUAL_REVIEW_MESSAGE,
+                                "Aynı e-posta mevcut ancak canonical ad, soyad "
+                                        + "veya ünvan bilgileri eşleşmiyor."
+                        )
+                );
+            }
+
+            return evaluateExistingInformation(logicalRow, existing);
+        }
+
+        if (incomingEmail != null || existingEmail != null) {
+            return logicalRow.toDecision(
+                    ImportStatus.CONFLICT,
+                    existing,
+                    List.of(
+                            MANUAL_REVIEW_MESSAGE,
+                            "Canonical kimlik eşleşiyor ancak e-posta yalnız "
+                                    + "bir kayıtta mevcut."
+                    )
+            );
+        }
+
+        return evaluateExistingInformation(logicalRow, existing);
     }
 
-    private AcademicianImportDecision evaluateMerge(
+    private AcademicianImportDecision evaluateExistingInformation(
             LogicalImportRow logicalRow,
             Academician existing
     ) {
         AcademicianImportRow row = logicalRow.row();
-        List<String> conflicts = new ArrayList<>();
-        List<String> changes = new ArrayList<>();
-
-        String existingEmail = AcademicianTextNormalizer.normalizeEmail(
-                existing.getEmail()
-        );
-        String incomingEmail = row.getEmail();
-        if (existingEmail != null
-                && incomingEmail != null
-                && !existingEmail.equals(incomingEmail)) {
-            conflicts.add(
-                    "Mevcut e-posta ile Excel e-postasi farkli. Mevcut: "
-                            + existingEmail + ", Excel: " + incomingEmail
-            );
-        } else if (existingEmail == null && incomingEmail != null) {
-            changes.add("E-posta eklenecek");
-        }
+        List<String> differences = new ArrayList<>();
 
         String existingPhone = AcademicianTextNormalizer.normalizeOptionalText(
                 existing.getPhone()
         );
-        String incomingPhone = row.getPhone();
-        if (existingPhone != null
-                && incomingPhone != null
-                && !existingPhone.equals(incomingPhone)) {
-            conflicts.add(
-                    "Mevcut telefon ile Excel telefonu farkli. Mevcut: "
-                            + existingPhone + ", Excel: " + incomingPhone
-            );
-        } else if (existingPhone == null && incomingPhone != null) {
-            changes.add("Telefon eklenecek");
+        String incomingPhone = AcademicianTextNormalizer.normalizeOptionalText(
+                row.getPhone()
+        );
+        if (incomingPhone != null && existingPhone == null) {
+            differences.add("Excel satırında ek telefon bilgisi bulundu.");
+        } else if (incomingPhone != null
+                && !incomingPhone.equals(existingPhone)) {
+            differences.add("Mevcut telefon ile Excel telefonu farklı.");
         }
 
-        Set<String> mergedKeywords = mergedKeywords(existing, row);
-        Set<String> existingKeywords = normalizedKeywords(existing);
-        int newKeywordCount = mergedKeywords.size() - existingKeywords.size();
+        Set<String> existingKeywords = canonicalKeywords(
+                existing.getKeywords()
+        );
+        long newKeywordCount = canonicalKeywords(row.getKeywords()).stream()
+                .filter(keyword -> !existingKeywords.contains(keyword))
+                .count();
         if (newKeywordCount > 0) {
-            changes.add(newKeywordCount + " anahtar kelime eklenecek");
-        }
-
-        if (!conflicts.isEmpty()) {
-            return logicalRow.toDecision(
-                    ImportStatus.CONFLICT,
-                    existing,
-                    conflicts,
-                    List.of(),
-                    Set.of()
+            differences.add(
+                    "Excel satırında " + newKeywordCount
+                            + " ek anahtar kelime bulundu."
             );
         }
 
-        if (changes.isEmpty()) {
+        if (differences.isEmpty()) {
             return logicalRow.toDecision(
                     ImportStatus.DUPLICATE,
                     existing,
-                    List.of(
-                            "Mevcut kayitla ayni, guncellenecek yeni bilgi bulunamadi."
-                    ),
-                    List.of(),
-                    mergedKeywords
+                    List.of("Mevcut akademisyenle aynı; kayıt atlandı.")
             );
         }
 
+        List<String> messages = new ArrayList<>();
+        messages.add(MANUAL_REVIEW_MESSAGE);
+        messages.addAll(differences);
         return logicalRow.toDecision(
-                ImportStatus.UPDATE,
+                ImportStatus.CONFLICT,
                 existing,
-                List.copyOf(changes),
-                List.copyOf(changes),
-                mergedKeywords
+                List.copyOf(messages)
         );
     }
 
-    private Set<String> mergedKeywords(
-            Academician existing,
-            AcademicianImportRow row
-    ) {
-        Set<String> keywords = new LinkedHashSet<>(normalizedKeywords(existing));
-        keywords.addAll(AcademicianTextNormalizer.normalizeKeywords(
-                row.getKeywords()
-        ));
-        return keywords;
-    }
-
-    private Set<String> normalizedKeywords(Academician existing) {
-        return AcademicianTextNormalizer.normalizeKeywords(
-                existing.getKeywords()
-        );
+    private Set<String> canonicalKeywords(Set<String> keywords) {
+        Set<String> canonicalKeywords = new LinkedHashSet<>();
+        for (String keyword : AcademicianTextNormalizer.normalizeKeywords(
+                keywords
+        )) {
+            canonicalKeywords.add(
+                    AcademicianTextNormalizer.canonicalizeIdentityPart(keyword)
+            );
+        }
+        return canonicalKeywords;
     }
 
     private List<Academician> nullSafe(List<Academician> academicians) {
         return academicians == null ? List.of() : academicians;
-    }
-
-    private void addConflict(
-            Map<CanonicalIdentity, List<String>> conflictsByIdentity,
-            CanonicalIdentity identity,
-            String message
-    ) {
-        conflictsByIdentity
-                .computeIfAbsent(identity, ignored -> new ArrayList<>())
-                .add(message);
     }
 
     private CanonicalIdentity canonicalIdentity(AcademicianImportRow row) {
@@ -312,16 +281,11 @@ public class AcademicianImportClassifier {
     }
 
     private String canonicalValue(String value) {
-        if (value == null || value.isBlank()) {
-            return "";
-        }
-
         return AcademicianTextNormalizer.canonicalizeIdentityPart(value);
     }
 
     public enum ImportStatus {
         NEW,
-        UPDATE,
         DUPLICATE,
         CONFLICT,
         INVALID
@@ -350,54 +314,63 @@ public class AcademicianImportClassifier {
     ) {
     }
 
-    private record SameFileAnalysis(
-            List<LogicalImportRow> rows,
-            Map<CanonicalIdentity, List<String>> conflictsByIdentity
+    private record SameFileKey(
+            String email,
+            CanonicalIdentity noEmailIdentity
     ) {
+
+        private static SameFileKey of(
+                String email,
+                CanonicalIdentity identity
+        ) {
+            return email == null
+                    ? new SameFileKey(null, identity)
+                    : new SameFileKey(email, null);
+        }
     }
 
     private record LogicalImportRow(
             CanonicalIdentity identity,
-            AcademicianImportRow row
+            AcademicianImportRow row,
+            List<String> conflictMessages
     ) {
 
         private AcademicianImportDecision toDecision(
                 ImportStatus status,
                 Academician existingAcademician,
-                List<String> messages,
-                List<String> changes,
-                Set<String> mergedKeywords
+                List<String> messages
         ) {
             return new AcademicianImportDecision(
                     row,
                     status,
                     existingAcademician,
                     List.copyOf(messages),
-                    List.copyOf(changes),
-                    Collections.unmodifiableSet(
-                            new LinkedHashSet<>(mergedKeywords)
-                    )
+                    List.of(),
+                    Set.of()
             );
         }
     }
 
-    private class SameFileGroup {
+    private static class SameFileGroup {
 
-        private final CanonicalIdentity identity;
+        private final SameFileKey key;
         private final List<AcademicianImportRow> rows = new ArrayList<>();
-        private final Set<String> emails = new LinkedHashSet<>();
+        private final Set<CanonicalIdentity> identities =
+                new LinkedHashSet<>();
         private final Set<String> phones = new LinkedHashSet<>();
         private final Set<String> keywords = new LinkedHashSet<>();
+        private final Set<String> conflicts = new LinkedHashSet<>();
 
-        private SameFileGroup(CanonicalIdentity identity) {
-            this.identity = identity;
+        private SameFileGroup(SameFileKey key) {
+            this.key = key;
         }
 
-        private void add(AcademicianImportRow row) {
+        private void add(
+                AcademicianImportRow row,
+                CanonicalIdentity identity
+        ) {
             rows.add(row);
-            if (row.getEmail() != null) {
-                emails.add(row.getEmail());
-            }
+            identities.add(identity);
             if (row.getPhone() != null) {
                 phones.add(row.getPhone());
             }
@@ -406,26 +379,32 @@ public class AcademicianImportClassifier {
             ));
         }
 
-        private CanonicalIdentity identity() {
-            return identity;
+        private boolean hasEmail() {
+            return key.email() != null;
         }
 
-        private List<String> conflictMessages() {
-            List<String> messages = new ArrayList<>();
-            if (emails.size() > 1) {
-                messages.add(
-                        "Dosya icinde ayni kisi icin farkli e-posta degerleri bulundu."
-                );
-            }
-            if (phones.size() > 1) {
-                messages.add(
-                        "Dosya icinde ayni kisi icin farkli telefon degerleri bulundu."
-                );
-            }
-            return messages;
+        private Set<CanonicalIdentity> identities() {
+            return identities;
+        }
+
+        private void addConflict(String message) {
+            conflicts.add(message);
         }
 
         private LogicalImportRow toLogicalRow() {
+            if (identities.size() > 1) {
+                conflicts.add(
+                        "Dosya içinde aynı e-posta farklı canonical "
+                                + "kimliklerle kullanılmış; manuel kontrol edin."
+                );
+            }
+            if (phones.size() > 1) {
+                conflicts.add(
+                        "Dosya içinde aynı kişi için farklı telefon "
+                                + "değerleri bulundu; manuel kontrol edin."
+                );
+            }
+
             AcademicianImportRow first = rows.getFirst();
             AcademicianImportRow row = new AcademicianImportRow(
                     first.getSheetName(),
@@ -434,7 +413,7 @@ public class AcademicianImportClassifier {
             row.setFirstName(first.getFirstName());
             row.setLastName(first.getLastName());
             row.setTitle(first.getTitle());
-            row.setEmail(emails.stream().findFirst().orElse(null));
+            row.setEmail(key.email());
             row.setPhone(phones.stream().findFirst().orElse(null));
             row.setKeywords(new LinkedHashSet<>(keywords));
 
@@ -442,7 +421,11 @@ public class AcademicianImportClassifier {
                 row.getWarnings().addAll(sourceRow.getWarnings());
             }
 
-            return new LogicalImportRow(identity, row);
+            return new LogicalImportRow(
+                    identities.iterator().next(),
+                    row,
+                    List.copyOf(conflicts)
+            );
         }
     }
 }

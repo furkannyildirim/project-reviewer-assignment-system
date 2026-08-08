@@ -4,7 +4,6 @@ import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportResultRespon
 import com.sakaryateknokent.reviewerassignment.entity.Academician;
 import com.sakaryateknokent.reviewerassignment.importing.AcademicianImportRow;
 import com.sakaryateknokent.reviewerassignment.repository.AcademicianRepository;
-import com.sakaryateknokent.reviewerassignment.service.AcademicianImportClassifier.AcademicianImportDecision;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -176,11 +175,6 @@ class AcademicianImportPartialIntegrationTest {
             }
 
             delegate.create(row);
-        }
-
-        @Override
-        public void update(AcademicianImportDecision decision) {
-            delegate.update(decision);
         }
 
         private void insertRaceRow(AcademicianImportRow row) {

@@ -55,7 +55,6 @@ public class AcademicianImportPreviewService {
                 new ArrayList<>();
         AcademicianImportPreview preview = plan.preview();
         int newRowCount = 0;
-        int updateRowCount = 0;
         int duplicateRowCount = 0;
         int conflictRowCount = 0;
         int invalidRowCount = 0;
@@ -65,8 +64,6 @@ public class AcademicianImportPreviewService {
             ImportStatus status = decision.status();
             if (status == ImportStatus.NEW) {
                 newRowCount++;
-            } else if (status == ImportStatus.UPDATE) {
-                updateRowCount++;
             } else if (status == ImportStatus.DUPLICATE) {
                 duplicateRowCount++;
             } else if (status == ImportStatus.CONFLICT) {
@@ -105,10 +102,10 @@ public class AcademicianImportPreviewService {
                 preview.getSheetCount(),
                 preview.getRows().size(),
                 newRowCount,
-                updateRowCount,
+                0,
                 duplicateRowCount,
                 conflictRowCount,
-                newRowCount + updateRowCount + duplicateRowCount,
+                newRowCount + duplicateRowCount,
                 invalidRowCount,
                 warningCount,
                 Collections.unmodifiableSet(

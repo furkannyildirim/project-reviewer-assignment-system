@@ -7,11 +7,14 @@ import type {
     CompanyImportPreviewResponse,
     CompanyImportResultResponse,
     CompanyListItem,
+    CompanyNameWarningResponse,
     CompanyPageParams,
     CompanyType,
     CreateCompanyRequest,
     UpdateCompanyRequest,
 } from './company.types';
+
+const companyImportTimeoutMs = 120_000;
 
 export async function getCompanies(
     params: CompanyPageParams,
@@ -70,6 +73,18 @@ export async function getCompanyCount(
     return response.data;
 }
 
+export async function getExternalCompanyNameWarning(
+    name: string,
+    excludeCompanyId?: number,
+): Promise<CompanyNameWarningResponse> {
+    const response = await httpClient.get<CompanyNameWarningResponse>(
+        '/companies/external-name-warning',
+        { params: { name, excludeCompanyId } },
+    );
+
+    return response.data;
+}
+
 export async function getCompanyById(id: number): Promise<CompanyDetail> {
     const response = await httpClient.get<CompanyDetail>(`/companies/${id}`);
 
@@ -90,6 +105,7 @@ export async function previewCompanyImport(
     const response = await httpClient.post<CompanyImportPreviewResponse>(
         endpoint,
         formData,
+        { timeout: companyImportTimeoutMs },
     );
 
     return response.data;
@@ -109,6 +125,7 @@ export async function importCompaniesFromExcel(
     const response = await httpClient.post<CompanyImportResultResponse>(
         endpoint,
         formData,
+        { timeout: companyImportTimeoutMs },
     );
 
     return response.data;

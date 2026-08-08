@@ -55,6 +55,11 @@ export type CompanyDetail = {
 
 export type Company = CompanyListItem;
 
+export type CompanyNameWarningResponse = {
+    warning: boolean;
+    message: string | null;
+};
+
 export type CreateCompanyContactRequest = {
     fullName: string;
     position: string | null;
@@ -93,7 +98,7 @@ export type CompanyImportPreviewRow = {
     rowNumber: number;
     name: string | null;
     activityArea: string | null;
-    status: 'NEW' | 'UPDATE' | 'EXISTING' | 'DUPLICATE' | 'WARNING' | 'INVALID';
+    status: 'NEW' | 'EXISTING' | 'DUPLICATE' | 'WARNING' | 'INVALID';
     city: string | null;
     district: string | null;
     osb: string | null;
@@ -126,7 +131,7 @@ export type CompanyImportPreviewResponse = {
     rows: CompanyImportPreviewRow[];
 };
 
-export type CompanyImportResultStatus = 'IMPORTED' | 'UPDATED' | 'DUPLICATE' | 'INVALID' | 'FAILED';
+export type CompanyImportResultStatus = 'IMPORTED' | 'DUPLICATE' | 'INVALID' | 'FAILED';
 
 export type CompanyImportResultRow = {
     sheetName: string;
@@ -180,6 +185,11 @@ export type CompanyIdParams = {
 export type CompanyFormValues = {
     name: string;
     activityArea: string;
+    city: string;
+    district: string;
+    osb: string;
+    address: string;
+    building: string;
     logoUrl: string;
     contactMethods: CompanyContactMethodFormValues[];
     contacts: CompanyContactFormValues[];

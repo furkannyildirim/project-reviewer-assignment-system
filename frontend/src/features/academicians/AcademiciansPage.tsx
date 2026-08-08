@@ -25,6 +25,7 @@ import {
     exportAcademicians,
     getAcademicianCount,
     getAcademicianIds,
+    getAcademicianIdentityWarning,
     getAcademicians,
     updateAcademician,
 } from './academicianApi';
@@ -103,6 +104,7 @@ export function AcademiciansPage() {
         useState<Academician | null>(null);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [snackbar, setSnackbar] = useState<SnackbarState>(null);
+    const [isCheckingIdentity, setIsCheckingIdentity] = useState(false);
     const debouncedSearch = useDebouncedValue(search.trim(), 400);
     const isAdmin = role === 'ADMIN';
     const selectionFilterKey = `${debouncedSearch}|${initial}`;
@@ -232,7 +234,9 @@ export function AcademiciansPage() {
         },
     });
 
-    const isSaving = createMutation.isPending || updateMutation.isPending;
+    const isSaving = createMutation.isPending
+        || updateMutation.isPending
+        || isCheckingIdentity;
     const isMutating = isSaving || deleteMutation.isPending;
     const academicians = academiciansQuery.data?.content ?? [];
     const filteredIds = useMemo(
@@ -258,15 +262,49 @@ export function AcademiciansPage() {
         }
 
         if (formMode.type === 'create') {
-            await createMutation.mutateAsync(request);
+            const createRequest = request as CreateAcademicianRequest;
+
+            if (!await confirmIdentity(createRequest)) {
+                return;
+            }
+
+            await createMutation.mutateAsync(createRequest);
             return;
         }
 
         if (formMode.academician) {
+            const updateRequest = request as UpdateAcademicianRequest;
+
+            if (!await confirmIdentity(
+                updateRequest,
+                formMode.academician.id,
+            )) {
+                return;
+            }
+
             await updateMutation.mutateAsync({
                 id: formMode.academician.id,
-                request: request as UpdateAcademicianRequest,
+                request: updateRequest,
             });
+        }
+    }
+
+    async function confirmIdentity(
+        request: CreateAcademicianRequest | UpdateAcademicianRequest,
+        excludeAcademicianId?: number,
+    ): Promise<boolean> {
+        setIsCheckingIdentity(true);
+        try {
+            const warning = await getAcademicianIdentityWarning(
+                request,
+                excludeAcademicianId,
+            );
+
+            return !warning.warning
+                || !warning.message
+                || window.confirm(warning.message);
+        } finally {
+            setIsCheckingIdentity(false);
         }
     }
 

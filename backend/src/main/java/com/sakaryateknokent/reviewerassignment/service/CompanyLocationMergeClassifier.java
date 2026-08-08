@@ -12,7 +12,6 @@ import java.util.Objects;
 public class CompanyLocationMergeClassifier {
 
     public static final String STATUS_NEW = "NEW";
-    public static final String STATUS_UPDATE = "UPDATE";
     public static final String STATUS_EXISTING = "EXISTING";
     public static final String STATUS_DUPLICATE = "DUPLICATE";
     public static final String STATUS_WARNING = "WARNING";
@@ -73,7 +72,7 @@ public class CompanyLocationMergeClassifier {
 
         if (update) {
             return new LocationMergeDecision(
-                    STATUS_UPDATE,
+                    STATUS_WARNING,
                     true,
                     List.copyOf(warnings),
                     List.copyOf(updateMessages)
@@ -95,27 +94,6 @@ public class CompanyLocationMergeClassifier {
                 List.of(),
                 List.of()
         );
-    }
-
-    public void applyUpdates(
-            CompanyImportRow row,
-            Company existingCompany
-    ) {
-        if (shouldFill(existingCompany.getCity(), row.getCity())) {
-            existingCompany.setCity(row.getCity());
-        }
-        if (shouldFill(existingCompany.getDistrict(), row.getDistrict())) {
-            existingCompany.setDistrict(row.getDistrict());
-        }
-        if (shouldFill(existingCompany.getOsb(), row.getOsb())) {
-            existingCompany.setOsb(row.getOsb());
-        }
-        if (shouldFill(existingCompany.getAddress(), row.getAddress())) {
-            existingCompany.setAddress(row.getAddress());
-        }
-        if (shouldFill(existingCompany.getBuilding(), row.getBuilding())) {
-            existingCompany.setBuilding(row.getBuilding());
-        }
     }
 
     private boolean canFill(
@@ -146,13 +124,6 @@ public class CompanyLocationMergeClassifier {
         }
 
         return false;
-    }
-
-    private boolean shouldFill(String databaseValue, String excelValue) {
-        return AcademicianTextNormalizer.normalizeOptionalText(databaseValue)
-                == null
-                && AcademicianTextNormalizer.normalizeOptionalText(excelValue)
-                != null;
     }
 
     public record LocationMergeDecision(

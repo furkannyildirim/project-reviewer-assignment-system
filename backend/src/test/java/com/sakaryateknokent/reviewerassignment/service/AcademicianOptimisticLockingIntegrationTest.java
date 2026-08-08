@@ -4,7 +4,6 @@ import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportResultRespon
 import com.sakaryateknokent.reviewerassignment.entity.Academician;
 import com.sakaryateknokent.reviewerassignment.importing.AcademicianImportRow;
 import com.sakaryateknokent.reviewerassignment.repository.AcademicianRepository;
-import com.sakaryateknokent.reviewerassignment.service.AcademicianImportClassifier.AcademicianImportDecision;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
@@ -18,19 +17,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.mock.web.MockMultipartFile;
 
-import javax.sql.DataSource;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,7 +42,6 @@ class AcademicianOptimisticLockingIntegrationTest {
     private final AcademicianRepository academicianRepository;
     private final EntityManagerFactory entityManagerFactory;
     private final AcademicianImportService importService;
-    private final RaceUpdatingPersistenceService persistenceService;
 
     private String runId;
     private String firstEmail;
@@ -63,13 +53,11 @@ class AcademicianOptimisticLockingIntegrationTest {
     AcademicianOptimisticLockingIntegrationTest(
             AcademicianRepository academicianRepository,
             EntityManagerFactory entityManagerFactory,
-            AcademicianImportService importService,
-            RaceUpdatingPersistenceService persistenceService
+            AcademicianImportService importService
     ) {
         this.academicianRepository = academicianRepository;
         this.entityManagerFactory = entityManagerFactory;
         this.importService = importService;
-        this.persistenceService = persistenceService;
     }
 
     @BeforeEach
@@ -79,7 +67,6 @@ class AcademicianOptimisticLockingIntegrationTest {
         secondEmail = "import-next-" + runId + EMAIL_DOMAIN;
         versionEmail = "version-" + runId + EMAIL_DOMAIN;
         staleEmail = "stale-" + runId + EMAIL_DOMAIN;
-        persistenceService.arm(firstEmail);
     }
 
     @AfterEach
@@ -151,7 +138,7 @@ class AcademicianOptimisticLockingIntegrationTest {
     }
 
     @Test
-    void importUpdateOptimisticLockingFailureFailsOnlyThatRow() {
+    void importNeverUpdatesExistingRows() {
         academicianRepository.saveAndFlush(academician(
                 "ImportStale",
                 runId,
@@ -167,11 +154,9 @@ class AcademicianOptimisticLockingIntegrationTest {
                 importService.importCreateOnly(workbook());
 
         assertEquals(0, result.createdCount());
-        assertEquals(1, result.updatedCount());
-        assertEquals(1, result.failedCount());
-        assertEquals("FAILED", result.failedRows().getFirst().status());
-        assertTrue(result.failedRows().getFirst().messages().getFirst()
-                .contains("baska bir islem tarafindan guncellendi"));
+        assertEquals(0, result.updatedCount());
+        assertEquals(2, result.conflictCount());
+        assertEquals(0, result.failedCount());
 
         Academician first = academicianRepository
                 .findByNormalizedEmail(firstEmail)
@@ -180,8 +165,8 @@ class AcademicianOptimisticLockingIntegrationTest {
                 .findByNormalizedEmail(secondEmail)
                 .getFirst();
 
-        assertEquals("race-phone", first.getPhone());
-        assertEquals("0666 222 22 22", second.getPhone());
+        assertEquals(null, first.getPhone());
+        assertEquals(null, second.getPhone());
     }
 
     private Academician academician(
@@ -223,79 +208,4 @@ class AcademicianOptimisticLockingIntegrationTest {
         }
     }
 
-    @TestConfiguration
-    static class OptimisticLockingTestConfiguration {
-
-        @Bean
-        @Primary
-        RaceUpdatingPersistenceService raceUpdatingPersistenceService(
-                AcademicianRepository academicianRepository,
-                DataSource dataSource,
-                @Qualifier("academicianImportPersistenceService")
-                AcademicianImportPersistenceService delegate
-        ) {
-            return new RaceUpdatingPersistenceService(
-                    academicianRepository,
-                    dataSource,
-                    delegate
-            );
-        }
-    }
-
-    static class RaceUpdatingPersistenceService
-            extends AcademicianImportPersistenceService {
-
-        private final DataSource dataSource;
-        private final AcademicianImportPersistenceService delegate;
-        private String emailToRace;
-
-        RaceUpdatingPersistenceService(
-                AcademicianRepository academicianRepository,
-                DataSource dataSource,
-                AcademicianImportPersistenceService delegate
-        ) {
-            super(academicianRepository);
-            this.dataSource = dataSource;
-            this.delegate = delegate;
-        }
-
-        void arm(String emailToRace) {
-            this.emailToRace = emailToRace;
-        }
-
-        @Override
-        public void create(AcademicianImportRow row) {
-            delegate.create(row);
-        }
-
-        @Override
-        public void update(AcademicianImportDecision decision) {
-            if (decision.row().getEmail() != null
-                    && decision.row().getEmail().equals(emailToRace)) {
-                bumpVersionOutsideImportTransaction(
-                        decision.existingAcademician().getId()
-                );
-            }
-
-            delegate.update(decision);
-        }
-
-        private void bumpVersionOutsideImportTransaction(Long id) {
-            try (Connection connection = dataSource.getConnection();
-                 PreparedStatement statement = connection.prepareStatement(
-                         """
-                                 UPDATE academicians
-                                 SET phone = ?, version = version + 1
-                                 WHERE id = ?
-                                 """
-                 )) {
-                connection.setAutoCommit(true);
-                statement.setString(1, "race-phone");
-                statement.setLong(2, id);
-                statement.executeUpdate();
-            } catch (SQLException exception) {
-                throw new IllegalStateException(exception);
-            }
-        }
-    }
 }

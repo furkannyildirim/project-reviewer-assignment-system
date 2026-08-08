@@ -53,7 +53,7 @@ type CompanyImportPreviewDialogProps = {
     onImported: () => void;
 };
 
-type PreviewRowFilter = 'all' | 'valid' | 'update' | 'existing' | 'duplicate' | 'warning' | 'problem';
+type PreviewRowFilter = 'all' | 'valid' | 'existing' | 'duplicate' | 'warning' | 'problem';
 
 const optionalFallback = '—';
 const defaultRowsPerPage = 25;
@@ -78,6 +78,10 @@ function displayOptionalList(values: string[]) {
             ))}
         </Stack>
     );
+}
+
+function countImportableRows(preview: CompanyImportPreviewResponse) {
+    return preview.rows.filter((row) => row.valid && row.status === 'NEW').length;
 }
 
 function displayInlineList(values: string[]) {
@@ -242,18 +246,6 @@ function RowStatus({ row }: { row: CompanyImportPreviewRow }) {
         );
     }
 
-    if (row.status === 'UPDATE') {
-        return (
-            <Chip
-                color="info"
-                icon={<CheckCircleOutlineOutlinedIcon />}
-                label="Güncellenecek"
-                size="small"
-                variant="outlined"
-            />
-        );
-    }
-
     if (row.status === 'DUPLICATE') {
         return (
             <Chip
@@ -323,7 +315,6 @@ function RowMessages({ row }: { row: CompanyImportPreviewRow }) {
         }));
     const messages = [
         ...uniqueMessages(row.errors, 'error.main', 'error'),
-        ...uniqueMessages(row.updateMessages, 'info.main', 'update'),
         ...uniqueMessages(row.locationWarnings, 'warning.main', 'location-warning'),
         ...uniqueMessages(row.warnings, 'warning.main', 'warning'),
     ];
@@ -354,6 +345,7 @@ function PreviewNoticePanel({
     preview: CompanyImportPreviewResponse;
     showNoSaveInfo: boolean;
 }) {
+    const importableRowCount = countImportableRows(preview);
     const hasNotices = preview.invalidRowCount > 0
         || preview.generalWarnings.length > 0
         || preview.generalInformationMessages.length > 0
@@ -402,7 +394,9 @@ function PreviewNoticePanel({
                     <Alert severity="warning" sx={{ borderRadius: '8px', py: 0.5 }}>
                         {preview.invalidRowCount} hatalı kayıt aktarılmayacak.
                         {' '}
-                        {preview.validRowCount} geçerli kayıt aktarılabilir.
+                        {preview.validRowCount} satır doğrulamadan geçti;
+                        {' '}
+                        {importableRowCount} yeni kayıt otomatik aktarılabilir.
                     </Alert>
                 )}
 
@@ -443,6 +437,8 @@ function PreviewSummary({
     preview: CompanyImportPreviewResponse;
     showNoSaveInfo: boolean;
 }) {
+    const importableRowCount = countImportableRows(preview);
+
     return (
         <Stack spacing={2}>
             <Stack
@@ -468,6 +464,12 @@ function PreviewSummary({
                         <SummaryMetric
                             label="Geçerli kayıt"
                             value={preview.validRowCount}
+                            color="success.main"
+                            tone="success"
+                        />
+                        <SummaryMetric
+                            label="Yeni kayıt"
+                            value={importableRowCount}
                             color="success.main"
                             tone="success"
                         />
@@ -536,10 +538,6 @@ function PreviewList({
                 return row.valid && row.status === 'NEW' && row.warnings.length === 0;
             }
 
-            if (rowFilter === 'update') {
-                return row.valid && row.status === 'UPDATE';
-            }
-
             if (rowFilter === 'existing') {
                 return row.status === 'EXISTING';
             }
@@ -549,7 +547,9 @@ function PreviewList({
             }
 
             if (rowFilter === 'warning') {
-                return row.locationWarnings.length > 0;
+                return row.status === 'WARNING'
+                    || row.locationWarnings.length > 0
+                    || row.warnings.length > 0;
             }
 
             if (rowFilter === 'problem') {
@@ -572,7 +572,6 @@ function PreviewList({
     const emptyMessages: Record<PreviewRowFilter, string> = {
         all: 'Gösterilecek kayıt yok.',
         valid: 'Yeni kayıt bulunmuyor.',
-        update: 'Güncellenecek kayıt bulunmuyor.',
         existing: 'Mevcut kayıt bulunmuyor.',
         duplicate: 'Tekrarlı kayıt bulunmuyor.',
         warning: 'Uyarılı kayıt bulunmuyor.',
@@ -641,7 +640,6 @@ function PreviewList({
                     >
                         <ToggleButton value="all">Tümü</ToggleButton>
                         <ToggleButton value="valid">Yeni</ToggleButton>
-                        <ToggleButton value="update">Güncellenecek</ToggleButton>
                         <ToggleButton value="existing">Mevcut</ToggleButton>
                         <ToggleButton value="duplicate">Tekrarlı</ToggleButton>
                         <ToggleButton value="warning">Uyarılı</ToggleButton>
@@ -831,18 +829,6 @@ function ResultStatus({ row }: { row: CompanyImportResultRow }) {
         );
     }
 
-    if (row.status === 'UPDATED') {
-        return (
-            <Chip
-                color="info"
-                icon={<CheckCircleOutlineOutlinedIcon />}
-                label="Güncellendi"
-                size="small"
-                variant="outlined"
-            />
-        );
-    }
-
     if (row.status === 'DUPLICATE') {
         return (
             <Chip
@@ -867,7 +853,7 @@ function ResultStatus({ row }: { row: CompanyImportResultRow }) {
 }
 
 function ImportResultCard({ row }: { row: CompanyImportResultRow }) {
-    const tone = row.status === 'IMPORTED' || row.status === 'UPDATED'
+    const tone = row.status === 'IMPORTED'
         ? 'success'
         : row.status === 'DUPLICATE'
             ? 'warning'
@@ -1040,10 +1026,8 @@ function ImportResultSummary({
     result: CompanyImportResultResponse;
     resultSectionRef: RefObject<HTMLDivElement | null>;
 }) {
-    const successfulRows = result.rows.filter((row) =>
-        row.status === 'IMPORTED' || row.status === 'UPDATED');
-    const skippedRows = result.rows.filter((row) =>
-        row.status !== 'IMPORTED' && row.status !== 'UPDATED');
+    const successfulRows = result.rows.filter((row) => row.status === 'IMPORTED');
+    const skippedRows = result.rows.filter((row) => row.status !== 'IMPORTED');
     const skippedCount = result.duplicateCount + result.invalidCount;
 
     return (
@@ -1069,12 +1053,6 @@ function ImportResultSummary({
                         value={result.importedCount}
                         color="success.main"
                         tone="success"
-                    />
-                    <SummaryMetric
-                        label="Güncellenen"
-                        value={result.updatedCount}
-                        color="info.main"
-                        tone="info"
                     />
                     <SummaryMetric
                         label="Tekrarlı"
@@ -1142,6 +1120,9 @@ export function CompanyImportPreviewDialog({
         useState<CompanyImportResultResponse | null>(null);
     const [isConfirmOpen, setConfirmOpen] = useState(false);
     const [fileError, setFileError] = useState<string | null>(null);
+    const importableRowCount = preview
+        ? countImportableRows(preview)
+        : 0;
     const importTitle = companyType === 'EXTERNAL'
         ? 'Dış şirketleri Excelden önizle'
         : "TGB şirketlerini Excel'den önizle";
@@ -1181,7 +1162,7 @@ export function CompanyImportPreviewDialog({
         && selectedFile
         && previewedFile
         && selectedFile === previewedFile
-        && preview.validRowCount > 0
+        && importableRowCount > 0
         && !isBusy,
     );
 
@@ -1415,7 +1396,7 @@ export function CompanyImportPreviewDialog({
                             >
                                 {importMutation.isPending
                                     ? 'Aktarılıyor...'
-                                    : `${preview.validRowCount} Geçerli Kaydı Aktar`}
+                                    : `${importableRowCount} Yeni Kaydı Aktar`}
                             </Button>
                         )}
                     </>
@@ -1423,8 +1404,8 @@ export function CompanyImportPreviewDialog({
             </DialogActions>
             <ConfirmDialog
                 open={isConfirmOpen}
-                title="Geçerli kayıtları aktar"
-                description="Geçerli şirket kayıtları veritabanına aktarılacak. Hatalı ve tekrarlanan kayıtlar atlanacaktır."
+                title="Yeni kayıtları aktar"
+                description={`${importableRowCount} yeni şirket kaydı veritabanına eklenecek. Mevcut, uyarılı, hatalı ve tekrarlanan kayıtlar atlanacaktır.`}
                 confirmLabel="Aktar"
                 isConfirming={importMutation.isPending}
                 onClose={() => {

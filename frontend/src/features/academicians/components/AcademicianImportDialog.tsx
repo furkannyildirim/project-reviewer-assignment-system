@@ -49,7 +49,7 @@ type AcademicianImportDialogProps = {
     onClose: () => void;
 };
 
-type PreviewRowFilter = 'all' | 'NEW' | 'UPDATE' | 'DUPLICATE' | 'INVALID';
+type PreviewRowFilter = 'all' | 'NEW' | 'DUPLICATE' | 'INVALID';
 
 const defaultRowsPerPage = 25;
 const optionalFallback = '—';
@@ -251,20 +251,15 @@ function RowStatus({ row }: { row: AcademicianImportPreviewRow }) {
             icon: <CheckCircleOutlineOutlinedIcon />,
             label: 'Yeni',
         },
-        UPDATE: {
-            color: 'info',
-            icon: <CheckCircleOutlineOutlinedIcon />,
-            label: 'Guncellenecek',
-        },
         DUPLICATE: {
             color: 'warning',
             icon: <WarningAmberOutlinedIcon />,
             label: 'Tekrarli',
         },
         CONFLICT: {
-            color: 'error',
-            icon: <ErrorOutlineOutlinedIcon />,
-            label: 'Cakisma',
+            color: 'warning',
+            icon: <WarningAmberOutlinedIcon />,
+            label: 'Manuel kontrol',
         },
         INVALID: {
             color: 'error',
@@ -290,8 +285,10 @@ function RowMessages({ row }: { row: AcademicianImportPreviewRow }) {
         ...row.errors.map((message) => ({ message, color: 'error.main' })),
         ...row.messages.map((message) => ({
             message,
-            color: row.status === 'CONFLICT' || row.status === 'INVALID'
+            color: row.status === 'INVALID'
                 ? 'error.main'
+                : row.status === 'CONFLICT'
+                    ? 'warning.main'
                 : row.status === 'DUPLICATE'
                     ? 'warning.main'
                     : 'success.main',
@@ -690,11 +687,6 @@ function ImportResultSummary({
                         color="success.main"
                     />
                     <SummaryMetric
-                        label="Guncellenen kayit"
-                        value={result.updatedCount}
-                        color="info.main"
-                    />
-                    <SummaryMetric
                         label="Atlanan duplicate"
                         value={result.duplicateCount}
                         color="warning.main"
@@ -725,8 +717,7 @@ function ImportResultSummary({
                     </Alert>
                 )}
 
-                {(result.updatedRows.length > 0
-                    || result.duplicateRows.length > 0
+                {(result.duplicateRows.length > 0
                     || result.conflictRows.length > 0
                     || result.invalidRows.length > 0
                     || result.failedRows.length > 0) && (
@@ -741,14 +732,9 @@ function ImportResultSummary({
                         }}
                     >
                         <ResultRowsPanel
-                            title="Guncellenen kayitlar"
-                            rows={result.updatedRows}
-                            tone="warning"
-                        />
-                        <ResultRowsPanel
-                            title="Hata nedeniyle aktarılmayan kayıtlar"
+                            title="Manuel kontrol gereken kayıtlar"
                             rows={result.conflictRows}
-                            tone="error"
+                            tone="warning"
                         />
                         <ResultRowsPanel
                             title="Duplicate olduğu için atlanan kayıtlar"
@@ -863,9 +849,9 @@ function PreviewTable({
                             display: 'grid',
                             gridTemplateColumns: {
                                 xs: 'repeat(2, minmax(0, 1fr))',
-                                sm: 'repeat(5, minmax(0, 1fr))',
+                                sm: 'repeat(4, minmax(0, 1fr))',
                             },
-                            width: { xs: '100%', sm: 560 },
+                            width: { xs: '100%', sm: 470 },
                             '& .MuiToggleButton-root': {
                                 minHeight: 34,
                                 px: 1.25,
@@ -875,7 +861,6 @@ function PreviewTable({
                     >
                         <ToggleButton value="all">Tumu</ToggleButton>
                         <ToggleButton value="NEW">Yeni</ToggleButton>
-                        <ToggleButton value="UPDATE">Guncellenecek</ToggleButton>
                         <ToggleButton value="DUPLICATE">Tekrarli</ToggleButton>
                         <ToggleButton value="INVALID">Hatali</ToggleButton>
                     </ToggleButtonGroup>
