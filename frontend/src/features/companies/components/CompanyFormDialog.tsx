@@ -48,6 +48,19 @@ type CompanyFormDialogProps = {
 
 type FormErrors = Partial<Record<string, string>>;
 
+const addOutlineButtonSx = {
+    bgcolor: '#FFFFFF',
+    borderColor: '#D9E2EA',
+    color: '#2A2B61',
+    '&:hover': {
+        bgcolor: 'rgba(42, 43, 97, 0.07)',
+        borderColor: '#D9E2EA',
+    },
+    '&:focus-visible': {
+        outline: '3px solid rgba(42, 43, 97, 0.18)',
+    },
+};
+
 const emptyContact: CompanyContactFormValues = {
     id: null,
     fullName: '',
@@ -614,6 +627,7 @@ export function CompanyFormDialog({
                         startIcon={<AddOutlinedIcon />}
                         onClick={() => handleAddContactMethod(type)}
                         disabled={isFormDisabled}
+                        sx={addOutlineButtonSx}
                     >
                         {`${methodTypeLabel(type)} Ekle`}
                     </Button>
@@ -702,7 +716,25 @@ export function CompanyFormDialog({
         >
             <DialogTitle>{title}</DialogTitle>
             <DialogContent dividers>
-                <Stack spacing={2.5} sx={{ pt: 1 }}>
+                <Stack
+                    spacing={2.5}
+                    sx={{
+                        pt: 1,
+                        '& .MuiInputLabel-root.Mui-focused:not(.Mui-error)': {
+                            color: '#2A2B61',
+                        },
+                        '& .MuiOutlinedInput-root.Mui-focused:not(.Mui-error)': {
+                            boxShadow: '0 0 0 3px rgba(42, 43, 97, 0.09)',
+                        },
+                        '& .MuiOutlinedInput-root.Mui-focused:not(.Mui-error) .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#2A2B61',
+                            borderWidth: 1,
+                        },
+                        '& .MuiRadio-root.Mui-checked': {
+                            color: '#2A2B61',
+                        },
+                    }}
+                >
                     {generalError && (
                         <Alert severity="error">{generalError}</Alert>
                     )}
@@ -880,6 +912,7 @@ export function CompanyFormDialog({
                                 startIcon={<AddOutlinedIcon />}
                                 onClick={handleAddContact}
                                 disabled={isFormDisabled}
+                                sx={addOutlineButtonSx}
                             >
                                 Yetkili Kisi Ekle
                             </Button>
@@ -1029,7 +1062,20 @@ export function CompanyFormDialog({
                 </Stack>
             </DialogContent>
             <DialogActions>
-                <Button onClick={onClose} disabled={isSaving}>
+                <Button
+                    onClick={onClose}
+                    disabled={isSaving}
+                    sx={{
+                        color: '#59677A',
+                        '&:hover': {
+                            bgcolor: 'rgba(10, 16, 38, 0.05)',
+                            color: '#344054',
+                        },
+                        '&:focus-visible': {
+                            outline: '3px solid rgba(42, 43, 97, 0.18)',
+                        },
+                    }}
+                >
                     Vazgec
                 </Button>
                 <Button
@@ -1037,6 +1083,16 @@ export function CompanyFormDialog({
                     loading={isSaving}
                     disabled={isFormDisabled}
                     onClick={handleSubmit}
+                    sx={{
+                        bgcolor: '#2A2B61',
+                        color: '#FFFFFF',
+                        '&:hover': {
+                            bgcolor: '#202153',
+                        },
+                        '&:focus-visible': {
+                            outline: '3px solid rgba(42, 43, 97, 0.18)',
+                        },
+                    }}
                 >
                     Kaydet
                 </Button>

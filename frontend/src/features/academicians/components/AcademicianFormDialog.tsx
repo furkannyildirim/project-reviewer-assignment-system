@@ -257,7 +257,22 @@ export function AcademicianFormDialog({
         <Dialog open={open} onClose={isSaving ? undefined : onClose} fullWidth maxWidth="sm">
             <DialogTitle>{title}</DialogTitle>
             <DialogContent>
-                <Stack spacing={2.5} sx={{ pt: 1 }}>
+                <Stack
+                    spacing={2.5}
+                    sx={{
+                        pt: 1,
+                        '& .MuiInputLabel-root.Mui-focused:not(.Mui-error)': {
+                            color: '#2A2B61',
+                        },
+                        '& .MuiOutlinedInput-root.Mui-focused:not(.Mui-error)': {
+                            boxShadow: '0 0 0 3px rgba(42, 43, 97, 0.09)',
+                        },
+                        '& .MuiOutlinedInput-root.Mui-focused:not(.Mui-error) .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#2A2B61',
+                            borderWidth: 1,
+                        },
+                    }}
+                >
                     {generalError && (
                         <Alert severity="error">{generalError}</Alert>
                     )}
@@ -341,13 +356,30 @@ export function AcademicianFormDialog({
                 </Stack>
             </DialogContent>
             <DialogActions>
-                <Button onClick={onClose} disabled={isSaving}>
+                <Button
+                    onClick={onClose}
+                    disabled={isSaving}
+                    sx={{
+                        color: '#59677A',
+                        '&:hover': {
+                            bgcolor: 'rgba(10, 16, 38, 0.05)',
+                            color: '#344054',
+                        },
+                    }}
+                >
                     Vazgeç
                 </Button>
                 <Button
                     variant="contained"
                     loading={isSaving}
                     onClick={handleSubmit}
+                    sx={{
+                        bgcolor: '#2A2B61',
+                        color: '#FFFFFF',
+                        '&:hover': {
+                            bgcolor: '#202153',
+                        },
+                    }}
                 >
                     Kaydet
                 </Button>

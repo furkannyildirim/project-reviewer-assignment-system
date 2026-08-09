@@ -1,19 +1,21 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import {
     Alert,
     Box,
     Button,
+    InputAdornment,
     MenuItem,
     Snackbar,
     Stack,
     TextField,
-    Typography,
 } from '@mui/material';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
 import { PageHeader } from '../../components/common/PageHeader';
+import { ResultSummary } from '../../components/common/ResultSummary';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
 import {
@@ -214,6 +216,13 @@ export function UsersPage() {
                             type: 'create',
                             user: null,
                         })}
+                        sx={{
+                            bgcolor: '#2A2B61',
+                            color: '#FFFFFF',
+                            '&:hover': {
+                                bgcolor: '#202153',
+                            },
+                        }}
                     >
                         Yeni Kullanıcı
                     </Button>
@@ -223,13 +232,50 @@ export function UsersPage() {
             <Stack
                 direction={{ xs: 'column', md: 'row' }}
                 spacing={2}
-                sx={{ alignItems: { xs: 'stretch', md: 'center' } }}
+                sx={{
+                    alignItems: { xs: 'stretch', md: 'center' },
+                    '& .MuiInputLabel-root.Mui-focused': {
+                        color: '#2A2B61',
+                    },
+                    '& .MuiOutlinedInput-root': {
+                        bgcolor: '#FFFFFF',
+                        borderRadius: '10px',
+                        minHeight: 44,
+                        '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#D9E2EA',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#B8C7D4',
+                        },
+                        '&.Mui-focused': {
+                            boxShadow: '0 0 0 3px rgba(42, 43, 97, 0.09)',
+                        },
+                        '&.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': {
+                            color: '#2A2B61',
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#2A2B61',
+                            borderWidth: 1,
+                        },
+                    },
+                }}
             >
                 <TextField
                     label="Arama"
                     placeholder="Ad, soyad, e-posta veya telefon"
                     value={search}
                     onChange={(event) => handleSearchChange(event.target.value)}
+                    slotProps={{
+                        input: {
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchOutlinedIcon
+                                        sx={{ color: '#728196', fontSize: 20 }}
+                                    />
+                                </InputAdornment>
+                            ),
+                        },
+                    }}
                     sx={{ flexGrow: 1 }}
                 />
 
@@ -248,24 +294,12 @@ export function UsersPage() {
                 </TextField>
 
                 {!usersQuery.isError && (
-                    <Box
-                        sx={{
-                            alignItems: 'center',
-                            bgcolor: 'background.paper',
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            borderRadius: 2.5,
-                            color: 'text.secondary',
-                            display: 'flex',
-                            minHeight: 40,
-                            px: 1.75,
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            Toplam {filteredUsers.length} kayıt
-                        </Typography>
-                    </Box>
+                    <ResultSummary
+                        filteredCount={filteredUsers.length}
+                        totalCount={users.length}
+                        hasActiveFilter={Boolean(debouncedSearch)}
+                        entityLabel="kullanıcı"
+                    />
                 )}
             </Stack>
 

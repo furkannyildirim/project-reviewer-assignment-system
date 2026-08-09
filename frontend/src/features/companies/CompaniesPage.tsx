@@ -2,20 +2,22 @@ import { useMemo, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import {
     Alert,
     Box,
     Button,
+    InputAdornment,
     MenuItem,
     Snackbar,
     Stack,
     TextField,
-    Typography,
 } from '@mui/material';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
 import { PageHeader } from '../../components/common/PageHeader';
+import { ResultSummary } from '../../components/common/ResultSummary';
 import { useAuth } from '../auth/useAuth';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -115,6 +117,7 @@ export function CompaniesPage({
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [snackbar, setSnackbar] = useState<SnackbarState>(null);
     const debouncedSearch = useDebouncedValue(search.trim(), 400);
+    const hasActiveFilter = Boolean(debouncedSearch || initial);
     const isAdmin = role === 'ADMIN';
     const selectionFilterKey = `${companyType}|${debouncedSearch}|${initial}`;
     const [selection, setSelection] = useState<SelectionState>(() => ({
@@ -448,6 +451,15 @@ export function CompaniesPage({
                             variant="outlined"
                             startIcon={<UploadFileOutlinedIcon />}
                             onClick={() => setImportDialogOpen(true)}
+                            sx={{
+                                bgcolor: '#FFFFFF',
+                                borderColor: '#D9E2EA',
+                                color: '#2A2B61',
+                                '&:hover': {
+                                    bgcolor: 'rgba(46, 168, 211, 0.06)',
+                                    borderColor: 'rgba(46, 168, 211, 0.45)',
+                                },
+                            }}
                         >
                             Excel'den Aktar
                         </Button>
@@ -457,6 +469,15 @@ export function CompaniesPage({
                             startIcon={<FileDownloadOutlinedIcon />}
                             disabled={exportMutation.isPending}
                             onClick={handleExport}
+                            sx={{
+                                bgcolor: '#FFFFFF',
+                                borderColor: '#D9E2EA',
+                                color: '#2A2B61',
+                                '&:hover': {
+                                    bgcolor: 'rgba(46, 168, 211, 0.06)',
+                                    borderColor: 'rgba(46, 168, 211, 0.45)',
+                                },
+                            }}
                         >
                             {exportMutation.isPending
                                 ? 'Aktarılıyor'
@@ -469,6 +490,13 @@ export function CompaniesPage({
                             variant="contained"
                             startIcon={<AddBusinessOutlinedIcon />}
                             onClick={() => setFormMode({ type: 'create', company: null })}
+                            sx={{
+                                bgcolor: '#2A2B61',
+                                color: '#FFFFFF',
+                                '&:hover': {
+                                    bgcolor: '#202153',
+                                },
+                            }}
                         >
                         Şirket Ekle
                         </Button>
@@ -479,13 +507,50 @@ export function CompaniesPage({
             <Stack
                 direction={{ xs: 'column', md: 'row' }}
                 spacing={2}
-                sx={{ alignItems: { xs: 'stretch', md: 'center' } }}
+                sx={{
+                    alignItems: { xs: 'stretch', md: 'center' },
+                    '& .MuiInputLabel-root.Mui-focused': {
+                        color: '#2A2B61',
+                    },
+                    '& .MuiOutlinedInput-root': {
+                        bgcolor: '#FFFFFF',
+                        borderRadius: '10px',
+                        minHeight: 44,
+                        '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#D9E2EA',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#B8C7D4',
+                        },
+                        '&.Mui-focused': {
+                            boxShadow: '0 0 0 3px rgba(42, 43, 97, 0.09)',
+                        },
+                        '&.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': {
+                            color: '#2A2B61',
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#2A2B61',
+                            borderWidth: 1,
+                        },
+                    },
+                }}
             >
                 <TextField
                     label="Arama"
                     placeholder="Şirket adı, e-posta, telefon veya faaliyet alanı"
                     value={search}
                     onChange={(event) => handleSearchChange(event.target.value)}
+                    slotProps={{
+                        input: {
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchOutlinedIcon
+                                        sx={{ color: '#728196', fontSize: 20 }}
+                                    />
+                                </InputAdornment>
+                            ),
+                        },
+                    }}
                     sx={{ flexGrow: 1 }}
                 />
 
@@ -518,42 +583,16 @@ export function CompaniesPage({
                     ))}
                 </TextField>
 
-                {companiesQuery.data && (
-                    <Box
-                        sx={{
-                            alignItems: 'center',
-                            bgcolor: 'background.paper',
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            borderRadius: 2.5,
-                            color: 'text.secondary',
-                            display: 'flex',
-                            minHeight: 40,
-                            px: 1.75,
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            {companiesQuery.data.totalElements} şirket bulundu
-                        </Typography>
-                    </Box>
-                )}
-
-                {companyCountQuery.data !== undefined && (
-                    <Box
-                        sx={{
-                            alignItems: 'center',
-                            color: 'text.secondary',
-                            display: 'flex',
-                            minHeight: 40,
-                            ml: { md: 'auto' },
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                            Toplam: {companyCountQuery.data} şirket
-                        </Typography>
-                    </Box>
+                {companiesQuery.data
+                    && companyCountQuery.data !== undefined && (
+                    <ResultSummary
+                        filteredCount={companiesQuery.data.totalElements}
+                        totalCount={companyCountQuery.data}
+                        hasActiveFilter={hasActiveFilter}
+                        entityLabel={companyType === 'TGB'
+                            ? 'TGB şirketi'
+                            : 'dış şirket'}
+                    />
                 )}
             </Stack>
 

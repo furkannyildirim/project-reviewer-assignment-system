@@ -39,6 +39,20 @@ type AcademicianTableProps = {
     onDelete: (academician: Academician) => void;
 };
 
+const selectionCheckboxSx = {
+    '&.Mui-checked, &.MuiCheckbox-indeterminate': {
+        color: '#2A2B61',
+    },
+    '&:hover': {
+        bgcolor: 'rgba(42, 43, 97, 0.08)',
+    },
+    '&.Mui-focusVisible': {
+        bgcolor: 'rgba(42, 43, 97, 0.08)',
+        outline: '2px solid rgba(42, 43, 97, 0.18)',
+        outlineOffset: 1,
+    },
+};
+
 function displayOptional(value: string | null) {
     return value?.trim() ? value : '—';
 }
@@ -126,7 +140,16 @@ export function AcademicianTable({
         >
             <TableContainer sx={{ overflowX: 'auto' }}>
                 <Table sx={{ minWidth: 980 }} aria-label="Akademisyen tablosu">
-                    <TableHead>
+                    <TableHead
+                        sx={{
+                            bgcolor: '#F7FAFC',
+                            '& .MuiTableCell-head': {
+                                borderBottom: '1px solid #E3EAF0',
+                                color: '#0A1026',
+                                fontWeight: 600,
+                            },
+                        }}
+                    >
                         <TableRow>
                             <TableCell padding="checkbox">
                                 <Tooltip title="Filtreye uyan tüm kayıtları seç">
@@ -137,6 +160,7 @@ export function AcademicianTable({
                                             disabled={isSelectionLoading}
                                             indeterminate={isSelectionIndeterminate}
                                             onChange={onToggleAll}
+                                            sx={selectionCheckboxSx}
                                         />
                                     </span>
                                 </Tooltip>
@@ -162,6 +186,7 @@ export function AcademicianTable({
                                             checked={selectedIds.has(academician.id)}
                                             onClick={(event) => event.stopPropagation()}
                                             onChange={() => onToggleOne(academician.id)}
+                                            sx={selectionCheckboxSx}
                                         />
                                     </TableCell>
                                     <TableCell>
@@ -198,6 +223,13 @@ export function AcademicianTable({
                                                         aria-label="Akademisyeni düzenle"
                                                         disabled={isMutating}
                                                         onClick={() => onEdit(academician)}
+                                                        sx={{
+                                                            color: 'text.secondary',
+                                                            '&:hover': {
+                                                                bgcolor: 'rgba(42, 43, 97, 0.08)',
+                                                                color: '#2A2B61',
+                                                            },
+                                                        }}
                                                     >
                                                         <EditOutlinedIcon />
                                                     </IconButton>
@@ -211,6 +243,13 @@ export function AcademicianTable({
                                                             color="error"
                                                             disabled={isMutating}
                                                             onClick={() => onDelete(academician)}
+                                                            sx={{
+                                                                color: 'text.secondary',
+                                                                '&:hover': {
+                                                                    bgcolor: 'rgba(180, 35, 24, 0.08)',
+                                                                    color: '#B42318',
+                                                                },
+                                                            }}
                                                         >
                                                             <DeleteOutlineOutlinedIcon />
                                                         </IconButton>
@@ -247,6 +286,28 @@ export function AcademicianTable({
                     size="small"
                     sx={{
                         maxWidth: '100%',
+                        '& .MuiPaginationItem-root': {
+                            color: '#344054',
+                            '&:hover': {
+                                bgcolor: 'rgba(42, 43, 97, 0.06)',
+                            },
+                            '&.Mui-focusVisible': {
+                                bgcolor: 'rgba(42, 43, 97, 0.08)',
+                                outline: '2px solid rgba(42, 43, 97, 0.14)',
+                                outlineOffset: 1,
+                            },
+                        },
+                        '& .MuiPaginationItem-root.Mui-selected': {
+                            bgcolor: '#2A2B61',
+                            color: '#FFFFFF',
+                            '&:hover': {
+                                bgcolor: '#202153',
+                            },
+                            '&.Mui-focusVisible': {
+                                bgcolor: '#2A2B61',
+                                outlineColor: 'rgba(42, 43, 97, 0.24)',
+                            },
+                        },
                         '& .MuiPagination-ul': {
                             justifyContent: 'flex-end',
                             flexWrap: 'wrap',

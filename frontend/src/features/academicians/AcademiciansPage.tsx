@@ -2,20 +2,22 @@ import { useMemo, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import {
     Alert,
     Box,
     Button,
+    InputAdornment,
     MenuItem,
     Snackbar,
     Stack,
     TextField,
-    Typography,
 } from '@mui/material';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
 import { PageHeader } from '../../components/common/PageHeader';
+import { ResultSummary } from '../../components/common/ResultSummary';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
 import { useAuth } from '../auth/useAuth';
@@ -106,6 +108,7 @@ export function AcademiciansPage() {
     const [snackbar, setSnackbar] = useState<SnackbarState>(null);
     const [isCheckingIdentity, setIsCheckingIdentity] = useState(false);
     const debouncedSearch = useDebouncedValue(search.trim(), 400);
+    const hasActiveFilter = Boolean(debouncedSearch || initial);
     const isAdmin = role === 'ADMIN';
     const selectionFilterKey = `${debouncedSearch}|${initial}`;
     const [selection, setSelection] = useState<SelectionState>(() => ({
@@ -417,6 +420,15 @@ export function AcademiciansPage() {
                             variant="outlined"
                             startIcon={<UploadFileOutlinedIcon />}
                             onClick={() => setImportDialogOpen(true)}
+                            sx={{
+                                bgcolor: '#FFFFFF',
+                                borderColor: '#D9E2EA',
+                                color: '#2A2B61',
+                                '&:hover': {
+                                    bgcolor: 'rgba(46, 168, 211, 0.06)',
+                                    borderColor: 'rgba(46, 168, 211, 0.45)',
+                                },
+                            }}
                         >
                             Excel'den Aktar
                         </Button>
@@ -425,6 +437,15 @@ export function AcademiciansPage() {
                             startIcon={<FileDownloadOutlinedIcon />}
                             disabled={exportMutation.isPending}
                             onClick={handleExport}
+                            sx={{
+                                bgcolor: '#FFFFFF',
+                                borderColor: '#D9E2EA',
+                                color: '#2A2B61',
+                                '&:hover': {
+                                    bgcolor: 'rgba(46, 168, 211, 0.06)',
+                                    borderColor: 'rgba(46, 168, 211, 0.45)',
+                                },
+                            }}
                         >
                             {exportMutation.isPending
                                 ? 'Aktarılıyor'
@@ -439,6 +460,13 @@ export function AcademiciansPage() {
                                 type: 'create',
                                 academician: null,
                             })}
+                            sx={{
+                                bgcolor: '#2A2B61',
+                                color: '#FFFFFF',
+                                '&:hover': {
+                                    bgcolor: '#202153',
+                                },
+                            }}
                         >
                             Yeni Akademisyen
                         </Button>
@@ -449,13 +477,50 @@ export function AcademiciansPage() {
             <Stack
                 direction={{ xs: 'column', md: 'row' }}
                 spacing={2}
-                sx={{ alignItems: { xs: 'stretch', md: 'center' } }}
+                sx={{
+                    alignItems: { xs: 'stretch', md: 'center' },
+                    '& .MuiInputLabel-root.Mui-focused': {
+                        color: '#2A2B61',
+                    },
+                    '& .MuiOutlinedInput-root': {
+                        bgcolor: '#FFFFFF',
+                        borderRadius: '10px',
+                        minHeight: 44,
+                        '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#D9E2EA',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#B8C7D4',
+                        },
+                        '&.Mui-focused': {
+                            boxShadow: '0 0 0 3px rgba(42, 43, 97, 0.09)',
+                        },
+                        '&.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': {
+                            color: '#2A2B61',
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#2A2B61',
+                            borderWidth: 1,
+                        },
+                    },
+                }}
             >
                 <TextField
                     label="Arama"
                     placeholder="Ad, soyad, e-posta, telefon, ünvan veya anahtar kelime"
                     value={search}
                     onChange={(event) => handleSearchChange(event.target.value)}
+                    slotProps={{
+                        input: {
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchOutlinedIcon
+                                        sx={{ color: '#728196', fontSize: 20 }}
+                                    />
+                                </InputAdornment>
+                            ),
+                        },
+                    }}
                     sx={{ flexGrow: 1 }}
                 />
 
@@ -488,42 +553,14 @@ export function AcademiciansPage() {
                     ))}
                 </TextField>
 
-                {academiciansQuery.data && (
-                    <Box
-                        sx={{
-                            alignItems: 'center',
-                            bgcolor: 'background.paper',
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            borderRadius: 2.5,
-                            color: 'text.secondary',
-                            display: 'flex',
-                            minHeight: 40,
-                            px: 1.75,
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            {academiciansQuery.data.totalElements} akademisyen bulundu
-                        </Typography>
-                    </Box>
-                )}
-
-                {academicianCountQuery.data !== undefined && (
-                    <Box
-                        sx={{
-                            alignItems: 'center',
-                            color: 'text.secondary',
-                            display: 'flex',
-                            minHeight: 40,
-                            ml: { md: 'auto' },
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                            Toplam: {academicianCountQuery.data} akademisyen
-                        </Typography>
-                    </Box>
+                {academiciansQuery.data
+                    && academicianCountQuery.data !== undefined && (
+                    <ResultSummary
+                        filteredCount={academiciansQuery.data.totalElements}
+                        totalCount={academicianCountQuery.data}
+                        hasActiveFilter={hasActiveFilter}
+                        entityLabel="akademisyen"
+                    />
                 )}
             </Stack>
 

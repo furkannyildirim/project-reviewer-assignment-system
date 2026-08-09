@@ -157,11 +157,11 @@ function SummaryMetric({
 function HeaderChips({
     title,
     headers,
-    color = 'primary',
+    color,
 }: {
     title: string;
     headers: string[];
-    color?: 'primary' | 'warning';
+    color?: 'warning';
 }) {
     return (
         <Paper
@@ -197,10 +197,19 @@ function HeaderChips({
                             size="small"
                             color={color}
                             variant="outlined"
-                            sx={{
-                                bgcolor: 'background.paper',
-                                fontWeight: 700,
-                            }}
+                            sx={color !== 'warning'
+                                ? {
+                                    '&&': {
+                                        bgcolor: '#F3F4F8',
+                                        border: '1px solid #D4D6E3',
+                                        color: '#2A2B61',
+                                        fontWeight: 700,
+                                    },
+                                }
+                                : {
+                                    bgcolor: 'background.paper',
+                                    fontWeight: 700,
+                                }}
                         />
                     ))}
                 </Stack>
@@ -1163,6 +1172,18 @@ export function AcademicianImportDialog({
                             variant="outlined"
                             startIcon={<UploadFileOutlinedIcon />}
                             disabled={isBusy}
+                            sx={!importResult ? {
+                                bgcolor: '#EAF7FB',
+                                borderColor: '#C9EAF4',
+                                color: '#187A9C',
+                                '&:hover': {
+                                    bgcolor: '#DDF2F8',
+                                    borderColor: '#B8E2EF',
+                                },
+                                '&:focus-visible': {
+                                    outline: '3px solid rgba(42, 43, 97, 0.18)',
+                                },
+                            } : undefined}
                         >
                             Dosya Seç
                             <input
@@ -1252,12 +1273,44 @@ export function AcademicianImportDialog({
             </DialogContent>
             <DialogActions>
                 {importResult ? (
-                    <Button onClick={handleClose}>
+                    <Button
+                        variant="contained"
+                        onClick={handleClose}
+                        sx={{
+                            '&&': {
+                                bgcolor: '#2A2B61',
+                                color: '#FFFFFF',
+                            },
+                            '&&:hover': {
+                                bgcolor: '#222352',
+                                color: '#FFFFFF',
+                            },
+                            '&&:focus-visible': {
+                                outline: '3px solid rgba(42, 43, 97, 0.18)',
+                            },
+                        }}
+                    >
                         Kapat
                     </Button>
                 ) : (
                     <>
-                        <Button onClick={handleClose} disabled={isBusy}>
+                        <Button
+                            onClick={handleClose}
+                            disabled={isBusy}
+                            sx={{
+                                '&&:not(.Mui-disabled)': {
+                                    bgcolor: '#F3F4F6',
+                                    color: '#4B5563',
+                                },
+                                '&&:not(.Mui-disabled):hover': {
+                                    bgcolor: '#E9EBEF',
+                                    color: '#4B5563',
+                                },
+                                '&:focus-visible': {
+                                    outline: '3px solid rgba(42, 43, 97, 0.18)',
+                                },
+                            }}
+                        >
                             Vazgeç
                         </Button>
                         <Button
@@ -1265,6 +1318,29 @@ export function AcademicianImportDialog({
                             loading={previewMutation.isPending}
                             disabled={!selectedFile || isBusy}
                             onClick={handlePreview}
+                            sx={!preview
+                                ? {
+                                    bgcolor: '#2A2B61',
+                                    color: '#FFFFFF',
+                                    '&:hover': {
+                                        bgcolor: '#202153',
+                                    },
+                                    '&:focus-visible': {
+                                        outline: '3px solid rgba(42, 43, 97, 0.18)',
+                                    },
+                                }
+                                : {
+                                    bgcolor: '#FFFFFF',
+                                    borderColor: '#C9EAF4',
+                                    color: '#187A9C',
+                                    '&:hover': {
+                                        bgcolor: '#EAF7FB',
+                                        borderColor: '#C9EAF4',
+                                    },
+                                    '&:focus-visible': {
+                                        outline: '3px solid rgba(24, 122, 156, 0.18)',
+                                    },
+                                }}
                         >
                             {preview ? 'Yeniden Kontrol Et' : 'Dosyayı Kontrol Et'}
                         </Button>
@@ -1274,6 +1350,16 @@ export function AcademicianImportDialog({
                                 loading={importMutation.isPending}
                                 disabled={!canImport}
                                 onClick={() => setConfirmOpen(true)}
+                                sx={{
+                                    bgcolor: '#2A2B61',
+                                    color: '#FFFFFF',
+                                    '&:hover': {
+                                        bgcolor: '#202153',
+                                    },
+                                    '&:focus-visible': {
+                                        outline: '3px solid rgba(42, 43, 97, 0.18)',
+                                    },
+                                }}
                             >
                                 {importMutation.isPending
                                     ? 'Aktarılıyor...'
@@ -1304,6 +1390,19 @@ export function AcademicianImportDialog({
                     <Button
                         onClick={() => setConfirmOpen(false)}
                         disabled={importMutation.isPending}
+                        sx={{
+                            '&&:not(.Mui-disabled)': {
+                                bgcolor: '#F3F4F6',
+                                color: '#4B5563',
+                            },
+                            '&&:not(.Mui-disabled):hover': {
+                                bgcolor: '#E9EBEF',
+                                color: '#4B5563',
+                            },
+                            '&:focus-visible': {
+                                outline: '3px solid rgba(42, 43, 97, 0.18)',
+                            },
+                        }}
                     >
                         Vazgeç
                     </Button>
@@ -1312,6 +1411,19 @@ export function AcademicianImportDialog({
                         loading={importMutation.isPending}
                         disabled={!canImport}
                         onClick={handleImportConfirm}
+                        sx={{
+                            '&&:not(.Mui-disabled)': {
+                                bgcolor: '#2A2B61',
+                                color: '#FFFFFF',
+                            },
+                            '&&:not(.Mui-disabled):hover': {
+                                bgcolor: '#222352',
+                                color: '#FFFFFF',
+                            },
+                            '&:focus-visible': {
+                                outline: '3px solid rgba(42, 43, 97, 0.18)',
+                            },
+                        }}
                     >
                         Aktarımı Başlat
                     </Button>

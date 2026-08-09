@@ -68,7 +68,16 @@ export function UserTable({
         >
             <TableContainer sx={{ overflowX: 'auto' }}>
                 <Table sx={{ minWidth: 860 }} aria-label="Kullanıcı tablosu">
-                    <TableHead>
+                    <TableHead
+                        sx={{
+                            bgcolor: '#F7FAFC',
+                            '& .MuiTableCell-head': {
+                                borderBottom: '1px solid #E3EAF0',
+                                color: '#0A1026',
+                                fontWeight: 600,
+                            },
+                        }}
+                    >
                         <TableRow>
                             <TableCell>Ad</TableCell>
                             <TableCell>Soyad</TableCell>
@@ -98,6 +107,12 @@ export function UserTable({
                                             color={user.active ? 'success' : 'default'}
                                             size="small"
                                             variant={user.active ? 'filled' : 'outlined'}
+                                            sx={user.active ? {
+                                                bgcolor: '#EAF7FB',
+                                                border: '1px solid #C9EAF4',
+                                                color: '#187A9C',
+                                                fontWeight: 600,
+                                            } : undefined}
                                         />
                                     </TableCell>
                                     <TableCell align="right">
@@ -112,6 +127,13 @@ export function UserTable({
                                                         aria-label="Kullanıcıyı düzenle"
                                                         disabled={isMutating}
                                                         onClick={() => onEdit(user)}
+                                                        sx={{
+                                                            color: 'text.secondary',
+                                                            '&:hover': {
+                                                                bgcolor: 'rgba(42, 43, 97, 0.08)',
+                                                                color: '#2A2B61',
+                                                            },
+                                                        }}
                                                     >
                                                         <EditOutlinedIcon />
                                                     </IconButton>
@@ -124,6 +146,13 @@ export function UserTable({
                                                         color="error"
                                                         disabled={isMutating}
                                                         onClick={() => onDelete(user)}
+                                                        sx={{
+                                                            color: 'text.secondary',
+                                                            '&:hover': {
+                                                                bgcolor: 'rgba(180, 35, 24, 0.08)',
+                                                                color: '#B42318',
+                                                            },
+                                                        }}
                                                     >
                                                         <DeleteOutlineOutlinedIcon />
                                                     </IconButton>
@@ -159,6 +188,28 @@ export function UserTable({
                     size="small"
                     sx={{
                         maxWidth: '100%',
+                        '& .MuiPaginationItem-root': {
+                            color: '#344054',
+                            '&:hover': {
+                                bgcolor: 'rgba(42, 43, 97, 0.06)',
+                            },
+                            '&.Mui-focusVisible': {
+                                bgcolor: 'rgba(42, 43, 97, 0.08)',
+                                outline: '2px solid rgba(42, 43, 97, 0.14)',
+                                outlineOffset: 1,
+                            },
+                        },
+                        '& .MuiPaginationItem-root.Mui-selected': {
+                            bgcolor: '#2A2B61',
+                            color: '#FFFFFF',
+                            '&:hover': {
+                                bgcolor: '#202153',
+                            },
+                            '&.Mui-focusVisible': {
+                                bgcolor: '#2A2B61',
+                                outlineColor: 'rgba(42, 43, 97, 0.24)',
+                            },
+                        },
                         '& .MuiPagination-ul': {
                             justifyContent: 'flex-end',
                             flexWrap: 'wrap',
