@@ -34,7 +34,7 @@ import type {
 
 type CompanyFormDialogProps = {
     open: boolean;
-    company: Company | null;
+    company: Pick<Company, 'id'> | null;
     companyDetail: CompanyDetail | null;
     isDetailLoading: boolean;
     detailError: string | null;

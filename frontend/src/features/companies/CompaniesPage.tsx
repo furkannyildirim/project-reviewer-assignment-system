@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
@@ -43,10 +43,11 @@ import { companyPageSizes } from './company.types';
 import { CompanyFormDialog } from './components/CompanyFormDialog';
 import { CompanyImportPreviewDialog } from './components/CompanyImportPreviewDialog';
 import { CompanyTable } from './components/CompanyTable';
+import { useLocation, useNavigate } from 'react-router';
 
 type FormMode = {
     type: 'create' | 'edit';
-    company: Company | null;
+    company: Pick<Company, 'id'> | null;
 } | null;
 
 type SnackbarState = {
@@ -105,6 +106,8 @@ export function CompaniesPage({
     emptyTitle,
 }: CompaniesPageProps) {
     const { role } = useAuth();
+    const location = useLocation();
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
     const [initial, setInitial] = useState('');
@@ -119,6 +122,19 @@ export function CompaniesPage({
     const debouncedSearch = useDebouncedValue(search.trim(), 400);
     const hasActiveFilter = Boolean(debouncedSearch || initial);
     const isAdmin = role === 'ADMIN';
+
+    useEffect(() => {
+        const editCompanyId = (location.state as {
+            editCompanyId?: number;
+        } | null)?.editCompanyId;
+
+        if (!editCompanyId) {
+            return;
+        }
+
+        setFormMode({ type: 'edit', company: { id: editCompanyId } });
+        navigate(location.pathname, { replace: true, state: null });
+    }, [location.pathname, location.state, navigate]);
     const selectionFilterKey = `${companyType}|${debouncedSearch}|${initial}`;
     const [selection, setSelection] = useState<SelectionState>(() => ({
         filterKey: selectionFilterKey,
@@ -672,6 +688,9 @@ export function CompaniesPage({
                         onPageChange={setPage}
                         onToggleAll={() => void handleToggleAll()}
                         onToggleOne={handleToggleOne}
+                        onView={(company) => navigate(
+                            `/companies/${company.companyType === 'TGB' ? 'tgb' : 'external'}/${company.id}`,
+                        )}
                         onEdit={(company) => setFormMode({ type: 'edit', company })}
                         onDelete={(company) => {
                             setDeleteError(null);

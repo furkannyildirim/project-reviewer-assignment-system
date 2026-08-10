@@ -70,10 +70,9 @@ export function AppLayout() {
     const [mobileOpen, setMobileOpen] = useState(false);
     const hasLocalPageHeader = [
         '/academicians',
-        '/companies/tgb',
-        '/companies/external',
         '/users',
-    ].includes(location.pathname);
+    ].includes(location.pathname)
+        || location.pathname.startsWith('/companies/');
 
     const visibleNavigationItems = navigationItems.filter(
         (item) => !item.adminOnly || role === 'ADMIN',

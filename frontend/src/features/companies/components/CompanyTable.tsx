@@ -21,6 +21,7 @@ import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import type { PageResponse } from '../../../types/api';
 import type { Company, CompanyContactMethod, CompanyListItem } from '../company.types';
 import { CompanyContactsPopover } from './CompanyContactsPopover';
@@ -39,6 +40,7 @@ type CompanyTableProps = {
     onPageChange: (page: number) => void;
     onToggleAll: () => void;
     onToggleOne: (id: number) => void;
+    onView: (company: Company) => void;
     onEdit: (company: Company) => void;
     onDelete: (company: Company) => void;
 };
@@ -340,6 +342,7 @@ export function CompanyTable({
     onPageChange,
     onToggleAll,
     onToggleOne,
+    onView,
     onEdit,
     onDelete,
 }: CompanyTableProps) {
@@ -429,6 +432,21 @@ export function CompanyTable({
                                             spacing={0.5}
                                             sx={{ justifyContent: 'flex-end' }}
                                         >
+                                            <Tooltip title="Şirket detaylarını görüntüle">
+                                                <IconButton
+                                                    aria-label="Şirket detaylarını görüntüle"
+                                                    onClick={() => onView(company)}
+                                                    sx={{
+                                                        color: 'text.secondary',
+                                                        '&:hover': {
+                                                            bgcolor: 'rgba(42, 43, 97, 0.08)',
+                                                            color: '#2A2B61',
+                                                        },
+                                                    }}
+                                                >
+                                                    <VisibilityOutlinedIcon />
+                                                </IconButton>
+                                            </Tooltip>
                                             <Tooltip title="Duzenle">
                                                 <span>
                                                     <IconButton
