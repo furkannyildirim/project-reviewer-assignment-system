@@ -68,6 +68,12 @@ export function AppLayout() {
     const theme = useTheme();
     const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
     const [mobileOpen, setMobileOpen] = useState(false);
+    const hasLocalPageHeader = [
+        '/academicians',
+        '/companies/tgb',
+        '/companies/external',
+        '/users',
+    ].includes(location.pathname);
 
     const visibleNavigationItems = navigationItems.filter(
         (item) => !item.adminOnly || role === 'ADMIN',
@@ -263,6 +269,7 @@ export function AppLayout() {
 
     return (
         <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+            {!hasLocalPageHeader && (
             <AppBar
                 position="absolute"
                 color="inherit"
@@ -344,6 +351,7 @@ export function AppLayout() {
                     </Box>
                 </Toolbar>
             </AppBar>
+            )}
 
             <Box
                 component="nav"
@@ -395,15 +403,22 @@ export function AppLayout() {
                 sx={{
                     bgcolor: 'background.default',
                     flexGrow: 1,
+                    height: hasLocalPageHeader ? '100vh' : undefined,
                     minWidth: 0,
                     overflowX: 'hidden',
+                    overflowY: hasLocalPageHeader ? 'auto' : undefined,
                 }}
             >
-                <Toolbar sx={{ minHeight: { xs: 88, sm: 100 } }} />
+                {!hasLocalPageHeader && (
+                    <Toolbar sx={{ minHeight: { xs: 88, sm: 100 } }} />
+                )}
                 <Box
                     sx={{
+                        pb: { xs: 2.5, sm: 3, lg: 4 },
                         px: { xs: 2, sm: 3, lg: 4 },
-                        py: { xs: 2.5, sm: 3, lg: 4 },
+                        pt: hasLocalPageHeader
+                            ? 0
+                            : { xs: 2.5, sm: 3, lg: 4 },
                         width: '100%',
                     }}
                 >

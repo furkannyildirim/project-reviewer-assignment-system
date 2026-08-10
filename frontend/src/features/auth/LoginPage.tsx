@@ -86,23 +86,37 @@ export function LoginPage() {
                     flexDirection: 'column',
                     bgcolor: PANEL_BLUE,
                     color: '#FFFFFF',
-                    px: { md: 3.5, lg: 4 },
-                    py: 5,
                 }}
             >
                 <Box
-                    component="img"
-                    src={sakaryaTeknokentLogo}
-                    alt="Sakarya Teknokent"
                     sx={{
-                        display: 'block',
-                        width: '100%',
-                        maxWidth: 218,
-                        height: 'auto',
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+                        px: { md: 3.5, lg: 4 },
+                        pb: 2.5,
+                        pt: 1.5,
                     }}
-                />
+                >
+                    <Box
+                        component="img"
+                        src={sakaryaTeknokentLogo}
+                        alt="Sakarya Teknokent"
+                        sx={{
+                            display: 'block',
+                            width: '100%',
+                            maxWidth: 218,
+                            height: 'auto',
+                        }}
+                    />
+                </Box>
 
-                <Box sx={{ mt: 'auto', pt: 4 }}>
+                <Box
+                    sx={{
+                        mt: 'auto',
+                        px: { md: 3.5, lg: 4 },
+                        pb: 5,
+                        pt: 4,
+                    }}
+                >
                     <Box
                         aria-hidden="true"
                         sx={{
@@ -140,6 +154,7 @@ export function LoginPage() {
                         justifyContent: 'center',
                         minHeight: 104,
                         bgcolor: PANEL_BLUE,
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
                         px: 3,
                         py: 2.5,
                     }}
@@ -166,7 +181,11 @@ export function LoginPage() {
                         px: { xs: 3, sm: 5, lg: 7 },
                         py: { xs: 2.5, md: 3 },
                         bgcolor: 'rgba(255, 255, 255, 0.72)',
-                        borderBottom: '1px solid #E1E8EF',
+                        border: '1px solid #E1E8EF',
+                        borderRadius: 3,
+                        mx: 1,
+                        mt: 0,
+                        mb: 0,
                     }}
                 >
                     <Box

@@ -13,10 +13,10 @@ import {
     Snackbar,
     Stack,
     TextField,
+    Typography,
 } from '@mui/material';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
-import { PageHeader } from '../../components/common/PageHeader';
 import { ResultSummary } from '../../components/common/ResultSummary';
 import { useAuth } from '../auth/useAuth';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
@@ -438,10 +438,51 @@ export function CompaniesPage({
 
     return (
         <Stack spacing={3}>
-            <PageHeader
-                title={title}
-                description={description}
-                action={(
+            <Box
+                sx={{
+                    bgcolor: 'background.default',
+                    borderBottom: '1px solid #E3EAF0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    position: 'sticky',
+                    pt: { xs: 2.5, sm: 3, lg: 4 },
+                    top: 0,
+                    zIndex: (theme) => theme.zIndex.appBar - 1,
+                }}
+            >
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={2}
+                    sx={{
+                        alignItems: { xs: 'stretch', sm: 'flex-start' },
+                        justifyContent: 'space-between',
+                    }}
+                >
+                    <Stack
+                        direction="row"
+                        spacing={1.75}
+                        sx={{ alignItems: 'center', minWidth: 0 }}
+                    >
+                        <Box
+                            aria-hidden="true"
+                            sx={{
+                                bgcolor: '#2EA8D3',
+                                borderRadius: '4px',
+                                flex: '0 0 auto',
+                                height: 52,
+                                width: 4,
+                            }}
+                        />
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="h4" component="h1">
+                                {title}
+                            </Typography>
+                            <Typography color="text.secondary" sx={{ mt: 0.75 }}>
+                                {description}
+                            </Typography>
+                        </Box>
+                    </Stack>
                     <Stack
                         direction={{ xs: 'column', sm: 'row' }}
                         spacing={1}
@@ -501,8 +542,7 @@ export function CompaniesPage({
                         Şirket Ekle
                         </Button>
                     </Stack>
-                )}
-            />
+                </Stack>
 
             <Stack
                 direction={{ xs: 'column', md: 'row' }}
@@ -595,6 +635,7 @@ export function CompaniesPage({
                     />
                 )}
             </Stack>
+            </Box>
 
             {companiesQuery.isError && (
                 <Alert severity="error">

@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import {
@@ -49,10 +50,13 @@ type AcademicianImportDialogProps = {
     onClose: () => void;
 };
 
-type PreviewRowFilter = 'all' | 'NEW' | 'DUPLICATE' | 'INVALID';
+type PreviewRowFilter = 'all' | 'NEW' | 'DUPLICATE' | 'CONFLICT' | 'INVALID';
 
 const defaultRowsPerPage = 25;
 const optionalFallback = '—';
+const brandNavy = '#2A2B61';
+const brandNavyHover = '#222352';
+const softBlue = '#2EA8D3';
 const revalidationErrorMessage =
     'Dosya yeniden doğrulanırken hata bulundu. Lütfen önizlemeyi tekrar kontrol edin.';
 
@@ -95,61 +99,62 @@ function SummaryMetric({
     return (
         <Paper
             elevation={0}
-            sx={(theme) => {
-                const toneColors = {
-                    default: theme.palette.grey[500],
-                    success: theme.palette.success.main,
-                    error: theme.palette.error.main,
-                    warning: theme.palette.warning.main,
-                    info: theme.palette.info.main,
-                };
-                const accentColor = toneColors[tone];
-
-                return {
-                    position: 'relative',
-                    border: '1px solid',
-                    borderColor: alpha(accentColor, tone === 'default' ? 0.18 : 0.28),
-                    borderRadius: '8px',
-                    minWidth: 132,
-                    maxWidth: label === 'Dosya adı' ? 360 : undefined,
-                    overflow: 'hidden',
-                    px: 1.75,
-                    py: 1.45,
-                    bgcolor: alpha(accentColor, tone === 'default' ? 0.025 : 0.06),
-                    boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, 0.75)}`,
-                    '&::before': {
-                        bgcolor: accentColor,
-                        bottom: 0,
-                        content: '""',
-                        left: 0,
-                        position: 'absolute',
-                        top: 0,
-                        width: 4,
-                    },
-                };
-            }}
+            sx={(theme) => ({
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: '8px',
+                minWidth: 0,
+                px: 1.5,
+                py: 1.35,
+                bgcolor: 'background.paper',
+                boxShadow: `0 1px 2px ${alpha(theme.palette.common.black, 0.025)}`,
+            })}
         >
-            <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: 'block', fontWeight: 700 }}
-            >
-                {label}
-            </Typography>
-            <Typography
-                variant="h6"
-                sx={{
-                    color,
-                    fontWeight: 800,
-                    lineHeight: 1.2,
-                    mt: 0.35,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                }}
-            >
-                {value}
-            </Typography>
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
+                <Box
+                    sx={(theme) => {
+                        const toneColors = {
+                            default: theme.palette.grey[500],
+                            success: theme.palette.success.main,
+                            error: theme.palette.error.main,
+                            warning: theme.palette.warning.main,
+                            info: theme.palette.info.main,
+                        };
+
+                        return {
+                            bgcolor: alpha(toneColors[tone], tone === 'default' ? 0.35 : 0.72),
+                            borderRadius: '6px',
+                            flex: '0 0 auto',
+                            height: 32,
+                            width: 4,
+                        };
+                    }}
+                />
+                <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: 'block', fontWeight: 600, lineHeight: 1.3 }}
+                    >
+                        {label}
+                    </Typography>
+                    <Typography
+                        variant="h6"
+                        sx={{
+                            color,
+                            fontSize: 20,
+                            fontWeight: 750,
+                            lineHeight: 1.3,
+                            mt: 0.15,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        {value}
+                    </Typography>
+                </Box>
+            </Stack>
         </Paper>
     );
 }
@@ -164,27 +169,20 @@ function HeaderChips({
     color?: 'warning';
 }) {
     return (
-        <Paper
-            elevation={0}
-            sx={(theme) => ({
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: '8px',
-                flex: 1,
-                minWidth: 0,
-                p: 1.5,
-                bgcolor: alpha(theme.palette.background.default, 0.62),
-            })}
-        >
+        <Box sx={{ flex: 1, minWidth: 0 }}>
             <Stack
                 direction="row"
                 spacing={1}
-                sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}
+                sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 0.9 }}
             >
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
                     {title}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ bgcolor: 'background.default', borderRadius: 10, px: 0.8, py: 0.15 }}
+                >
                     {headers.length}
                 </Typography>
             </Stack>
@@ -195,21 +193,22 @@ function HeaderChips({
                             key={header}
                             label={header}
                             size="small"
-                            color={color}
                             variant="outlined"
-                            sx={color !== 'warning'
-                                ? {
-                                    '&&': {
-                                        bgcolor: '#F3F4F8',
-                                        border: '1px solid #D4D6E3',
-                                        color: '#2A2B61',
-                                        fontWeight: 700,
-                                    },
-                                }
-                                : {
-                                    bgcolor: 'background.paper',
-                                    fontWeight: 700,
-                                }}
+                            sx={(theme) => ({
+                                '&&': {
+                                    bgcolor: color === 'warning'
+                                        ? alpha(theme.palette.warning.main, 0.035)
+                                        : '#F7F8FA',
+                                    borderColor: color === 'warning'
+                                        ? alpha(theme.palette.warning.main, 0.28)
+                                        : '#E2E5EA',
+                                    color: color === 'warning'
+                                        ? 'text.secondary'
+                                        : brandNavy,
+                                    fontWeight: 600,
+                                    height: 27,
+                                },
+                            })}
                         />
                     ))}
                 </Stack>
@@ -218,7 +217,7 @@ function HeaderChips({
                     {optionalFallback}
                 </Typography>
             )}
-        </Paper>
+        </Box>
     );
 }
 
@@ -263,17 +262,17 @@ function RowStatus({ row }: { row: AcademicianImportPreviewRow }) {
         DUPLICATE: {
             color: 'warning',
             icon: <WarningAmberOutlinedIcon />,
-            label: 'Tekrarli',
+            label: 'Tekrarlı',
         },
         CONFLICT: {
             color: 'warning',
             icon: <WarningAmberOutlinedIcon />,
-            label: 'Manuel kontrol',
+            label: 'İncelenecek',
         },
         INVALID: {
             color: 'error',
             icon: <ErrorOutlineOutlinedIcon />,
-            label: 'Hatali',
+            label: 'Hatalı',
         },
     } as const;
     const config = statusConfig[row.status];
@@ -285,6 +284,16 @@ function RowStatus({ row }: { row: AcademicianImportPreviewRow }) {
             label={config.label}
             size="small"
             variant="outlined"
+            sx={row.status === 'CONFLICT'
+                ? {
+                    flexShrink: 0,
+                    maxWidth: 'none',
+                    '& .MuiChip-label': {
+                        overflow: 'visible',
+                        textOverflow: 'clip',
+                    },
+                }
+                : undefined}
         />
     );
 }
@@ -344,6 +353,23 @@ function PreviewNoticePanel({
         return null;
     }
 
+    const notices = [
+        ...(preview.invalidRowCount > 0
+            ? [{
+                severity: 'warning' as const,
+                text: `${preview.invalidRowCount} hatalı kayıt aktarılmayacak. ${preview.newRowCount} yeni kayıt aktarılabilir.`,
+            }]
+            : []),
+        ...preview.generalWarnings.map((text) => ({ severity: 'warning' as const, text })),
+        ...preview.generalInformationMessages.map((text) => ({ severity: 'info' as const, text })),
+        ...(hasProjectsHeader(preview.ignoredHeaders)
+            ? [{ severity: 'info' as const, text: 'Projeler sütunu bu aktarımda kullanılmayacak.' }]
+            : []),
+        ...(showNoSaveInfo
+            ? [{ severity: 'info' as const, text: 'Bu aşamada veritabanına kayıt yapılmaz.' }]
+            : []),
+    ];
+
     return (
         <Paper
             elevation={0}
@@ -351,7 +377,7 @@ function PreviewNoticePanel({
                 border: '1px solid',
                 borderColor: 'divider',
                 borderRadius: '8px',
-                flex: { lg: '0 0 380px' },
+                height: '100%',
                 minWidth: 0,
                 overflow: 'hidden',
             }}
@@ -360,64 +386,49 @@ function PreviewNoticePanel({
                 direction="row"
                 sx={{
                     alignItems: 'center',
-                    bgcolor: 'background.default',
+                    bgcolor: '#FAFBFC',
                     borderBottom: '1px solid',
                     borderBottomColor: 'divider',
                     justifyContent: 'space-between',
-                    px: 1.5,
-                    py: 1.1,
+                    px: 1.75,
+                    py: 1.25,
                 }}
             >
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                    <InfoOutlinedIcon sx={{ color: brandNavy, fontSize: 19 }} />
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
                     Önizleme notları
+                    </Typography>
+                </Stack>
+                <Typography variant="caption" color="text.secondary">
+                    {notices.length} bilgi
                 </Typography>
-                <Chip
-                    label="Kontrol"
-                    size="small"
-                    variant="outlined"
-                    sx={{ bgcolor: 'background.paper', fontWeight: 700 }}
-                />
             </Stack>
-            <Stack spacing={1} sx={{ p: 1.25 }}>
-                {preview.invalidRowCount > 0 && (
-                    <Alert severity="warning" sx={{ borderRadius: '8px', py: 0.5 }}>
-                        {preview.invalidRowCount} hatalı kayıt aktarılmayacak.
-                        {' '}
-                        {preview.validRowCount} geçerli kayıt aktarılabilir.
-                    </Alert>
-                )}
-
-                {preview.generalWarnings.map((warning) => (
-                    <Alert
-                        key={warning}
-                        severity="warning"
-                        sx={{ borderRadius: '8px', py: 0.5 }}
+            <Stack divider={<Divider flexItem />} sx={{ px: 1.75 }}>
+                {notices.map((notice, index) => (
+                    <Stack
+                        key={`${notice.severity}-${index}-${notice.text}`}
+                        direction="row"
+                        spacing={1.1}
+                        sx={{ alignItems: 'flex-start', py: 1.25 }}
                     >
-                        {warning}
-                    </Alert>
+                        <Box
+                            sx={(theme) => ({
+                                bgcolor: notice.severity === 'warning'
+                                    ? alpha(theme.palette.warning.main, 0.82)
+                                    : alpha(softBlue, 0.82),
+                                borderRadius: '50%',
+                                flex: '0 0 auto',
+                                height: 7,
+                                mt: '7px',
+                                width: 7,
+                            })}
+                        />
+                        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.55 }}>
+                            {notice.text}
+                        </Typography>
+                    </Stack>
                 ))}
-
-                {preview.generalInformationMessages.map((message) => (
-                    <Alert
-                        key={message}
-                        severity="info"
-                        sx={{ borderRadius: '8px', py: 0.5 }}
-                    >
-                        {message}
-                    </Alert>
-                ))}
-
-                {hasProjectsHeader(preview.ignoredHeaders) && (
-                    <Alert severity="info" sx={{ borderRadius: '8px', py: 0.5 }}>
-                        Projeler sütunu bu aktarımda kullanılmayacak.
-                    </Alert>
-                )}
-
-                {showNoSaveInfo && (
-                    <Alert severity="info" sx={{ borderRadius: '8px', py: 0.5 }}>
-                        Bu aşamada veritabanına kayıt yapılmaz.
-                    </Alert>
-                )}
             </Stack>
         </Paper>
     );
@@ -431,30 +442,93 @@ function PreviewSummary({
     showNoSaveInfo: boolean;
 }) {
     return (
-        <Stack spacing={2}>
-            <Stack
-                direction={{ xs: 'column', lg: 'row' }}
-                spacing={1.5}
-                sx={{ alignItems: 'flex-start' }}
+        <Stack spacing={1.5}>
+            <Paper
+                elevation={0}
+                sx={{
+                    alignItems: { xs: 'flex-start', sm: 'center' },
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    gap: 1.5,
+                    justifyContent: 'space-between',
+                    minWidth: 0,
+                    px: 1.75,
+                    py: 1.5,
+                }}
             >
-                <Stack spacing={2} sx={{ flex: 1, minWidth: 0 }}>
+                <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
+                    <Box
+                        sx={{
+                            alignItems: 'center',
+                            bgcolor: alpha(brandNavy, 0.07),
+                            borderRadius: '8px',
+                            color: brandNavy,
+                            display: 'flex',
+                            flex: '0 0 auto',
+                            height: 38,
+                            justifyContent: 'center',
+                            width: 38,
+                        }}
+                    >
+                        <InsertDriveFileOutlinedIcon fontSize="small" />
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 700 }} noWrap>
+                            {preview.fileName}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            Excel çalışma kitabı doğrulandı
+                        </Typography>
+                    </Box>
+                </Stack>
+                <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
+                    <Typography variant="body2" color="text.secondary">
+                        <Box component="span" sx={{ color: 'text.primary', fontWeight: 700 }}>
+                            {preview.sheetCount}
+                        </Box>
+                        {' '}sayfa
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        <Box component="span" sx={{ color: 'text.primary', fontWeight: 700 }}>
+                            {preview.totalDetectedRows}
+                        </Box>
+                        {' '}kayıt
+                    </Typography>
+                </Stack>
+            </Paper>
+
+            <Box
+                sx={{
+                    display: 'grid',
+                    gap: 1.5,
+                    gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.55fr) minmax(320px, 0.75fr)' },
+                }}
+            >
+                <Stack spacing={1.5} sx={{ minWidth: 0 }}>
                     <Stack
                         sx={{
                             display: 'grid',
-                            gap: 1.25,
+                            gap: 1,
                             gridTemplateColumns: {
-                                xs: '1fr',
+                                xs: 'repeat(2, minmax(0, 1fr))',
                                 sm: 'repeat(2, minmax(0, 1fr))',
-                                md: 'repeat(3, minmax(0, 1fr))',
+                                md: 'repeat(4, minmax(0, 1fr))',
                             },
                         }}
                     >
-                        <SummaryMetric label="Dosya adı" value={preview.fileName} tone="info" />
-                        <SummaryMetric label="Sayfa sayısı" value={preview.sheetCount} />
                         <SummaryMetric label="Toplam kayıt" value={preview.totalDetectedRows} />
                         <SummaryMetric
                             label="Geçerli kayıt"
                             value={preview.validRowCount}
+                            color="success.main"
+                            tone="success"
+                        />
+                        <SummaryMetric
+                            label="Yeni kayıt"
+                            value={preview.newRowCount}
                             color="success.main"
                             tone="success"
                         />
@@ -464,36 +538,58 @@ function PreviewSummary({
                             color="error.main"
                             tone="error"
                         />
-                        <SummaryMetric
-                            label="Uyarı sayısı"
-                            value={preview.warningCount}
-                            color="warning.main"
-                            tone="warning"
-                        />
                     </Stack>
 
-                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-                        <HeaderChips
-                            title="Algılanan sütunlar"
-                            headers={preview.detectedHeaders}
-                        />
-                        <HeaderChips
-                            title="Kullanılmayan sütunlar"
-                            headers={preview.ignoredHeaders}
-                            color="warning"
-                        />
-                    </Stack>
+                    <Paper
+                        elevation={0}
+                        sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '8px', p: 1.5 }}
+                    >
+                        <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700 }}>
+                            Sütun eşleştirmesi
+                        </Typography>
+                        <Stack
+                            direction={{ xs: 'column', md: 'row' }}
+                            divider={<Divider flexItem orientation="vertical" />}
+                            spacing={1.5}
+                            sx={{ mt: 0.5 }}
+                        >
+                            <HeaderChips
+                                title="Algılanan sütunlar"
+                                headers={preview.detectedHeaders}
+                            />
+                            <HeaderChips
+                                title="Kullanılmayan sütunlar"
+                                headers={preview.ignoredHeaders}
+                                color="warning"
+                            />
+                        </Stack>
+                    </Paper>
                 </Stack>
                 <PreviewNoticePanel
                     preview={preview}
                     showNoSaveInfo={showNoSaveInfo}
                 />
-            </Stack>
+            </Box>
 
             {showNoSaveInfo && (
-                <Alert severity="info" sx={{ borderRadius: '8px', py: 0.5 }}>
-                    Aktarım sırasında kayıtlar yeniden doğrulanır. Bu nedenle aktarım sonucu önizlemeden farklı olabilir.
-                </Alert>
+                <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{
+                        alignItems: 'flex-start',
+                        bgcolor: '#F8FBFC',
+                        border: '1px solid #DCEBF0',
+                        borderRadius: '8px',
+                        color: 'text.secondary',
+                        px: 1.5,
+                        py: 1.1,
+                    }}
+                >
+                    <InfoOutlinedIcon sx={{ color: softBlue, flex: '0 0 auto', fontSize: 18, mt: '2px' }} />
+                    <Typography variant="body2">
+                        Aktarım sırasında kayıtlar yeniden doğrulanır. Bu nedenle aktarım sonucu önizlemeden farklı olabilir.
+                    </Typography>
+                </Stack>
             )}
         </Stack>
     );
@@ -509,56 +605,86 @@ function getImportErrorMessage(error: unknown) {
     return message;
 }
 
+type ResultTone = 'success' | 'warning' | 'error';
+
+function getResultRowFallbackMessage(row: AcademicianImportResultRow) {
+    switch (row.status) {
+        case 'CREATED':
+            return 'Kayıt başarıyla oluşturuldu';
+        case 'INVALID':
+            return 'Hatalı kayıt aktarılmadı';
+        case 'FAILED':
+            return 'Kayıt veritabanına yazılamadı';
+        case 'CONFLICT':
+            return 'Kayıt manuel kontrol için atlandı';
+        case 'DUPLICATE':
+            return 'Tekrar eden kayıt atlandı';
+    }
+}
+
+function getResultRowTone(row: AcademicianImportResultRow): ResultTone {
+    if (row.status === 'CREATED') {
+        return 'success';
+    }
+
+    if (row.status === 'INVALID' || row.status === 'FAILED') {
+        return 'error';
+    }
+
+    return 'warning';
+}
+
 function ResultRowLine({
     row,
     tone,
 }: {
     row: AcademicianImportResultRow;
-    tone: 'warning' | 'error';
+    tone: ResultTone;
 }) {
     const messages = row.messages.length > 0
         ? row.messages.join(', ')
-        : row.status === 'INVALID'
-            ? 'Hatalı kayıt aktarılmadı'
-            : row.status === 'FAILED'
-                ? 'Kayıt veritabanına yazılamadı'
-                : 'Tekrar eden kayıt atlandı';
+        : getResultRowFallbackMessage(row);
 
     return (
-        <Paper
-            elevation={0}
-            sx={(theme) => {
-                const accent = tone === 'error'
-                    ? theme.palette.error.main
-                    : theme.palette.warning.main;
-
-                return {
-                    border: '1px solid',
-                    borderColor: alpha(accent, 0.22),
-                    borderRadius: '8px',
-                    bgcolor: alpha(accent, 0.035),
-                    p: 1.25,
-                };
-            }}
-        >
-            <Stack spacing={0.75}>
+        <Box sx={{ px: 1.5, py: 1.25 }}>
+            <Stack spacing={0.65}>
                 <Stack
-                    direction="row"
+                    direction={{ xs: 'column', sm: 'row' }}
                     spacing={1}
-                    sx={{ alignItems: 'center', justifyContent: 'space-between' }}
+                    sx={{
+                        alignItems: { xs: 'flex-start', sm: 'center' },
+                        justifyContent: 'space-between',
+                    }}
                 >
-                    <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {displayOptional(row.sheetName)}
                     </Typography>
                     <Chip
                         label={`Excel satırı ${row.rowNumber}`}
                         size="small"
-                        color={tone}
                         variant="outlined"
-                        sx={{ bgcolor: 'background.paper', fontWeight: 700 }}
+                        sx={(theme) => {
+                            const accent = tone === 'success'
+                                ? theme.palette.success.main
+                                : tone === 'error'
+                                    ? theme.palette.error.main
+                                    : theme.palette.warning.main;
+
+                            return {
+                                bgcolor: 'background.paper',
+                                borderColor: alpha(accent, 0.26),
+                                color: 'text.secondary',
+                                fontWeight: 600,
+                                height: 24,
+                            };
+                        }}
                     />
                 </Stack>
-                <Typography variant="body2" color="text.secondary" noWrap>
+                <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ overflowWrap: 'anywhere' }}
+                >
                     {displayOptional(row.firstName)} {displayOptional(row.lastName)}
                     {' · '}
                     {displayOptional(row.title)}
@@ -568,17 +694,19 @@ function ResultRowLine({
                 <Typography
                     variant="caption"
                     sx={{
-                        color: tone === 'error' ? 'error.main' : 'warning.dark',
-                        display: '-webkit-box',
-                        overflow: 'hidden',
-                        WebkitBoxOrient: 'vertical',
-                        WebkitLineClamp: 2,
+                        color: tone === 'success'
+                            ? 'success.dark'
+                            : tone === 'error'
+                                ? 'error.main'
+                                : 'warning.dark',
+                        lineHeight: 1.45,
+                        overflowWrap: 'anywhere',
                     }}
                 >
                     {messages}
                 </Typography>
             </Stack>
-        </Paper>
+        </Box>
     );
 }
 
@@ -586,10 +714,12 @@ function ResultRowsPanel({
     title,
     rows,
     tone,
+    getRowTone,
 }: {
     title: string;
     rows: AcademicianImportResultRow[];
-    tone: 'warning' | 'error';
+    tone: ResultTone;
+    getRowTone?: (row: AcademicianImportResultRow) => ResultTone;
 }) {
     if (rows.length === 0) {
         return null;
@@ -598,63 +728,89 @@ function ResultRowsPanel({
     return (
         <Paper
             elevation={0}
-            sx={(theme) => {
-                const accent = tone === 'error'
-                    ? theme.palette.error.main
-                    : theme.palette.warning.main;
-
-                return {
-                    border: '1px solid',
-                    borderColor: alpha(accent, 0.20),
-                    borderRadius: '8px',
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    bgcolor: 'background.paper',
-                };
+            sx={{
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: '8px',
+                height: '100%',
+                minWidth: 0,
+                overflow: 'hidden',
+                bgcolor: 'background.paper',
             }}
         >
             <Stack
                 direction="row"
                 spacing={1}
-                sx={(theme) => {
-                    const accent = tone === 'error'
-                        ? theme.palette.error.main
-                        : theme.palette.warning.main;
-
-                    return {
-                        alignItems: 'center',
-                        bgcolor: alpha(accent, 0.07),
-                        borderBottom: '1px solid',
-                        borderBottomColor: alpha(accent, 0.16),
-                        justifyContent: 'space-between',
-                        px: 1.5,
-                        py: 1.25,
-                    };
+                sx={{
+                    alignItems: 'center',
+                    bgcolor: '#FAFBFC',
+                    borderBottom: '1px solid',
+                    borderBottomColor: 'divider',
+                    justifyContent: 'space-between',
+                    px: 1.75,
+                    py: 1.35,
                 }}
             >
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                    {title}
-                </Typography>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
+                    <Box
+                        sx={(theme) => {
+                            const accent = tone === 'success'
+                                ? theme.palette.success.main
+                                : tone === 'error'
+                                    ? theme.palette.error.main
+                                    : theme.palette.warning.main;
+
+                            return {
+                                bgcolor: accent,
+                                borderRadius: '50%',
+                                flex: '0 0 auto',
+                                height: 7,
+                                width: 7,
+                            };
+                        }}
+                    />
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {title}
+                    </Typography>
+                </Stack>
                 <Chip
                     label={rows.length}
                     size="small"
-                    color={tone}
-                    sx={{ fontWeight: 800, minWidth: 34 }}
+                    variant="outlined"
+                    sx={(theme) => {
+                        const accent = tone === 'success'
+                            ? theme.palette.success.main
+                            : tone === 'error'
+                                ? theme.palette.error.main
+                                : theme.palette.warning.main;
+
+                        return {
+                            bgcolor: 'background.paper',
+                            borderColor: alpha(accent, 0.28),
+                            color: tone === 'success'
+                                ? 'success.dark'
+                                : tone === 'error'
+                                    ? 'error.main'
+                                    : 'warning.dark',
+                            fontWeight: 700,
+                            height: 25,
+                            minWidth: 31,
+                        };
+                    }}
                 />
             </Stack>
             <Box
                 sx={{
-                    maxHeight: 360,
+                    maxHeight: 320,
                     overflowY: 'auto',
-                    p: 1.25,
                 }}
             >
-                <Stack spacing={1}>
+                <Stack divider={<Divider flexItem />}>
                     {rows.map((row) => (
                         <ResultRowLine
                             key={`${row.sheetName}-${row.rowNumber}-${row.status}`}
                             row={row}
-                            tone={tone}
+                            tone={getRowTone?.(row) ?? tone}
                         />
                     ))}
                 </Stack>
@@ -671,6 +827,12 @@ function ImportResultSummary({
     resultSectionRef: RefObject<HTMLDivElement | null>;
 }) {
     const invalidOrConflictCount = result.invalidCount + result.conflictCount;
+    const skippedRows = [
+        ...result.duplicateRows,
+        ...result.conflictRows,
+        ...result.invalidRows,
+        ...result.failedRows,
+    ];
 
     return (
         <Paper
@@ -681,55 +843,103 @@ function ImportResultSummary({
                 border: '1px solid',
                 borderColor: 'divider',
                 borderRadius: '8px',
+                bgcolor: '#FCFCFD',
                 outline: 'none',
                 overflow: 'hidden',
             }}
         >
-            <Stack spacing={2} sx={{ p: 1.5 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                    Aktarım sonucu
-                </Typography>
-                <Stack direction="row" spacing={1.25} useFlexGap sx={{ flexWrap: 'wrap' }}>
+            <Stack spacing={1.75} sx={{ p: { xs: 1.25, sm: 1.75 } }}>
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1.5}
+                    sx={{ alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between' }}
+                >
+                    <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
+                        <Box
+                            sx={{
+                                alignItems: 'center',
+                                bgcolor: (theme) => alpha(theme.palette.success.main, 0.1),
+                                borderRadius: '50%',
+                                color: 'success.main',
+                                display: 'flex',
+                                height: 40,
+                                justifyContent: 'center',
+                                width: 40,
+                            }}
+                        >
+                            <CheckCircleOutlineOutlinedIcon />
+                        </Box>
+                        <Box>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 750 }}>
+                                Aktarım tamamlandı
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                {result.createdCount} yeni kayıt oluşturuldu; ayrıntılar aşağıda.
+                            </Typography>
+                        </Box>
+                    </Stack>
+                    <Chip
+                        label="Aktarım sonucu"
+                        variant="outlined"
+                        sx={{ bgcolor: 'background.paper', borderColor: '#D9DCE3', color: brandNavy }}
+                    />
+                </Stack>
+                <Box
+                    sx={{
+                        display: 'grid',
+                        gap: 1,
+                        gridTemplateColumns: {
+                            xs: 'repeat(2, minmax(0, 1fr))',
+                            md: 'repeat(5, minmax(0, 1fr))',
+                        },
+                    }}
+                >
                     <SummaryMetric
                         label="Oluşturulan kayıt"
                         value={result.createdCount}
                         color="success.main"
+                        tone="success"
                     />
                     <SummaryMetric
                         label="Atlanan duplicate"
                         value={result.duplicateCount}
                         color="warning.main"
+                        tone="warning"
                     />
                     <SummaryMetric
                         label="Hatalı / aktarılamayan kayıt"
                         value={invalidOrConflictCount}
                         color={invalidOrConflictCount > 0 ? 'error.main' : 'text.primary'}
+                        tone={invalidOrConflictCount > 0 ? 'error' : 'default'}
                     />
                     <SummaryMetric
                         label="Başarısız kayıt"
                         value={result.failedCount}
                         color={result.failedCount > 0 ? 'error.main' : 'text.primary'}
+                        tone={result.failedCount > 0 ? 'error' : 'default'}
                     />
                     <SummaryMetric
                         label="Uyarı sayısı"
                         value={result.warningCount}
                         color="warning.main"
+                        tone="warning"
                     />
-                </Stack>
+                </Box>
 
                 {result.duplicateRows.length === 0
                     && result.conflictRows.length === 0
                     && result.invalidRows.length === 0
                     && result.failedRows.length === 0 && (
-                    <Alert severity="success" sx={{ borderRadius: '8px' }}>
+                    <Alert
+                        severity="success"
+                        variant="outlined"
+                        sx={{ bgcolor: 'background.paper', borderRadius: '8px' }}
+                    >
                         Tüm geçerli kayıtlar başarıyla aktarıldı.
                     </Alert>
                 )}
 
-                {(result.duplicateRows.length > 0
-                    || result.conflictRows.length > 0
-                    || result.invalidRows.length > 0
-                    || result.failedRows.length > 0) && (
+                {(result.createdRows.length > 0 || skippedRows.length > 0) && (
                     <Box
                         sx={{
                             display: 'grid',
@@ -741,29 +951,57 @@ function ImportResultSummary({
                         }}
                     >
                         <ResultRowsPanel
-                            title="Manuel kontrol gereken kayıtlar"
-                            rows={result.conflictRows}
+                            title="Başarılı İşlemler"
+                            rows={result.createdRows}
+                            tone="success"
+                        />
+                        <ResultRowsPanel
+                            title="Aktarılmayan Kayıtlar"
+                            rows={skippedRows}
                             tone="warning"
-                        />
-                        <ResultRowsPanel
-                            title="Duplicate olduğu için atlanan kayıtlar"
-                            rows={result.duplicateRows}
-                            tone="warning"
-                        />
-                        <ResultRowsPanel
-                            title="Hatalı olduğu için aktarılmayan kayıtlar"
-                            rows={result.invalidRows}
-                            tone="error"
-                        />
-                        <ResultRowsPanel
-                            title="Veritabanı hatası nedeniyle aktarılamayan kayıtlar"
-                            rows={result.failedRows}
-                            tone="error"
+                            getRowTone={getResultRowTone}
                         />
                     </Box>
                 )}
             </Stack>
         </Paper>
+    );
+}
+
+function PreviewMobileRow({ row }: { row: AcademicianImportPreviewRow }) {
+    return (
+        <Box sx={{ p: 1.5 }}>
+            <Stack spacing={1.25}>
+                <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}
+                >
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 700, overflowWrap: 'anywhere' }}>
+                            {displayOptional(row.firstName)} {displayOptional(row.lastName)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            {displayOptional(row.title)}
+                        </Typography>
+                    </Box>
+                    <RowStatus row={row} />
+                </Stack>
+                <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
+                    <Typography variant="caption" color="text.secondary">
+                        <Box component="span" sx={{ color: 'text.primary', fontWeight: 600 }}>
+                            {displayOptional(row.sheetName)}
+                        </Box>
+                        {' · '}Satır {row.rowNumber}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
+                        {displayOptional(row.email)}
+                    </Typography>
+                </Stack>
+                {row.keywords.length > 0 && <KeywordPreview keywords={row.keywords} />}
+                <RowMessages row={row} />
+            </Stack>
+        </Box>
     );
 }
 
@@ -776,18 +1014,25 @@ function PreviewTable({
     const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
     const [rowFilter, setRowFilter] = useState<PreviewRowFilter>('INVALID');
 
+    const filterCounts = useMemo(() => {
+        const counts: Record<PreviewRowFilter, number> = {
+            all: preview.rows.length,
+            NEW: 0,
+            DUPLICATE: 0,
+            CONFLICT: 0,
+            INVALID: 0,
+        };
+
+        preview.rows.forEach((row) => {
+            counts[row.status] += 1;
+        });
+
+        return counts;
+    }, [preview.rows]);
     const filteredRows = useMemo(
-        () => preview.rows.filter((row) => {
-            if (rowFilter === 'all') {
-                return true;
-            }
-
-            if (rowFilter === 'INVALID') {
-                return row.status === 'INVALID' || row.status === 'CONFLICT';
-            }
-
-            return row.status === rowFilter;
-        }),
+        () => rowFilter === 'all'
+            ? preview.rows
+            : preview.rows.filter((row) => row.status === rowFilter),
         [preview.rows, rowFilter],
     );
 
@@ -801,7 +1046,7 @@ function PreviewTable({
         safePage * rowsPerPage,
         safePage * rowsPerPage + rowsPerPage,
     );
-    const emptyMessage = 'Gosterilecek kayit yok.';
+    const emptyMessage = 'Gösterilecek kayıt yok.';
 
     function handleRowFilterChange(
         _: MouseEvent<HTMLElement>,
@@ -823,7 +1068,7 @@ function PreviewTable({
                 borderColor: 'divider',
                 borderRadius: '8px',
                 overflow: 'hidden',
-                boxShadow: '0 10px 30px rgba(15, 23, 42, 0.06)',
+                boxShadow: '0 8px 24px rgba(15, 23, 42, 0.045)',
             }}
         >
             <Stack
@@ -842,66 +1087,134 @@ function PreviewTable({
                     }}
                 >
                     <Stack spacing={0.25}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                             Satır önizleme
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                             {rowCountText}
                         </Typography>
                     </Stack>
-                    <ToggleButtonGroup
-                        exclusive
-                        size="small"
-                        value={rowFilter}
-                        onChange={handleRowFilterChange}
+                    <Box
                         sx={{
-                            display: 'grid',
-                            gridTemplateColumns: {
-                                xs: 'repeat(2, minmax(0, 1fr))',
-                                sm: 'repeat(4, minmax(0, 1fr))',
-                            },
-                            width: { xs: '100%', sm: 470 },
-                            '& .MuiToggleButton-root': {
-                                minHeight: 34,
-                                px: 1.25,
-                                whiteSpace: 'nowrap',
-                            },
+                            display: 'flex',
+                            flex: 1,
+                            justifyContent: { xs: 'flex-start', sm: 'flex-end' },
+                            maxWidth: '100%',
+                            minWidth: 0,
+                            overflowX: 'auto',
+                            width: '100%',
                         }}
                     >
-                        <ToggleButton value="all">Tumu</ToggleButton>
-                        <ToggleButton value="NEW">Yeni</ToggleButton>
-                        <ToggleButton value="DUPLICATE">Tekrarli</ToggleButton>
-                        <ToggleButton value="INVALID">Hatali</ToggleButton>
-                    </ToggleButtonGroup>
+                        <ToggleButtonGroup
+                            exclusive
+                            size="small"
+                            value={rowFilter}
+                            onChange={handleRowFilterChange}
+                            sx={{
+                                display: 'flex',
+                                height: 42,
+                                minWidth: 760,
+                                width: 760,
+                                '& .MuiToggleButton-root': {
+                                    borderColor: '#D9DDE4',
+                                    color: 'text.secondary',
+                                    flex: '1 1 0',
+                                    fontWeight: 600,
+                                    minWidth: 0,
+                                    px: 0.5,
+                                    whiteSpace: 'nowrap',
+                                    '&.Mui-selected': {
+                                        bgcolor: brandNavy,
+                                        color: '#FFFFFF',
+                                        '&:hover': { bgcolor: brandNavyHover },
+                                    },
+                                    '&:focus-visible': {
+                                        outline: `2px solid ${alpha(brandNavy, 0.18)}`,
+                                        outlineOffset: -2,
+                                    },
+                                },
+                            }}
+                        >
+                            {([
+                                ['all', 'Tümü'],
+                                ['NEW', 'Yeni'],
+                                ['DUPLICATE', 'Sistemde mevcut'],
+                                ['CONFLICT', 'İncelenecek'],
+                                ['INVALID', 'Hatalı'],
+                            ] as const).map(([value, label]) => (
+                                <ToggleButton key={value} value={value}>
+                                    <Stack
+                                        component="span"
+                                        direction="row"
+                                        spacing={0.75}
+                                        sx={{ alignItems: 'center', justifyContent: 'center', minWidth: 0 }}
+                                    >
+                                        <Box component="span">{label}</Box>
+                                        <Box
+                                            component="span"
+                                            sx={{
+                                                bgcolor: 'rgba(42, 43, 97, 0.07)',
+                                                borderRadius: '999px',
+                                                flex: '0 0 auto',
+                                                fontSize: '0.72rem',
+                                                fontWeight: 700,
+                                                lineHeight: 1,
+                                                px: 0.65,
+                                                py: 0.4,
+                                            }}
+                                        >
+                                            {filterCounts[value]}
+                                        </Box>
+                                    </Stack>
+                                </ToggleButton>
+                            ))}
+                        </ToggleButtonGroup>
+                    </Box>
                 </Stack>
             </Stack>
             <Divider />
 
-            <TableContainer sx={{ maxWidth: '100%', overflowX: 'auto' }}>
+            <Stack
+                divider={<Divider flexItem />}
+                sx={{ display: { xs: 'flex', sm: 'none' } }}
+            >
+                {visibleRows.map((row, index) => (
+                    <PreviewMobileRow
+                        key={`${row.sheetName}-${row.rowNumber}-${index}`}
+                        row={row}
+                    />
+                ))}
+                {visibleRows.length === 0 && (
+                    <Typography color="text.secondary" sx={{ px: 1.5, py: 3 }}>
+                        {emptyMessage}
+                    </Typography>
+                )}
+            </Stack>
+
+            <TableContainer sx={{ display: { xs: 'none', sm: 'block' }, maxWidth: '100%', overflowX: 'auto' }}>
                 <Table
                     size="small"
-                    sx={{ minWidth: 1040, tableLayout: 'fixed' }}
+                    sx={{ minWidth: 1100, tableLayout: 'fixed' }}
                     aria-label="Excel önizleme tablosu"
                 >
                     <TableHead>
                         <TableRow
-                            sx={(theme) => ({
+                            sx={{
                                 '& .MuiTableCell-head': {
-                                    bgcolor: alpha(theme.palette.primary.main, 0.04),
-                                    borderBottomColor: alpha(theme.palette.primary.main, 0.16),
-                                    color: 'text.secondary',
+                                    bgcolor: '#F7FAFC',
+                                    borderBottomColor: '#E3EAF0',
+                                    color: '#344054',
                                     fontSize: 12,
-                                    fontWeight: 800,
-                                    textTransform: 'uppercase',
+                                    fontWeight: 650,
                                 },
-                            })}
+                            }}
                         >
-                            <TableCell sx={{ width: 132 }}>Durum</TableCell>
-                            <TableCell sx={{ width: 156 }}>Kaynak</TableCell>
-                            <TableCell sx={{ width: 260 }}>Kaydedilecek Akademisyen</TableCell>
-                            <TableCell sx={{ width: 260 }}>İletişim</TableCell>
-                            <TableCell sx={{ width: 230 }}>Anahtar Kelimeler</TableCell>
-                            <TableCell sx={{ width: 300 }}>Uyarı/Hata</TableCell>
+                            <TableCell sx={{ width: 118 }}>Durum</TableCell>
+                            <TableCell sx={{ width: 140 }}>Kaynak</TableCell>
+                            <TableCell sx={{ width: 220 }}>Kaydedilecek Akademisyen</TableCell>
+                            <TableCell sx={{ width: 200 }}>İletişim</TableCell>
+                            <TableCell sx={{ width: 190 }}>Anahtar Kelimeler</TableCell>
+                            <TableCell sx={{ width: 270 }}>Uyarı/Hata</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -910,11 +1223,14 @@ function PreviewTable({
                                 key={`${row.sheetName}-${row.rowNumber}-${index}`}
                                 hover
                                 sx={(theme) => ({
-                                    bgcolor: !row.valid
-                                        ? alpha(theme.palette.error.main, 0.045)
-                                        : row.warnings.length > 0
-                                            ? alpha(theme.palette.warning.main, 0.055)
-                                            : alpha(theme.palette.success.main, 0.035),
+                                    '& td:first-of-type': {
+                                        borderLeft: '3px solid',
+                                        borderLeftColor: !row.valid
+                                            ? alpha(theme.palette.error.main, 0.72)
+                                            : row.warnings.length > 0
+                                                ? alpha(theme.palette.warning.main, 0.72)
+                                                : alpha(theme.palette.success.main, 0.62),
+                                    },
                                 })}
                             >
                                 <TableCell>
@@ -932,7 +1248,7 @@ function PreviewTable({
                                 </TableCell>
                                 <TableCell>
                                     <Stack spacing={0.35} sx={{ minWidth: 0 }}>
-                                        <Typography sx={{ fontWeight: 800 }} noWrap>
+                                        <Typography sx={{ fontWeight: 700 }} noWrap>
                                             {displayOptional(row.firstName)}
                                             {' '}
                                             {displayOptional(row.lastName)}
@@ -986,6 +1302,16 @@ function PreviewTable({
                 onRowsPerPageChange={(event) => {
                     setRowsPerPage(Number(event.target.value));
                     setPage(0);
+                }}
+                sx={{
+                    overflow: 'hidden',
+                    '& .MuiTablePagination-toolbar': {
+                        flexWrap: { xs: 'wrap', sm: 'nowrap' },
+                        justifyContent: 'flex-end',
+                        minHeight: { xs: 72, sm: 52 },
+                        px: { xs: 1, sm: 2 },
+                    },
+                    '& .MuiTablePagination-spacer': { display: { xs: 'none', sm: 'block' } },
                 }}
             />
         </Paper>
@@ -1050,7 +1376,7 @@ export function AcademicianImportDialog({
         && selectedFile
         && previewedFile
         && selectedFile === previewedFile
-        && preview.validRowCount > 0
+        && preview.newRowCount > 0
         && !isBusy,
     );
 
@@ -1148,44 +1474,107 @@ export function AcademicianImportDialog({
             fullScreen={fullScreen}
             maxWidth="xl"
             onClose={isBusy ? undefined : handleClose}
+            sx={{
+                '& .MuiDialog-paper': {
+                    bgcolor: '#F7F8FA',
+                    border: fullScreen ? 0 : '1px solid #E3E6EB',
+                    borderRadius: fullScreen ? 0 : '12px',
+                    maxHeight: fullScreen ? '100%' : 'calc(100% - 48px)',
+                    overflow: 'hidden',
+                },
+            }}
         >
-            <DialogTitle>Akademisyenleri Excel'den Aktar</DialogTitle>
-            <DialogContent
-                dividers
+            <DialogTitle
+                component="div"
                 sx={{
-                    maxHeight: fullScreen ? 'none' : 'calc(100vh - 180px)',
-                    overflowY: 'auto',
+                    bgcolor: 'background.paper',
+                    borderBottom: '1px solid',
+                    borderBottomColor: 'divider',
+                    px: { xs: 2, sm: 2.5 },
+                    py: 1.75,
+                    zIndex: 1,
                 }}
             >
-                <Stack spacing={2.5}>
-                    <Typography color="text.secondary">
-                        Excel dosyanızı yükleyerek kayıtları aktarmadan önce kontrol edebilirsiniz.
-                    </Typography>
-
-                    <Stack
-                        direction={{ xs: 'column', md: 'row' }}
-                        spacing={1.5}
-                        sx={{ alignItems: { xs: 'stretch', md: 'center' } }}
+                <Typography variant="h6" sx={{ color: '#172033', fontWeight: 700 }}>
+                    Akademisyenleri Excel'den Aktar
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                    Dosyayı doğrulayın, kayıtları inceleyin ve aktarım sonucunu tek akışta takip edin.
+                </Typography>
+            </DialogTitle>
+            <DialogContent
+                sx={{
+                    bgcolor: '#F7F8FA',
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    p: { xs: 1.5, sm: 2 },
+                }}
+            >
+                <Stack spacing={2}>
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            alignItems: { xs: 'stretch', sm: 'center' },
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            flexDirection: { xs: 'column', sm: 'row' },
+                            gap: 1.25,
+                            justifyContent: 'space-between',
+                            minWidth: 0,
+                            p: 1.5,
+                        }}
                     >
+                        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
+                            <Box
+                                sx={{
+                                    alignItems: 'center',
+                                    borderRadius: '8px',
+                                    bgcolor: alpha(softBlue, 0.09),
+                                    color: '#187A9C',
+                                    display: 'flex',
+                                    flex: '0 0 auto',
+                                    height: 38,
+                                    justifyContent: 'center',
+                                    width: 38,
+                                }}
+                            >
+                                {selectedFile
+                                    ? <InsertDriveFileOutlinedIcon fontSize="small" />
+                                    : <UploadFileOutlinedIcon fontSize="small" />}
+                            </Box>
+                            <Box sx={{ minWidth: 0 }}>
+                                <Typography sx={{ fontWeight: 700 }} noWrap>
+                                    {selectedFile?.name ?? 'Excel dosyası seçin'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                    {selectedFile
+                                        ? `${formatFileSize(selectedFile.size)} · .xlsx`
+                                        : 'Yalnızca .xlsx formatı desteklenir'}
+                                </Typography>
+                            </Box>
+                        </Stack>
                         <Button
                             component="label"
                             variant="outlined"
                             startIcon={<UploadFileOutlinedIcon />}
                             disabled={isBusy}
-                            sx={!importResult ? {
-                                bgcolor: '#EAF7FB',
-                                borderColor: '#C9EAF4',
-                                color: '#187A9C',
+                            sx={{
+                                bgcolor: '#FFFFFF',
+                                borderColor: '#CDD3DB',
+                                color: brandNavy,
+                                flex: '0 0 auto',
                                 '&:hover': {
-                                    bgcolor: '#DDF2F8',
-                                    borderColor: '#B8E2EF',
+                                    bgcolor: alpha(softBlue, 0.055),
+                                    borderColor: alpha(softBlue, 0.6),
                                 },
                                 '&:focus-visible': {
-                                    outline: '3px solid rgba(42, 43, 97, 0.18)',
+                                    outline: `3px solid ${alpha(brandNavy, 0.18)}`,
                                 },
-                            } : undefined}
+                            }}
                         >
-                            Dosya Seç
+                            {selectedFile ? 'Dosyayı Değiştir' : 'Dosya Seç'}
                             <input
                                 ref={inputRef}
                                 hidden
@@ -1195,34 +1584,7 @@ export function AcademicianImportDialog({
                                     handleFileChange(event.target.files?.[0])}
                             />
                         </Button>
-
-                        {selectedFile && (
-                            <Paper
-                                elevation={0}
-                                sx={{
-                                    alignItems: 'center',
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                    borderRadius: '8px',
-                                    display: 'flex',
-                                    gap: 1,
-                                    minWidth: 0,
-                                    px: 1.5,
-                                    py: 1,
-                                }}
-                            >
-                                <InsertDriveFileOutlinedIcon color="action" />
-                                <Box sx={{ minWidth: 0 }}>
-                                    <Typography sx={{ fontWeight: 700 }} noWrap>
-                                        {selectedFile.name}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                        {formatFileSize(selectedFile.size)}
-                                    </Typography>
-                                </Box>
-                            </Paper>
-                        )}
-                    </Stack>
+                    </Paper>
 
                     {fileError && (
                         <Alert severity="error">{fileError}</Alert>
@@ -1233,8 +1595,8 @@ export function AcademicianImportDialog({
                     )}
 
                     {previewMutation.isPending && (
-                        <Stack spacing={1}>
-                            <LinearProgress />
+                        <Stack spacing={1} sx={{ px: 0.5 }}>
+                            <LinearProgress sx={{ '& .MuiLinearProgress-bar': { bgcolor: brandNavy } }} />
                             <Typography variant="body2" color="text.secondary">
                                 Dosya kontrol ediliyor...
                             </Typography>
@@ -1242,8 +1604,8 @@ export function AcademicianImportDialog({
                     )}
 
                     {importMutation.isPending && (
-                        <Stack spacing={1}>
-                            <LinearProgress />
+                        <Stack spacing={1} sx={{ px: 0.5 }}>
+                            <LinearProgress sx={{ '& .MuiLinearProgress-bar': { bgcolor: brandNavy } }} />
                             <Typography variant="body2" color="text.secondary">
                                 Aktarım yapılıyor...
                             </Typography>
@@ -1271,18 +1633,31 @@ export function AcademicianImportDialog({
                     )}
                 </Stack>
             </DialogContent>
-            <DialogActions>
+            <DialogActions
+                sx={{
+                    bgcolor: 'background.paper',
+                    borderTop: '1px solid',
+                    borderTopColor: 'divider',
+                    flexWrap: 'wrap',
+                    gap: 1,
+                    justifyContent: 'flex-end',
+                    px: { xs: 1.5, sm: 2.5 },
+                    py: 1.25,
+                    '& > :not(style) ~ :not(style)': { ml: 0 },
+                    '& .MuiButton-root': { flex: { xs: '1 1 auto', sm: '0 0 auto' } },
+                }}
+            >
                 {importResult ? (
                     <Button
                         variant="contained"
                         onClick={handleClose}
                         sx={{
                             '&&': {
-                                bgcolor: '#2A2B61',
+                                bgcolor: brandNavy,
                                 color: '#FFFFFF',
                             },
                             '&&:hover': {
-                                bgcolor: '#222352',
+                                bgcolor: brandNavyHover,
                                 color: '#FFFFFF',
                             },
                             '&&:focus-visible': {
@@ -1299,7 +1674,7 @@ export function AcademicianImportDialog({
                             disabled={isBusy}
                             sx={{
                                 '&&:not(.Mui-disabled)': {
-                                    bgcolor: '#F3F4F6',
+                                    bgcolor: '#F1F3F5',
                                     color: '#4B5563',
                                 },
                                 '&&:not(.Mui-disabled):hover': {
@@ -1320,10 +1695,10 @@ export function AcademicianImportDialog({
                             onClick={handlePreview}
                             sx={!preview
                                 ? {
-                                    bgcolor: '#2A2B61',
+                                    bgcolor: brandNavy,
                                     color: '#FFFFFF',
                                     '&:hover': {
-                                        bgcolor: '#202153',
+                                        bgcolor: brandNavyHover,
                                     },
                                     '&:focus-visible': {
                                         outline: '3px solid rgba(42, 43, 97, 0.18)',
@@ -1331,11 +1706,11 @@ export function AcademicianImportDialog({
                                 }
                                 : {
                                     bgcolor: '#FFFFFF',
-                                    borderColor: '#C9EAF4',
+                                    borderColor: '#C9DEE5',
                                     color: '#187A9C',
                                     '&:hover': {
-                                        bgcolor: '#EAF7FB',
-                                        borderColor: '#C9EAF4',
+                                        bgcolor: alpha(softBlue, 0.07),
+                                        borderColor: alpha(softBlue, 0.55),
                                     },
                                     '&:focus-visible': {
                                         outline: '3px solid rgba(24, 122, 156, 0.18)',
@@ -1351,10 +1726,10 @@ export function AcademicianImportDialog({
                                 disabled={!canImport}
                                 onClick={() => setConfirmOpen(true)}
                                 sx={{
-                                    bgcolor: '#2A2B61',
+                                    bgcolor: brandNavy,
                                     color: '#FFFFFF',
                                     '&:hover': {
-                                        bgcolor: '#202153',
+                                        bgcolor: brandNavyHover,
                                     },
                                     '&:focus-visible': {
                                         outline: '3px solid rgba(42, 43, 97, 0.18)',
@@ -1363,7 +1738,7 @@ export function AcademicianImportDialog({
                             >
                                 {importMutation.isPending
                                     ? 'Aktarılıyor...'
-                                    : `${preview.validRowCount} Geçerli Kaydı Aktar`}
+                                    : `${preview.newRowCount} Yeni Kaydı Aktar`}
                             </Button>
                         )}
                     </>
@@ -1374,19 +1749,52 @@ export function AcademicianImportDialog({
                 onClose={importMutation.isPending
                     ? undefined
                     : () => setConfirmOpen(false)}
+                fullWidth
+                maxWidth="sm"
+                sx={{ '& .MuiDialog-paper': { borderRadius: '10px' } }}
             >
-                <DialogTitle>Aktarımı başlat</DialogTitle>
-                <DialogContent dividers>
-                    <Typography color="text.secondary">
-                        Dosyadaki {preview?.validRowCount ?? 0} geçerli kayıt
-                        aktarım için gönderilecek. {preview?.invalidRowCount ?? 0}
-                        {' '}
-                        hatalı kayıt aktarılmayacaktır. Sistemde veya dosya
-                        içinde tekrar eden kayıtlar ayrıca atlanacaktır. Projeler
-                        sütunu kaydedilmeyecektir. Devam etmek istiyor musunuz?
-                    </Typography>
+                <DialogTitle sx={{ pb: 1 }}>Aktarımı başlat</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={1.75}>
+                        <Typography color="text.secondary">
+                            Dosyadaki kayıtlar son kez doğrulanacak ve uygun olanlar sisteme eklenecek.
+                        </Typography>
+                        <Box
+                            sx={{
+                                bgcolor: '#F7F8FA',
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                borderRadius: '8px',
+                                display: 'grid',
+                                gap: 1,
+                                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                                p: 1.5,
+                            }}
+                        >
+                            <Box>
+                                <Typography variant="caption" color="text.secondary">
+                                    Aktarıma gönderilecek yeni kayıt
+                                </Typography>
+                                <Typography sx={{ color: brandNavy, fontSize: 20, fontWeight: 750 }}>
+                                    {preview?.newRowCount ?? 0}
+                                </Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary">
+                                    Aktarılmayacak hatalı
+                                </Typography>
+                                <Typography sx={{ color: 'error.main', fontSize: 20, fontWeight: 750 }}>
+                                    {preview?.invalidRowCount ?? 0}
+                                </Typography>
+                            </Box>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary">
+                            Sistemde veya dosya içinde tekrar eden kayıtlar ayrıca atlanacaktır.
+                            Projeler sütunu kaydedilmeyecektir. Devam etmek istiyor musunuz?
+                        </Typography>
+                    </Stack>
                 </DialogContent>
-                <DialogActions>
+                <DialogActions sx={{ px: 3, pb: 2.5, pt: 1.5 }}>
                     <Button
                         onClick={() => setConfirmOpen(false)}
                         disabled={importMutation.isPending}
@@ -1413,11 +1821,11 @@ export function AcademicianImportDialog({
                         onClick={handleImportConfirm}
                         sx={{
                             '&&:not(.Mui-disabled)': {
-                                bgcolor: '#2A2B61',
+                                bgcolor: brandNavy,
                                 color: '#FFFFFF',
                             },
                             '&&:not(.Mui-disabled):hover': {
-                                bgcolor: '#222352',
+                                bgcolor: brandNavyHover,
                                 color: '#FFFFFF',
                             },
                             '&:focus-visible': {
