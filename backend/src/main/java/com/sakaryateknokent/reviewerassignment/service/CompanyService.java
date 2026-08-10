@@ -93,7 +93,6 @@ public class CompanyService {
         company.setOsb(normalizeOptionalText(request.osb()));
         company.setAddress(normalizeOptionalText(request.address()));
         company.setBuilding(normalizeOptionalText(request.building()));
-        company.setLogoUrl(normalizeOptionalText(request.logoUrl()));
         company.setCompanyType(request.companyType());
 
         for (NormalizedContactMethodRequest contactMethod : contactMethods) {
@@ -268,7 +267,6 @@ public class CompanyService {
         company.setOsb(normalizeOptionalText(request.osb()));
         company.setAddress(normalizeOptionalText(request.address()));
         company.setBuilding(normalizeOptionalText(request.building()));
-        company.setLogoUrl(normalizeOptionalText(request.logoUrl()));
 
         applyUpdatedContactMethods(company, contactMethods);
         applyUpdatedContacts(company, contacts);
@@ -849,7 +847,6 @@ public class CompanyService {
                 company.getId(),
                 company.getName(),
                 company.getActivityArea(),
-                company.getLogoUrl(),
                 company.getCompanyType(),
                 sortContactMethods(contactMethods).stream()
                         .map(this::toContactMethodResponse)
@@ -869,7 +866,6 @@ public class CompanyService {
                 company.getOsb(),
                 company.getAddress(),
                 company.getBuilding(),
-                company.getLogoUrl(),
                 company.getCompanyType(),
                 sortContactMethods(company.getContactMethods()).stream()
                         .map(this::toContactMethodResponse)

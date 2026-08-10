@@ -13,7 +13,6 @@ public record CompanyResponse(
         String osb,
         String address,
         String building,
-        String logoUrl,
         CompanyType companyType,
         List<CompanyContactMethodResponse> contactMethods,
         List<CompanyContactResponse> contacts

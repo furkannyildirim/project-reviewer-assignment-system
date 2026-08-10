@@ -51,9 +51,6 @@ public class Company {
     @Column(length = 255)
     private String building;
 
-    @Column(name = "logo_url", length = 500)
-    private String logoUrl;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "company_type", nullable = false, length = 20)
     private CompanyType companyType;

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-    Avatar,
     Box,
     Checkbox,
     Chip,
@@ -18,7 +17,6 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
-import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
@@ -310,35 +308,6 @@ function ActivityAreaCell({ activityArea }: { activityArea: string | null }) {
     );
 }
 
-function CompanyLogo({ company }: { company: Company }) {
-    const [hasError, setHasError] = useState(false);
-    const logoUrl = company.logoUrl?.trim();
-    const firstLetter = company.name.trim().charAt(0).toUpperCase();
-
-    if (!logoUrl || hasError) {
-        return (
-            <Avatar sx={{ width: 40, height: 40 }}>
-                {firstLetter || <BusinessOutlinedIcon />}
-            </Avatar>
-        );
-    }
-
-    return (
-        <Avatar
-            src={logoUrl}
-            alt={`${company.name} logosu`}
-            slotProps={{
-                img: {
-                    onError: () => setHasError(true),
-                },
-            }}
-            sx={{ width: 40, height: 40, bgcolor: 'background.default' }}
-        >
-            {firstLetter || <BusinessOutlinedIcon />}
-        </Avatar>
-    );
-}
-
 function LoadingRows() {
     return (
         <>
@@ -346,9 +315,6 @@ function LoadingRows() {
                 <TableRow key={index}>
                     <TableCell padding="checkbox">
                         <Skeleton variant="rectangular" width={24} height={24} />
-                    </TableCell>
-                    <TableCell>
-                        <Skeleton variant="circular" width={40} height={40} />
                     </TableCell>
                     <TableCell><Skeleton width="80%" /></TableCell>
                     <TableCell><Skeleton width="70%" /></TableCell>
@@ -417,7 +383,6 @@ export function CompanyTable({
                                     </span>
                                 </Tooltip>
                             </TableCell>
-                            <TableCell>Logo</TableCell>
                             <TableCell>Sirket adi</TableCell>
                             <TableCell>Yetkili Kisi</TableCell>
                             <TableCell>Sirket iletisimi</TableCell>
@@ -439,9 +404,6 @@ export function CompanyTable({
                                             onChange={() => onToggleOne(company.id)}
                                             sx={selectionCheckboxSx}
                                         />
-                                    </TableCell>
-                                    <TableCell>
-                                        <CompanyLogo company={company} />
                                     </TableCell>
                                     <TableCell>
                                         <Typography sx={{ fontWeight: 600 }}>

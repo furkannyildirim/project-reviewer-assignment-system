@@ -290,7 +290,6 @@ class CompanyServiceTest {
                 null,
                 null,
                 null,
-                null,
                 CompanyType.TGB,
                 List.of(),
                 List.of(new CreateCompanyContactRequest(
@@ -1132,7 +1131,6 @@ class CompanyServiceTest {
                 null,
                 null,
                 null,
-                null,
                 companyType,
                 List.of(method(
                         null,
@@ -1186,7 +1184,6 @@ class CompanyServiceTest {
                 osb,
                 address,
                 building,
-                null,
                 companyType,
                 contactMethods,
                 List.of(new CreateCompanyContactRequest(
@@ -1217,7 +1214,6 @@ class CompanyServiceTest {
                 "GOSB",
                 "Yeni Adres",
                 "Bina 2",
-                null,
                 contactMethods,
                 List.of(new UpdateCompanyContactRequest(
                         10L,
@@ -1262,7 +1258,6 @@ class CompanyServiceTest {
                 osb,
                 address,
                 building,
-                null,
                 contactMethods,
                 List.of(new UpdateCompanyContactRequest(
                         10L,
@@ -1300,7 +1295,6 @@ class CompanyServiceTest {
         company.setId(id);
         company.setName(name);
         company.setActivityArea("Yazilim");
-        company.setLogoUrl(null);
         company.setCompanyType(companyType);
         return company;
     }

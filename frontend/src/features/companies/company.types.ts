@@ -31,7 +31,6 @@ export type CompanyListItem = {
     id: number;
     name: string;
     activityArea: string | null;
-    logoUrl: string | null;
     companyType: CompanyType;
     contactMethods: CompanyContactMethod[];
     primaryContact: CompanyContact | null;
@@ -47,7 +46,6 @@ export type CompanyDetail = {
     osb: string | null;
     address: string | null;
     building: string | null;
-    logoUrl: string | null;
     companyType: CompanyType;
     contactMethods: CompanyContactMethod[];
     contacts: CompanyContact[];
@@ -80,7 +78,6 @@ export type CreateCompanyRequest = {
     osb: string | null;
     address: string | null;
     building: string | null;
-    logoUrl: string | null;
     companyType: CompanyType;
     contactMethods: CompanyContactMethodRequest[];
     contacts: CreateCompanyContactRequest[];
@@ -190,7 +187,6 @@ export type CompanyFormValues = {
     osb: string;
     address: string;
     building: string;
-    logoUrl: string;
     contactMethods: CompanyContactMethodFormValues[];
     contacts: CompanyContactFormValues[];
 };

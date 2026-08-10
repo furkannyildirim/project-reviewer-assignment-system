@@ -31,9 +31,6 @@ public record UpdateCompanyRequest(
         @Size(max = 255, message = "Bina en fazla 255 karakter olabilir")
         String building,
 
-        @Size(max = 500, message = "Logo adresi en fazla 500 karakter olabilir")
-        String logoUrl,
-
         List<@Valid @NotNull(message = "Iletisim bilgisi bos olamaz") CompanyContactMethodRequest> contactMethods,
 
         @NotEmpty(message = "En az bir muhatap kisi eklenmelidir")

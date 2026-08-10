@@ -78,7 +78,6 @@ const emptyValues: CompanyFormValues = {
     osb: '',
     address: '',
     building: '',
-    logoUrl: '',
     contactMethods: [],
     contacts: [emptyContact],
 };
@@ -130,7 +129,6 @@ function toFormValues(company: CompanyDetail | null): CompanyFormValues {
         osb: company.osb ?? '',
         address: company.address ?? '',
         building: company.building ?? '',
-        logoUrl: company.logoUrl ?? '',
         contactMethods: company.contactMethods.map((contactMethod) => ({
             id: contactMethod.id,
             type: contactMethod.type,
@@ -161,7 +159,6 @@ function buildRequest(
         osb: normalizeOptional(values.osb),
         address: normalizeOptional(values.address),
         building: normalizeOptional(values.building),
-        logoUrl: normalizeOptional(values.logoUrl),
         contactMethods: values.contactMethods.map((contactMethod) => ({
             id: contactMethod.id,
             type: contactMethod.type,
@@ -237,10 +234,6 @@ function validate(values: CompanyFormValues): FormErrors {
 
     if (values.building.trim().length > 255) {
         errors.building = 'Bina en fazla 255 karakter olabilir';
-    }
-
-    if (values.logoUrl.trim().length > 500) {
-        errors.logoUrl = 'Logo adresi en fazla 500 karakter olabilir';
     }
 
     values.contactMethods.forEach((contactMethod, index) => {
@@ -859,19 +852,6 @@ export function CompanyFormDialog({
                             disabled={isFormDisabled}
                         />
                     </Stack>
-
-                    <TextField
-                        label="Logo URL"
-                        value={values.logoUrl}
-                        onChange={(event) => handleChange('logoUrl', event.target.value)}
-                        error={Boolean(errors.logoUrl)}
-                        helperText={errors.logoUrl}
-                        fullWidth
-                        disabled={isFormDisabled}
-                        slotProps={{
-                            htmlInput: { maxLength: 500 },
-                        }}
-                    />
 
                     <Divider />
 
