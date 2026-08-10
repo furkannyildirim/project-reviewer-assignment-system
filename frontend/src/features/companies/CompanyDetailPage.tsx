@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
@@ -60,7 +60,10 @@ function DetailCard({
         >
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
                 <Box sx={{ color: '#2A2B61', display: 'flex' }}>{icon}</Box>
-                <Typography variant="h6" sx={{ fontSize: 17, fontWeight: 700 }}>
+                <Typography
+                    variant="h6"
+                    sx={{ fontSize: { xs: 18, sm: 19 }, fontWeight: 700 }}
+                >
                     {title}
                 </Typography>
             </Stack>
@@ -70,12 +73,26 @@ function DetailCard({
 }
 
 function DetailField({ label, value }: { label: string; value: string | null }) {
+    const hasValue = Boolean(value?.trim());
+
     return (
         <Stack spacing={0.45}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+            <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontSize: 14, fontWeight: 600 }}
+            >
                 {label}
             </Typography>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+            <Typography
+                variant="body2"
+                color={hasValue ? undefined : 'text.secondary'}
+                sx={{
+                    fontSize: hasValue ? { xs: 15, sm: 16 } : 15,
+                    lineHeight: 1.5,
+                    whiteSpace: 'pre-wrap',
+                }}
+            >
                 {displayOptional(value)}
             </Typography>
         </Stack>
@@ -89,13 +106,13 @@ function ContactMethods({ methods }: { methods: CompanyContactMethod[] }) {
     return (
         <Stack spacing={2.25}>
             <Stack spacing={1}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>Telefonlar</Typography>
+                <Typography variant="body2" sx={{ fontSize: 14, fontWeight: 600 }}>Telefonlar</Typography>
                 {phones.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">{missingValue}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: 15 }}>{missingValue}</Typography>
                 ) : phones.map((phone) => (
                     <Stack key={phone.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                         <PhoneOutlinedIcon fontSize="small" color="action" />
-                        <Typography component="a" href={`tel:${phone.value}`} variant="body2" color="primary">
+                        <Typography component="a" href={`tel:${phone.value}`} variant="body2" color="primary" sx={{ fontSize: { xs: 15, sm: 16 }, lineHeight: 1.5 }}>
                             {phone.label?.trim() ? `${phone.label}: ${phone.value}` : phone.value}
                         </Typography>
                     </Stack>
@@ -103,13 +120,13 @@ function ContactMethods({ methods }: { methods: CompanyContactMethod[] }) {
             </Stack>
             <Divider />
             <Stack spacing={1}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>E-postalar</Typography>
+                <Typography variant="body2" sx={{ fontSize: 14, fontWeight: 600 }}>E-postalar</Typography>
                 {emails.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">{missingValue}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: 15 }}>{missingValue}</Typography>
                 ) : emails.map((email) => (
                     <Stack key={email.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                         <EmailOutlinedIcon fontSize="small" color="action" />
-                        <Typography component="a" href={`mailto:${email.value}`} variant="body2" color="primary" sx={{ overflowWrap: 'anywhere' }}>
+                        <Typography component="a" href={`mailto:${email.value}`} variant="body2" color="primary" sx={{ fontSize: { xs: 15, sm: 16 }, lineHeight: 1.5, overflowWrap: 'anywhere' }}>
                             {email.label?.trim() ? `${email.label}: ${email.value}` : email.value}
                         </Typography>
                     </Stack>
@@ -123,7 +140,7 @@ function Contacts({ contacts }: { contacts: CompanyContact[] }) {
     const sortedContacts = [...contacts].sort((first, second) => Number(second.primary) - Number(first.primary));
 
     if (sortedContacts.length === 0) {
-        return <Typography variant="body2" color="text.secondary">{missingValue}</Typography>;
+        return <Typography variant="body2" color="text.secondary" sx={{ fontSize: 15 }}>{missingValue}</Typography>;
     }
 
     return (
@@ -132,20 +149,20 @@ function Contacts({ contacts }: { contacts: CompanyContact[] }) {
                 <Box key={contact.id}>
                     {index > 0 && <Divider sx={{ mb: 1.5 }} />}
                     <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap', mb: 0.5 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 700 }}>{contact.fullName}</Typography>
+                        <Typography variant="body1" sx={{ fontSize: { xs: 15, sm: 16 }, lineHeight: 1.5, fontWeight: 700 }}>{contact.fullName}</Typography>
                         {contact.primary && (
                             <Chip label="Ana yetkili" size="small" sx={{ bgcolor: 'rgba(46, 168, 211, 0.14)', color: '#176B8A', fontWeight: 700 }} />
                         )}
                     </Stack>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: 15, sm: 16 }, lineHeight: 1.5, mb: 1.25 }}>
                         {displayOptional(contact.position)}
                     </Typography>
                     <Stack spacing={0.75}>
-                        <Typography variant="body2">
-                            Telefon: {contact.phone?.trim() ? <Box component="a" href={`tel:${contact.phone}`} color="primary">{contact.phone}</Box> : missingValue}
+                        <Typography variant="body2" sx={{ fontSize: { xs: 15, sm: 16 }, lineHeight: 1.5 }}>
+                            Telefon: {contact.phone?.trim() ? <Box component="a" href={`tel:${contact.phone}`} color="primary">{contact.phone}</Box> : <Box component="span" sx={{ color: 'text.secondary', fontSize: 15 }}>{missingValue}</Box>}
                         </Typography>
-                        <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>
-                            E-posta: {contact.email?.trim() ? <Box component="a" href={`mailto:${contact.email}`} color="primary">{contact.email}</Box> : missingValue}
+                        <Typography variant="body2" sx={{ fontSize: { xs: 15, sm: 16 }, lineHeight: 1.5, overflowWrap: 'anywhere' }}>
+                            E-posta: {contact.email?.trim() ? <Box component="a" href={`mailto:${contact.email}`} color="primary">{contact.email}</Box> : <Box component="span" sx={{ color: 'text.secondary', fontSize: 15 }}>{missingValue}</Box>}
                         </Typography>
                     </Stack>
                 </Box>
@@ -186,7 +203,7 @@ export function CompanyDetailPage() {
                 </Alert>
                 <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
                     {!isNotFound && <Button variant="outlined" onClick={() => void companyQuery.refetch()}>Tekrar dene</Button>}
-                    <Button startIcon={<ArrowBackOutlinedIcon />} onClick={() => navigate(backPath)}>Şirket listesine dön</Button>
+                    <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(backPath)}>Şirket listesine dön</Button>
                 </Stack>
             </Stack>
         );
@@ -197,22 +214,36 @@ export function CompanyDetailPage() {
     }
 
     return (
-        <Stack spacing={2.5} sx={{ maxWidth: 1280, mx: 'auto', pb: 3 }}>
-            <Paper elevation={0} sx={{ borderBottom: '1px solid #D9E2EA', borderRadius: 0, bgcolor: '#FFFFFF', mx: { xs: -2, sm: -3, lg: -4 }, px: { xs: 2, sm: 3, lg: 4 }, py: { xs: 2, sm: 2.5 } }}>
+        <Stack spacing={2.5} sx={{ maxWidth: 1280, mx: 'auto', pb: 3, pt: { xs: 2.5, sm: 3 } }}>
+            <Paper elevation={0} sx={{ border: '1px solid #D9E2EA', borderRadius: '13px', bgcolor: '#FFFFFF', mx: { xs: -2, sm: -3, lg: -4 }, px: { xs: 2, sm: 3, lg: 4 }, py: { xs: 2, sm: 2.5 } }}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
                     <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
-                        <Button aria-label="Şirket listesine dön" onClick={() => navigate(backPath)} sx={{ minWidth: 0, px: 1 }}><ArrowBackOutlinedIcon /></Button>
                         <Box sx={{ bgcolor: '#2EA8D3', borderRadius: 999, flex: '0 0 auto', height: 42, width: 3 }} />
                         <Stack spacing={0.65} sx={{ minWidth: 0 }}>
                             <Typography variant="h5" noWrap sx={{ fontSize: { xs: 20, sm: 24 }, fontWeight: 700 }}>{company.name}</Typography>
                             <Chip label={companyTypeLabel(company.companyType)} size="small" sx={{ alignSelf: 'flex-start', bgcolor: 'rgba(46, 168, 211, 0.14)', color: '#176B8A', fontWeight: 700 }} />
                         </Stack>
                     </Stack>
-                    {canEdit && (
-                        <Button variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => navigate(backPath, { state: { editCompanyId: company.id } })}>
-                            Düzenle
+                    <Stack
+                        direction="row"
+                        spacing={1}
+                        useFlexGap
+                        sx={{ flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' } }}
+                    >
+                        <Button
+                            variant="outlined"
+                            startIcon={<ArrowBackIcon />}
+                            onClick={() => navigate(backPath)}
+                            sx={{ color: '#344054', borderColor: '#D9E2EA' }}
+                        >
+                            Geri Dön
                         </Button>
-                    )}
+                        {canEdit && (
+                            <Button variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => navigate(backPath, { state: { editCompanyId: company.id } })}>
+                                Düzenle
+                            </Button>
+                        )}
+                    </Stack>
                 </Stack>
             </Paper>
 
