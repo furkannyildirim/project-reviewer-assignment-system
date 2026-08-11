@@ -38,4 +38,7 @@ public class User {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    @Column(name = "token_version", nullable = false)
+    private long tokenVersion;
 }
