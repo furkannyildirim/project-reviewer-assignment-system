@@ -13,22 +13,20 @@ export type LoginResponse = {
     expiresIn: number;
 };
 
-export type AuthUser = {
+export type CurrentUserResponse = {
+    id: number;
+    firstName: string;
+    lastName: string;
     email: string;
-};
-
-export type JwtAccessTokenClaims = {
-    sub: string;
-    roles: Role[];
-    exp: number;
-    iat?: number;
-    iss?: string;
+    phone: string;
+    role: Role;
+    active: boolean;
 };
 
 export type AuthContextValue = {
     accessToken: string | null;
     isAuthenticated: boolean;
-    currentUser: AuthUser | null;
+    currentUser: CurrentUserResponse | null;
     role: Role | null;
     login: (credentials: LoginCredentials) => Promise<void>;
     logout: () => void;
