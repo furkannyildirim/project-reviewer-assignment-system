@@ -36,8 +36,20 @@ public class Company {
     @Column(name = "activity_area", columnDefinition = "text")
     private String activityArea;
 
-    @Column(name = "logo_url", length = 500)
-    private String logoUrl;
+    @Column(length = 150)
+    private String city;
+
+    @Column(length = 150)
+    private String district;
+
+    @Column(length = 255)
+    private String osb;
+
+    @Column(columnDefinition = "text")
+    private String address;
+
+    @Column(length = 255)
+    private String building;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "company_type", nullable = false, length = 20)
@@ -51,6 +63,14 @@ public class Company {
     @Setter(AccessLevel.NONE)
     private List<CompanyContact> contacts = new ArrayList<>();
 
+    @OneToMany(
+            mappedBy = "company",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    @Setter(AccessLevel.NONE)
+    private List<CompanyContactMethod> contactMethods = new ArrayList<>();
+
     public void addContact(CompanyContact contact) {
         contacts.add(contact);
         contact.setCompany(this);
@@ -59,5 +79,15 @@ public class Company {
     public void removeContact(CompanyContact contact) {
         contacts.remove(contact);
         contact.setCompany(null);
+    }
+
+    public void addContactMethod(CompanyContactMethod contactMethod) {
+        contactMethods.add(contactMethod);
+        contactMethod.setCompany(this);
+    }
+
+    public void removeContactMethod(CompanyContactMethod contactMethod) {
+        contactMethods.remove(contactMethod);
+        contactMethod.setCompany(null);
     }
 }

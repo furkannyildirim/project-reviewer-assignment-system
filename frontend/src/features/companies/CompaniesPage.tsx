@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import {
     Alert,
     Box,
     Button,
+    InputAdornment,
     MenuItem,
     Snackbar,
     Stack,
@@ -14,15 +17,19 @@ import {
 } from '@mui/material';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
-import { PageHeader } from '../../components/common/PageHeader';
+import { ResultSummary } from '../../components/common/ResultSummary';
 import { useAuth } from '../auth/useAuth';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import {
     createCompany,
     deleteCompany,
+    exportCompanies,
+    getCompanyCount,
     getCompanyById,
+    getCompanyIds,
     getCompanies,
+    getExternalCompanyNameWarning,
     updateCompany,
 } from './companyApi';
 import { companyQueryKeys } from './companyQueryKeys';
@@ -36,16 +43,22 @@ import { companyPageSizes } from './company.types';
 import { CompanyFormDialog } from './components/CompanyFormDialog';
 import { CompanyImportPreviewDialog } from './components/CompanyImportPreviewDialog';
 import { CompanyTable } from './components/CompanyTable';
+import { useLocation, useNavigate } from 'react-router';
 
 type FormMode = {
     type: 'create' | 'edit';
-    company: Company | null;
+    company: Pick<Company, 'id'> | null;
 } | null;
 
 type SnackbarState = {
     message: string;
-    severity: 'success' | 'error';
+    severity: 'success' | 'error' | 'warning';
 } | null;
+
+type SelectionState = {
+    filterKey: string;
+    ids: Set<number>;
+};
 
 type CompaniesPageProps = {
     companyType: CompanyType;
@@ -54,6 +67,38 @@ type CompaniesPageProps = {
     emptyTitle: string;
 };
 
+const companyInitialOptions = [
+    'A',
+    'B',
+    'C',
+    'Ç',
+    'D',
+    'E',
+    'F',
+    'G',
+    'Ğ',
+    'H',
+    'I',
+    'İ',
+    'J',
+    'K',
+    'L',
+    'M',
+    'N',
+    'O',
+    'Ö',
+    'P',
+    'R',
+    'S',
+    'Ş',
+    'T',
+    'U',
+    'Ü',
+    'V',
+    'Y',
+    'Z',
+] as const;
+
 export function CompaniesPage({
     companyType,
     title,
@@ -61,21 +106,48 @@ export function CompaniesPage({
     emptyTitle,
 }: CompaniesPageProps) {
     const { role } = useAuth();
+    const location = useLocation();
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
+    const [initial, setInitial] = useState('');
     const [page, setPage] = useState(0);
     const [size, setSize] = useState(10);
     const [formMode, setFormMode] = useState<FormMode>(null);
     const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
     const [isImportDialogOpen, setImportDialogOpen] = useState(false);
+    const [isCheckingExternalName, setIsCheckingExternalName] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [snackbar, setSnackbar] = useState<SnackbarState>(null);
     const debouncedSearch = useDebouncedValue(search.trim(), 400);
+    const hasActiveFilter = Boolean(debouncedSearch || initial);
     const isAdmin = role === 'ADMIN';
+
+    useEffect(() => {
+        const editCompanyId = (location.state as {
+            editCompanyId?: number;
+        } | null)?.editCompanyId;
+
+        if (!editCompanyId) {
+            return;
+        }
+
+        setFormMode({ type: 'edit', company: { id: editCompanyId } });
+        navigate(location.pathname, { replace: true, state: null });
+    }, [location.pathname, location.state, navigate]);
+    const selectionFilterKey = `${companyType}|${debouncedSearch}|${initial}`;
+    const [selection, setSelection] = useState<SelectionState>(() => ({
+        filterKey: selectionFilterKey,
+        ids: new Set(),
+    }));
+    const selectedIds = selection.filterKey === selectionFilterKey
+        ? selection.ids
+        : new Set<number>();
 
     const queryParams = {
         companyType,
         search: debouncedSearch,
+        initial: initial || undefined,
         page,
         size,
     };
@@ -83,6 +155,24 @@ export function CompaniesPage({
     const companiesQuery = useQuery({
         queryKey: companyQueryKeys.list(queryParams),
         queryFn: () => getCompanies(queryParams),
+        placeholderData: keepPreviousData,
+    });
+
+    const companyCountQuery = useQuery({
+        queryKey: companyQueryKeys.count(companyType),
+        queryFn: () => getCompanyCount(companyType),
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const idQueryParams = {
+        companyType,
+        search: debouncedSearch,
+        initial: initial || undefined,
+    };
+
+    const companyIdsQuery = useQuery({
+        queryKey: companyQueryKeys.ids(idQueryParams),
+        queryFn: () => getCompanyIds(idQueryParams),
         placeholderData: keepPreviousData,
     });
 
@@ -165,9 +255,47 @@ export function CompaniesPage({
         },
     });
 
-    const isSaving = createMutation.isPending || updateMutation.isPending;
+    const exportMutation = useMutation({
+        mutationFn: exportCompanies,
+        onSuccess: (blob) => {
+            const fileName = companyType === 'EXTERNAL'
+                ? 'dis-sirketler.xlsx'
+                : 'tgb-sirketleri.xlsx';
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = fileName;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(url);
+        },
+        onError: (error) => {
+            setSnackbar({
+                message: getApiErrorMessage(
+                    error,
+                    'Şirketler Excel dosyasına aktarılamadı',
+                ),
+                severity: 'error',
+            });
+        },
+    });
+
+    const isSaving = createMutation.isPending
+        || updateMutation.isPending
+        || isCheckingExternalName;
     const isMutating = isSaving || deleteMutation.isPending;
     const companies = companiesQuery.data?.content ?? [];
+    const filteredIds = useMemo(
+        () => companyIdsQuery.data ?? [],
+        [companyIdsQuery.data],
+    );
+    const selectedFilteredCount = filteredIds.filter((id) =>
+        selectedIds.has(id)).length;
+    const isAllSelected =
+        filteredIds.length > 0 && selectedFilteredCount === filteredIds.length;
+    const isSelectionIndeterminate =
+        selectedFilteredCount > 0 && selectedFilteredCount < filteredIds.length;
     const showEmptyState =
         !companiesQuery.isLoading
         && !companiesQuery.isError
@@ -181,15 +309,51 @@ export function CompaniesPage({
         }
 
         if (formMode.type === 'create') {
-            await createMutation.mutateAsync(request as CreateCompanyRequest);
+            const createRequest = request as CreateCompanyRequest;
+
+            if (!await confirmExternalName(createRequest.name)) {
+                return;
+            }
+
+            await createMutation.mutateAsync(createRequest);
             return;
         }
 
         if (formMode.company) {
+            const updateRequest = request as UpdateCompanyRequest;
+            if (!await confirmExternalName(
+                updateRequest.name,
+                formMode.company.id,
+            )) {
+                return;
+            }
+
             await updateMutation.mutateAsync({
                 id: formMode.company.id,
-                request: request as UpdateCompanyRequest,
+                request: updateRequest,
             });
+        }
+    }
+
+    async function confirmExternalName(
+        name: string,
+        excludeCompanyId?: number,
+    ): Promise<boolean> {
+        if (companyType !== 'EXTERNAL') {
+            return true;
+        }
+
+        setIsCheckingExternalName(true);
+        try {
+            const warning = await getExternalCompanyNameWarning(
+                name,
+                excludeCompanyId,
+            );
+            return !warning.warning
+                || !warning.message
+                || window.confirm(warning.message);
+        } finally {
+            setIsCheckingExternalName(false);
         }
     }
 
@@ -198,9 +362,67 @@ export function CompaniesPage({
         setPage(0);
     }
 
+    function handleInitialChange(value: string) {
+        setInitial(value);
+        setPage(0);
+    }
+
     function handleSizeChange(nextSize: number) {
         setSize(nextSize);
         setPage(0);
+    }
+
+    function handleToggleOne(id: number) {
+        setSelection((currentSelection) => {
+            const currentIds = currentSelection.filterKey === selectionFilterKey
+                ? currentSelection.ids
+                : new Set<number>();
+            const nextIds = new Set(currentIds);
+            if (nextIds.has(id)) {
+                nextIds.delete(id);
+            } else {
+                nextIds.add(id);
+            }
+            return { filterKey: selectionFilterKey, ids: nextIds };
+        });
+    }
+
+    async function handleToggleAll() {
+        if (companyIdsQuery.isFetching) {
+            return;
+        }
+
+        try {
+            const result = companyIdsQuery.data
+                ? { data: companyIdsQuery.data, error: null }
+                : await companyIdsQuery.refetch();
+            if (result.error) {
+                throw result.error;
+            }
+            const nextFilteredIds = result.data ?? [];
+
+            setSelection((currentSelection) => {
+                const currentIds = currentSelection.filterKey === selectionFilterKey
+                    ? currentSelection.ids
+                    : new Set<number>();
+                const nextIds = new Set(currentIds);
+                const allSelected = nextFilteredIds.length > 0
+                    && nextFilteredIds.every((id) => nextIds.has(id));
+
+                if (allSelected) {
+                    nextFilteredIds.forEach((id) => nextIds.delete(id));
+                    return { filterKey: selectionFilterKey, ids: nextIds };
+                }
+
+                nextFilteredIds.forEach((id) => nextIds.add(id));
+                return { filterKey: selectionFilterKey, ids: nextIds };
+            });
+        } catch {
+            setSnackbar({
+                message: 'Secilecek firma listesi alinamadi',
+                severity: 'error',
+            });
+        }
     }
 
     function handleDeleteConfirm() {
@@ -211,12 +433,72 @@ export function CompaniesPage({
         deleteMutation.mutate(companyToDelete.id);
     }
 
+    function handleExport() {
+        if (exportMutation.isPending) {
+            return;
+        }
+
+        if (selectedIds.size === 0) {
+            setSnackbar({
+                message: 'Excel’e aktarmak için en az bir kayıt seçmelisiniz.',
+                severity: 'warning',
+            });
+            return;
+        }
+
+        exportMutation.mutate({
+            companyType,
+            ids: [...selectedIds],
+        });
+    }
+
     return (
         <Stack spacing={3}>
-            <PageHeader
-                title={title}
-                description={description}
-                action={(
+            <Box
+                sx={{
+                    bgcolor: 'background.default',
+                    borderBottom: '1px solid #E3EAF0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    position: 'sticky',
+                    pt: { xs: 2.5, sm: 3, lg: 4 },
+                    top: 0,
+                    zIndex: (theme) => theme.zIndex.appBar - 1,
+                }}
+            >
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={2}
+                    sx={{
+                        alignItems: { xs: 'stretch', sm: 'flex-start' },
+                        justifyContent: 'space-between',
+                    }}
+                >
+                    <Stack
+                        direction="row"
+                        spacing={1.75}
+                        sx={{ alignItems: 'center', minWidth: 0 }}
+                    >
+                        <Box
+                            aria-hidden="true"
+                            sx={{
+                                bgcolor: '#2EA8D3',
+                                borderRadius: '4px',
+                                flex: '0 0 auto',
+                                height: 52,
+                                width: 4,
+                            }}
+                        />
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="h4" component="h1">
+                                {title}
+                            </Typography>
+                            <Typography color="text.secondary" sx={{ mt: 0.75 }}>
+                                {description}
+                            </Typography>
+                        </Box>
+                    </Stack>
                     <Stack
                         direction={{ xs: 'column', sm: 'row' }}
                         spacing={1}
@@ -226,33 +508,122 @@ export function CompaniesPage({
                             variant="outlined"
                             startIcon={<UploadFileOutlinedIcon />}
                             onClick={() => setImportDialogOpen(true)}
+                            sx={{
+                                bgcolor: '#FFFFFF',
+                                borderColor: '#D9E2EA',
+                                color: '#2A2B61',
+                                '&:hover': {
+                                    bgcolor: 'rgba(46, 168, 211, 0.06)',
+                                    borderColor: 'rgba(46, 168, 211, 0.45)',
+                                },
+                            }}
                         >
                             Excel'den Aktar
+                        </Button>
+
+                        <Button
+                            variant="outlined"
+                            startIcon={<FileDownloadOutlinedIcon />}
+                            disabled={exportMutation.isPending}
+                            onClick={handleExport}
+                            sx={{
+                                bgcolor: '#FFFFFF',
+                                borderColor: '#D9E2EA',
+                                color: '#2A2B61',
+                                '&:hover': {
+                                    bgcolor: 'rgba(46, 168, 211, 0.06)',
+                                    borderColor: 'rgba(46, 168, 211, 0.45)',
+                                },
+                            }}
+                        >
+                            {exportMutation.isPending
+                                ? 'Aktarılıyor'
+                                : `Excel'e Aktar${selectedIds.size > 0
+                                    ? ` (${selectedIds.size})`
+                                    : ''}`}
                         </Button>
 
                         <Button
                             variant="contained"
                             startIcon={<AddBusinessOutlinedIcon />}
                             onClick={() => setFormMode({ type: 'create', company: null })}
+                            sx={{
+                                bgcolor: '#2A2B61',
+                                color: '#FFFFFF',
+                                '&:hover': {
+                                    bgcolor: '#202153',
+                                },
+                            }}
                         >
                         Şirket Ekle
                         </Button>
                     </Stack>
-                )}
-            />
+                </Stack>
 
             <Stack
                 direction={{ xs: 'column', md: 'row' }}
                 spacing={2}
-                sx={{ alignItems: { xs: 'stretch', md: 'center' } }}
+                sx={{
+                    alignItems: { xs: 'stretch', md: 'center' },
+                    '& .MuiInputLabel-root.Mui-focused': {
+                        color: '#2A2B61',
+                    },
+                    '& .MuiOutlinedInput-root': {
+                        bgcolor: '#FFFFFF',
+                        borderRadius: '10px',
+                        minHeight: 44,
+                        '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#D9E2EA',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#B8C7D4',
+                        },
+                        '&.Mui-focused': {
+                            boxShadow: '0 0 0 3px rgba(42, 43, 97, 0.09)',
+                        },
+                        '&.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': {
+                            color: '#2A2B61',
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#2A2B61',
+                            borderWidth: 1,
+                        },
+                    },
+                }}
             >
                 <TextField
                     label="Arama"
                     placeholder="Şirket adı, e-posta, telefon veya faaliyet alanı"
                     value={search}
                     onChange={(event) => handleSearchChange(event.target.value)}
+                    slotProps={{
+                        input: {
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchOutlinedIcon
+                                        sx={{ color: '#728196', fontSize: 20 }}
+                                    />
+                                </InputAdornment>
+                            ),
+                        },
+                    }}
                     sx={{ flexGrow: 1 }}
                 />
+
+                <TextField
+                    select
+                    label="Baş harf"
+                    value={initial}
+                    onChange={(event) => handleInitialChange(event.target.value)}
+                    sx={{ minWidth: { xs: '100%', md: 150 } }}
+                >
+                    <MenuItem value="">Tümü</MenuItem>
+                    {companyInitialOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                            {option}
+                        </MenuItem>
+                    ))}
+                </TextField>
 
                 <TextField
                     select
@@ -268,27 +639,19 @@ export function CompaniesPage({
                     ))}
                 </TextField>
 
-                {companiesQuery.data && (
-                    <Box
-                        sx={{
-                            alignItems: 'center',
-                            bgcolor: 'background.paper',
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            borderRadius: 2.5,
-                            color: 'text.secondary',
-                            display: 'flex',
-                            minHeight: 40,
-                            px: 1.75,
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            Toplam {companiesQuery.data.totalElements} kayıt
-                        </Typography>
-                    </Box>
+                {companiesQuery.data
+                    && companyCountQuery.data !== undefined && (
+                    <ResultSummary
+                        filteredCount={companiesQuery.data.totalElements}
+                        totalCount={companyCountQuery.data}
+                        hasActiveFilter={hasActiveFilter}
+                        entityLabel={companyType === 'TGB'
+                            ? 'TGB şirketi'
+                            : 'dış şirket'}
+                    />
                 )}
             </Stack>
+            </Box>
 
             {companiesQuery.isError && (
                 <Alert severity="error">
@@ -318,7 +681,16 @@ export function CompaniesPage({
                         isLoading={companiesQuery.isLoading}
                         isAdmin={isAdmin}
                         isMutating={isMutating}
+                        selectedIds={selectedIds}
+                        isAllSelected={isAllSelected}
+                        isSelectionIndeterminate={isSelectionIndeterminate}
+                        isSelectionLoading={companyIdsQuery.isFetching}
                         onPageChange={setPage}
+                        onToggleAll={() => void handleToggleAll()}
+                        onToggleOne={handleToggleOne}
+                        onView={(company) => navigate(
+                            `/companies/${company.companyType === 'TGB' ? 'tgb' : 'external'}/${company.id}`,
+                        )}
                         onEdit={(company) => setFormMode({ type: 'edit', company })}
                         onDelete={(company) => {
                             setDeleteError(null);

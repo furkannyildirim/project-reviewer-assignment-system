@@ -52,6 +52,10 @@ public class SecurityConfig {
                                 HttpMethod.POST,
                                 "/api/auth/login"
                         ).permitAll()
+                        .requestMatchers(
+                                "/api/admin/profile",
+                                "/api/admin/profile/**"
+                        ).hasRole("ADMIN")
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
                         .requestMatchers(
                                 HttpMethod.DELETE,

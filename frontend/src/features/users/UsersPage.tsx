@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import {
     Alert,
     Box,
     Button,
+    InputAdornment,
     MenuItem,
     Snackbar,
     Stack,
@@ -13,7 +15,7 @@ import {
 } from '@mui/material';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
-import { PageHeader } from '../../components/common/PageHeader';
+import { ResultSummary } from '../../components/common/ResultSummary';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
 import {
@@ -203,10 +205,51 @@ export function UsersPage() {
 
     return (
         <Stack spacing={3}>
-            <PageHeader
-                title="Kullanıcı Yönetimi"
-                description="Sistem kullanıcılarını oluşturun, arayın, güncelleyin ve yönetin."
-                action={(
+            <Box
+                sx={{
+                    bgcolor: 'background.default',
+                    borderBottom: '1px solid #E3EAF0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    position: 'sticky',
+                    pt: { xs: 2.5, sm: 3, lg: 4 },
+                    top: 0,
+                    zIndex: (theme) => theme.zIndex.appBar - 1,
+                }}
+            >
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={2}
+                    sx={{
+                        alignItems: { xs: 'stretch', sm: 'flex-start' },
+                        justifyContent: 'space-between',
+                    }}
+                >
+                    <Stack
+                        direction="row"
+                        spacing={1.75}
+                        sx={{ alignItems: 'center', minWidth: 0 }}
+                    >
+                        <Box
+                            aria-hidden="true"
+                            sx={{
+                                bgcolor: '#2EA8D3',
+                                borderRadius: '4px',
+                                flex: '0 0 auto',
+                                height: 52,
+                                width: 4,
+                            }}
+                        />
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="h4" component="h1">
+                                Kullanıcı Yönetimi
+                            </Typography>
+                            <Typography color="text.secondary" sx={{ mt: 0.75 }}>
+                                Sistem kullanıcılarını oluşturun, arayın, güncelleyin ve yönetin.
+                            </Typography>
+                        </Box>
+                    </Stack>
                     <Button
                         variant="contained"
                         startIcon={<PersonAddAltOutlinedIcon />}
@@ -214,22 +257,65 @@ export function UsersPage() {
                             type: 'create',
                             user: null,
                         })}
+                        sx={{
+                            bgcolor: '#2A2B61',
+                            color: '#FFFFFF',
+                            '&:hover': {
+                                bgcolor: '#202153',
+                            },
+                        }}
                     >
                         Yeni Kullanıcı
                     </Button>
-                )}
-            />
+                </Stack>
 
             <Stack
                 direction={{ xs: 'column', md: 'row' }}
                 spacing={2}
-                sx={{ alignItems: { xs: 'stretch', md: 'center' } }}
+                sx={{
+                    alignItems: { xs: 'stretch', md: 'center' },
+                    '& .MuiInputLabel-root.Mui-focused': {
+                        color: '#2A2B61',
+                    },
+                    '& .MuiOutlinedInput-root': {
+                        bgcolor: '#FFFFFF',
+                        borderRadius: '10px',
+                        minHeight: 44,
+                        '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#D9E2EA',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#B8C7D4',
+                        },
+                        '&.Mui-focused': {
+                            boxShadow: '0 0 0 3px rgba(42, 43, 97, 0.09)',
+                        },
+                        '&.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': {
+                            color: '#2A2B61',
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#2A2B61',
+                            borderWidth: 1,
+                        },
+                    },
+                }}
             >
                 <TextField
                     label="Arama"
                     placeholder="Ad, soyad, e-posta veya telefon"
                     value={search}
                     onChange={(event) => handleSearchChange(event.target.value)}
+                    slotProps={{
+                        input: {
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchOutlinedIcon
+                                        sx={{ color: '#728196', fontSize: 20 }}
+                                    />
+                                </InputAdornment>
+                            ),
+                        },
+                    }}
                     sx={{ flexGrow: 1 }}
                 />
 
@@ -248,26 +334,15 @@ export function UsersPage() {
                 </TextField>
 
                 {!usersQuery.isError && (
-                    <Box
-                        sx={{
-                            alignItems: 'center',
-                            bgcolor: 'background.paper',
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            borderRadius: 2.5,
-                            color: 'text.secondary',
-                            display: 'flex',
-                            minHeight: 40,
-                            px: 1.75,
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            Toplam {filteredUsers.length} kayıt
-                        </Typography>
-                    </Box>
+                    <ResultSummary
+                        filteredCount={filteredUsers.length}
+                        totalCount={users.length}
+                        hasActiveFilter={Boolean(debouncedSearch)}
+                        entityLabel="kullanıcı"
+                    />
                 )}
             </Stack>
+            </Box>
 
             {usersQuery.isError && (
                 <Alert

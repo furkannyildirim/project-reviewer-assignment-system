@@ -1,7 +1,10 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
+import com.sakaryateknokent.reviewerassignment.dto.CompanyContactMethodRequest;
+import com.sakaryateknokent.reviewerassignment.dto.CompanyContactMethodResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyContactResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyListResponse;
+import com.sakaryateknokent.reviewerassignment.dto.CompanyNameWarningResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyContactRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyRequest;
@@ -10,10 +13,13 @@ import com.sakaryateknokent.reviewerassignment.dto.UpdateCompanyContactRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateCompanyRequest;
 import com.sakaryateknokent.reviewerassignment.entity.Company;
 import com.sakaryateknokent.reviewerassignment.entity.CompanyContact;
+import com.sakaryateknokent.reviewerassignment.entity.CompanyContactMethod;
+import com.sakaryateknokent.reviewerassignment.enums.CompanyContactMethodType;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.exception.DuplicateResourceException;
 import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.exception.ResourceNotFoundException;
+import com.sakaryateknokent.reviewerassignment.repository.CompanyContactMethodRepository;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyContactRepository;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,13 +32,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,31 +51,56 @@ import java.util.stream.Collectors;
 @Transactional
 public class CompanyService {
 
+    private static final String EXTERNAL_NAME_WARNING_MESSAGE =
+            "Bu isimde bir dış şirket zaten mevcut. "
+                    + "Kaydetmeden önce mevcut kaydı kontrol edin.";
+    private static final String EXTERNAL_UPDATE_NAME_WARNING_MESSAGE =
+            "Bu isimde başka bir dış şirket zaten mevcut. "
+                    + "Kaydetmeden önce mevcut kaydı kontrol edin.";
+
     private static final Sort DEFAULT_COMPANY_SORT =
             Sort.by(Sort.Order.asc("name").ignoreCase());
 
     private static final Set<Integer> ALLOWED_PAGE_SIZES =
             Set.of(10, 15, 20, 25);
 
+    private static final Pattern EMAIL_PATTERN = Pattern.compile(
+            "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+    );
+
     private final CompanyRepository companyRepository;
     private final CompanyContactRepository companyContactRepository;
+    private final CompanyContactMethodRepository companyContactMethodRepository;
 
     public CompanyResponse createCompany(CreateCompanyRequest request) {
-        String normalizedEmail = normalizeEmail(request.email());
+        String companyName = request.name().trim();
+        validateTgbNameAvailabilityForCreate(
+                companyName,
+                request.companyType()
+        );
 
-        validateEmailForCreate(normalizedEmail);
+        List<NormalizedContactMethodRequest> contactMethods =
+                normalizeCreateContactMethods(request.contactMethods());
 
         List<NormalizedContactRequest> contacts =
                 normalizeCreateContacts(request.contacts());
 
         Company company = new Company();
-        company.setName(request.name().trim());
-        company.setEmail(normalizedEmail);
-        company.setPhone(normalizeOptionalText(request.phone()));
-        company.setSecondaryPhone(normalizeOptionalText(request.secondaryPhone()));
+        company.setName(companyName);
         company.setActivityArea(normalizeOptionalText(request.activityArea()));
-        company.setLogoUrl(normalizeOptionalText(request.logoUrl()));
+        company.setCity(normalizeOptionalText(request.city()));
+        company.setDistrict(normalizeOptionalText(request.district()));
+        company.setOsb(normalizeOptionalText(request.osb()));
+        company.setAddress(normalizeOptionalText(request.address()));
+        company.setBuilding(normalizeOptionalText(request.building()));
         company.setCompanyType(request.companyType());
+
+        for (NormalizedContactMethodRequest contactMethod : contactMethods) {
+            CompanyContactMethod companyContactMethod =
+                    new CompanyContactMethod();
+            applyContactMethod(companyContactMethod, contactMethod);
+            company.addContactMethod(companyContactMethod);
+        }
 
         for (NormalizedContactRequest contact : contacts) {
             CompanyContact companyContact = new CompanyContact();
@@ -79,6 +115,7 @@ public class CompanyService {
     public PageResponse<CompanyListResponse> getCompanies(
             CompanyType companyType,
             String search,
+            String initial,
             int page,
             int size
     ) {
@@ -87,6 +124,9 @@ public class CompanyService {
         String normalizedSearch = search == null
                 ? ""
                 : search.trim();
+        String normalizedInitial = initial == null
+                ? ""
+                : initial.trim();
 
         Pageable pageable = PageRequest.of(
                 page,
@@ -95,16 +135,22 @@ public class CompanyService {
         );
 
         Page<Company> companyPage = companyRepository
-                .search(companyType, normalizedSearch, pageable);
+                .search(companyType, normalizedSearch, normalizedInitial, pageable);
 
         List<Company> companies = companyPage.getContent();
         Map<Long, List<CompanyContact>> contactsByCompanyId =
                 findContactsByCompanyId(companies);
+        Map<Long, List<CompanyContactMethod>> contactMethodsByCompanyId =
+                findContactMethodsByCompanyId(companies);
 
         List<CompanyListResponse> responses = companies.stream()
                 .map(company -> toListResponse(
                         company,
                         contactsByCompanyId.getOrDefault(
+                                company.getId(),
+                                List.of()
+                        ),
+                        contactMethodsByCompanyId.getOrDefault(
                                 company.getId(),
                                 List.of()
                         )
@@ -123,6 +169,79 @@ public class CompanyService {
     }
 
     @Transactional(readOnly = true)
+    public long countCompanies(CompanyType companyType) {
+        return companyRepository.countByCompanyType(companyType);
+    }
+
+    @Transactional(readOnly = true)
+    public CompanyNameWarningResponse getExternalNameWarning(String name) {
+        return getExternalNameWarning(name, null);
+    }
+
+    @Transactional(readOnly = true)
+    public CompanyNameWarningResponse getExternalNameWarning(
+            String name,
+            Long excludeCompanyId
+    ) {
+        String canonicalName = canonicalCompanyName(name);
+
+        if (excludeCompanyId != null) {
+            Optional<Company> excludedCompany = companyRepository.findById(
+                    excludeCompanyId
+            );
+            if (excludedCompany.isPresent()
+                    && CompanyType.EXTERNAL.equals(
+                    excludedCompany.get().getCompanyType()
+            )
+                    && canonicalName.equals(canonicalCompanyName(
+                    excludedCompany.get().getName()
+            ))) {
+                return new CompanyNameWarningResponse(false, null);
+            }
+        }
+
+        boolean warning = companyRepository
+                .findNamesByCompanyType(CompanyType.EXTERNAL)
+                .stream()
+                .map(this::canonicalCompanyName)
+                .anyMatch(canonicalName::equals);
+
+        return new CompanyNameWarningResponse(
+                warning,
+                warning
+                        ? excludeCompanyId == null
+                        ? EXTERNAL_NAME_WARNING_MESSAGE
+                        : EXTERNAL_UPDATE_NAME_WARNING_MESSAGE
+                        : null
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<Long> getCompanyIds(
+            CompanyType companyType,
+            String search,
+            String initial
+    ) {
+        String normalizedSearch = search == null
+                ? ""
+                : search.trim();
+        String normalizedInitial = initial == null
+                ? ""
+                : initial.trim();
+
+        return companyRepository
+                .search(
+                        companyType,
+                        normalizedSearch,
+                        normalizedInitial,
+                        Pageable.unpaged(DEFAULT_COMPANY_SORT)
+                )
+                .stream()
+                .map(Company::getId)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public CompanyResponse getCompanyById(Long id) {
         return toResponse(findCompanyById(id));
     }
@@ -132,20 +251,24 @@ public class CompanyService {
             UpdateCompanyRequest request
     ) {
         Company company = findCompanyById(id);
-        String normalizedEmail = normalizeEmail(request.email());
+        String companyName = request.name().trim();
+        validateTgbNameAvailabilityForUpdate(companyName, company);
 
-        validateEmailForUpdate(normalizedEmail, id);
+        List<NormalizedContactMethodRequest> contactMethods =
+                normalizeUpdateContactMethods(request.contactMethods());
 
         List<NormalizedContactRequest> contacts =
                 normalizeUpdateContacts(request.contacts());
 
-        company.setName(request.name().trim());
-        company.setEmail(normalizedEmail);
-        company.setPhone(normalizeOptionalText(request.phone()));
-        company.setSecondaryPhone(normalizeOptionalText(request.secondaryPhone()));
+        company.setName(companyName);
         company.setActivityArea(normalizeOptionalText(request.activityArea()));
-        company.setLogoUrl(normalizeOptionalText(request.logoUrl()));
+        company.setCity(normalizeOptionalText(request.city()));
+        company.setDistrict(normalizeOptionalText(request.district()));
+        company.setOsb(normalizeOptionalText(request.osb()));
+        company.setAddress(normalizeOptionalText(request.address()));
+        company.setBuilding(normalizeOptionalText(request.building()));
 
+        applyUpdatedContactMethods(company, contactMethods);
         applyUpdatedContacts(company, contacts);
 
         return toResponse(company);
@@ -159,24 +282,215 @@ public class CompanyService {
     private Company findCompanyById(Long id) {
         return companyRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Şirket bulunamadı: " + id
+                        "Sirket bulunamadi: " + id
                 ));
     }
 
-    private void validateEmailForCreate(String email) {
-        if (email != null && companyRepository.existsByEmail(email)) {
+    private void validateTgbNameAvailabilityForCreate(
+            String companyName,
+            CompanyType companyType
+    ) {
+        if (!CompanyType.TGB.equals(companyType)) {
+            return;
+        }
+
+        rejectExistingTgbCanonicalName(companyName);
+    }
+
+    private void validateTgbNameAvailabilityForUpdate(
+            String companyName,
+            Company company
+    ) {
+        if (!CompanyType.TGB.equals(company.getCompanyType())
+                || canonicalCompanyName(companyName).equals(
+                canonicalCompanyName(company.getName())
+        )) {
+            return;
+        }
+
+        rejectExistingTgbCanonicalName(companyName);
+    }
+
+    private void rejectExistingTgbCanonicalName(String companyName) {
+        String canonicalName = canonicalCompanyName(companyName);
+        boolean duplicateExists = companyRepository
+                .findNamesByCompanyType(CompanyType.TGB)
+                .stream()
+                .map(this::canonicalCompanyName)
+                .anyMatch(canonicalName::equals);
+
+        if (duplicateExists) {
             throw new DuplicateResourceException(
-                    "Bu e-posta adresiyle kayıtlı bir şirket zaten var"
+                    "Bu isimle kayitli bir TGB sirketi zaten var"
             );
         }
     }
 
-    private void validateEmailForUpdate(String email, Long id) {
-        if (email != null
-                && companyRepository.existsByEmailAndIdNot(email, id)) {
-            throw new DuplicateResourceException(
-                    "Bu e-posta adresiyle kayıtlı başka bir şirket zaten var"
+    private String canonicalCompanyName(String companyName) {
+        return ExternalCompanyIdentityMatcher.canonicalName(companyName);
+    }
+
+    private List<NormalizedContactMethodRequest> normalizeCreateContactMethods(
+            List<CompanyContactMethodRequest> contactMethods
+    ) {
+        List<NormalizedContactMethodRequest> normalizedContactMethods =
+                normalizeContactMethods(contactMethods);
+
+        for (NormalizedContactMethodRequest contactMethod
+                : normalizedContactMethods) {
+            if (contactMethod.id() != null) {
+                throw new InvalidRequestException(
+                        "Yeni iletisim bilgisi icin id gonderilemez"
+                );
+            }
+        }
+
+        return normalizedContactMethods;
+    }
+
+    private List<NormalizedContactMethodRequest> normalizeUpdateContactMethods(
+            List<CompanyContactMethodRequest> contactMethods
+    ) {
+        List<NormalizedContactMethodRequest> normalizedContactMethods =
+                normalizeContactMethods(contactMethods);
+
+        Set<Long> seenIds = new HashSet<>();
+        for (NormalizedContactMethodRequest contactMethod
+                : normalizedContactMethods) {
+            Long contactMethodId = contactMethod.id();
+            if (contactMethodId != null && !seenIds.add(contactMethodId)) {
+                throw new InvalidRequestException(
+                        "Ayni iletisim bilgisi birden fazla kez gonderilemez"
+                );
+            }
+        }
+
+        return normalizedContactMethods;
+    }
+
+    private List<NormalizedContactMethodRequest> normalizeContactMethods(
+            List<CompanyContactMethodRequest> contactMethods
+    ) {
+        if (contactMethods == null || contactMethods.isEmpty()) {
+            return List.of();
+        }
+
+        List<NormalizedContactMethodRequest> normalizedContactMethods =
+                new ArrayList<>();
+
+        for (CompanyContactMethodRequest contactMethod : contactMethods) {
+            if (contactMethod == null) {
+                throw new InvalidRequestException(
+                        "Iletisim bilgisi bos olamaz"
+                );
+            }
+
+            CompanyContactMethodType type = contactMethod.type();
+            if (type == null) {
+                throw new InvalidRequestException(
+                        "Iletisim tipi zorunludur"
+                );
+            }
+
+            String value = normalizeRequiredContactMethodValue(
+                    contactMethod.value()
             );
+            if (CompanyContactMethodType.EMAIL.equals(type)) {
+                value = normalizeEmail(value);
+                validateEmailFormat(value);
+            }
+
+            if (CompanyContactMethodType.PHONE.equals(type)
+                    && value.length() > 30) {
+                throw new InvalidRequestException(
+                        "Telefon en fazla 30 karakter olabilir"
+                );
+            }
+
+            normalizedContactMethods.add(new NormalizedContactMethodRequest(
+                    contactMethod.id(),
+                    type,
+                    value,
+                    normalizeOptionalText(contactMethod.label()),
+                    contactMethod.primary()
+            ));
+        }
+
+        validateAndApplyPrimaryDefaults(normalizedContactMethods);
+        validateRequestEmailDuplicates(normalizedContactMethods);
+
+        return normalizedContactMethods;
+    }
+
+    private String normalizeRequiredContactMethodValue(String value) {
+        if (value == null || value.isBlank()) {
+            throw new InvalidRequestException(
+                    "Iletisim degeri bos birakilamaz"
+            );
+        }
+
+        return value.trim();
+    }
+
+    private void validateEmailFormat(String email) {
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            throw new InvalidRequestException(
+                    "Gecerli bir e-posta adresi girilmelidir"
+            );
+        }
+    }
+
+    private void validateAndApplyPrimaryDefaults(
+            List<NormalizedContactMethodRequest> contactMethods
+    ) {
+        Map<CompanyContactMethodType, List<NormalizedContactMethodRequest>>
+                contactMethodsByType = new EnumMap<>(
+                CompanyContactMethodType.class
+        );
+
+        for (NormalizedContactMethodRequest contactMethod : contactMethods) {
+            contactMethodsByType
+                    .computeIfAbsent(contactMethod.type(), ignored ->
+                            new ArrayList<>())
+                    .add(contactMethod);
+        }
+
+        for (Map.Entry<CompanyContactMethodType,
+                List<NormalizedContactMethodRequest>> entry
+                : contactMethodsByType.entrySet()) {
+            long primaryCount = entry.getValue()
+                    .stream()
+                    .filter(NormalizedContactMethodRequest::primary)
+                    .count();
+
+            if (primaryCount > 1) {
+                throw new InvalidRequestException(
+                        "Ayni iletisim tipi icin en fazla bir ana bilgi secilebilir"
+                );
+            }
+
+            if (primaryCount == 0 && !entry.getValue().isEmpty()) {
+                NormalizedContactMethodRequest firstContactMethod =
+                        entry.getValue().getFirst();
+                firstContactMethod.primary(true);
+            }
+        }
+    }
+
+    private void validateRequestEmailDuplicates(
+            List<NormalizedContactMethodRequest> contactMethods
+    ) {
+        Set<String> seenEmails = new LinkedHashSet<>();
+        for (NormalizedContactMethodRequest contactMethod : contactMethods) {
+            if (!CompanyContactMethodType.EMAIL.equals(contactMethod.type())) {
+                continue;
+            }
+
+            if (!seenEmails.add(contactMethod.value())) {
+                throw new DuplicateResourceException(
+                        "Ayni e-posta adresi birden fazla kez gonderilemez"
+                );
+            }
         }
     }
 
@@ -207,7 +521,7 @@ public class CompanyService {
         for (CreateCompanyContactRequest contact : contacts) {
             if (contact == null) {
                 throw new InvalidRequestException(
-                        "Muhatap bilgisi boş olamaz"
+                        "Muhatap bilgisi bos olamaz"
                 );
             }
 
@@ -239,7 +553,7 @@ public class CompanyService {
         for (UpdateCompanyContactRequest contact : contacts) {
             if (contact == null) {
                 throw new InvalidRequestException(
-                        "Muhatap bilgisi boş olamaz"
+                        "Muhatap bilgisi bos olamaz"
                 );
             }
 
@@ -247,7 +561,7 @@ public class CompanyService {
 
             if (contactId != null && !seenIds.add(contactId)) {
                 throw new InvalidRequestException(
-                        "Aynı muhatap kişi birden fazla kez gönderilemez"
+                        "Ayni muhatap kisi birden fazla kez gonderilemez"
                 );
             }
 
@@ -270,7 +584,7 @@ public class CompanyService {
     private void validateContactListExists(List<?> contacts) {
         if (contacts == null || contacts.isEmpty()) {
             throw new InvalidRequestException(
-                    "En az bir muhatap kişi eklenmelidir"
+                    "En az bir muhatap kisi eklenmelidir"
             );
         }
     }
@@ -278,7 +592,7 @@ public class CompanyService {
     private String normalizeRequiredContactName(String fullName) {
         if (fullName == null || fullName.isBlank()) {
             throw new InvalidRequestException(
-                    "Muhatap adı soyadı boş bırakılamaz"
+                    "Muhatap adi soyadi bos birakilamaz"
             );
         }
 
@@ -294,7 +608,7 @@ public class CompanyService {
 
         if (primaryCount != 1) {
             throw new InvalidRequestException(
-                    "Tam olarak bir muhatap kişi birincil olarak seçilmelidir"
+                    "Tam olarak bir muhatap kisi birincil olarak secilmelidir"
             );
         }
     }
@@ -305,10 +619,91 @@ public class CompanyService {
         for (NormalizedContactRequest contact : contacts) {
             if (contact.email() == null && contact.phone() == null) {
                 throw new InvalidRequestException(
-                        "Muhatap kişi için e-posta veya telefon bilgilerinden en az biri girilmelidir"
+                        "Muhatap kisi icin e-posta veya telefon bilgilerinden en az biri girilmelidir"
                 );
             }
         }
+    }
+
+    private void applyUpdatedContactMethods(
+            Company company,
+            List<NormalizedContactMethodRequest> requests
+    ) {
+        Map<Long, CompanyContactMethod> contactMethodsById =
+                company.getContactMethods()
+                        .stream()
+                        .filter(contactMethod -> contactMethod.getId() != null)
+                        .collect(Collectors.toMap(
+                                CompanyContactMethod::getId,
+                                Function.identity()
+                        ));
+
+        Set<Long> requestedIds = requests.stream()
+                .map(NormalizedContactMethodRequest::id)
+                .filter(contactMethodId -> contactMethodId != null)
+                .collect(Collectors.toSet());
+
+        for (Long contactMethodId : requestedIds) {
+            if (!contactMethodsById.containsKey(contactMethodId)) {
+                throw new InvalidRequestException(
+                        "Iletisim bilgisi bulunamadi veya bu sirkete ait degil: "
+                                + contactMethodId
+                );
+            }
+        }
+
+        List<CompanyContactMethod> contactMethodsToRemove =
+                company.getContactMethods()
+                        .stream()
+                        .filter(contactMethod -> contactMethod.getId() != null
+                                && !requestedIds.contains(
+                                contactMethod.getId()
+                        ))
+                        .toList();
+
+        contactMethodsToRemove.forEach(company::removeContactMethod);
+
+        Map<NormalizedContactMethodRequest, CompanyContactMethod>
+                contactMethodByRequest = new HashMap<>();
+
+        for (NormalizedContactMethodRequest request : requests) {
+            CompanyContactMethod contactMethod = request.id() == null
+                    ? new CompanyContactMethod()
+                    : contactMethodsById.get(request.id());
+
+            applyContactMethod(contactMethod, request, false);
+
+            if (request.id() == null) {
+                company.addContactMethod(contactMethod);
+            }
+
+            contactMethodByRequest.put(request, contactMethod);
+        }
+
+        companyRepository.flush();
+
+        requests.stream()
+                .filter(NormalizedContactMethodRequest::primary)
+                .map(contactMethodByRequest::get)
+                .forEach(contactMethod -> contactMethod.setPrimary(true));
+    }
+
+    private void applyContactMethod(
+            CompanyContactMethod contactMethod,
+            NormalizedContactMethodRequest request
+    ) {
+        applyContactMethod(contactMethod, request, request.primary());
+    }
+
+    private void applyContactMethod(
+            CompanyContactMethod contactMethod,
+            NormalizedContactMethodRequest request,
+            boolean primary
+    ) {
+        contactMethod.setType(request.type());
+        contactMethod.setValue(request.value());
+        contactMethod.setLabel(request.label());
+        contactMethod.setPrimary(primary);
     }
 
     private void applyUpdatedContacts(
@@ -331,7 +726,7 @@ public class CompanyService {
         for (Long contactId : requestedIds) {
             if (!contactsById.containsKey(contactId)) {
                 throw new InvalidRequestException(
-                        "Muhatap kişi bulunamadı veya bu şirkete ait değil: "
+                        "Muhatap kisi bulunamadi veya bu sirkete ait degil: "
                                 + contactId
                 );
             }
@@ -401,23 +796,44 @@ public class CompanyService {
                 ));
     }
 
+    private Map<Long, List<CompanyContactMethod>> findContactMethodsByCompanyId(
+            List<Company> companies
+    ) {
+        if (companies.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Long> companyIds = companies.stream()
+                .map(Company::getId)
+                .toList();
+
+        return companyContactMethodRepository.findByCompanyIdIn(companyIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        contactMethod -> contactMethod.getCompany().getId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+    }
+
     private void validatePagination(int page, int size) {
         if (page < 0) {
             throw new InvalidRequestException(
-                    "Sayfa numarası 0 veya daha büyük olmalıdır"
+                    "Sayfa numarasi 0 veya daha buyuk olmalidir"
             );
         }
 
         if (!ALLOWED_PAGE_SIZES.contains(size)) {
             throw new InvalidRequestException(
-                    "Sayfa boyutu yalnızca 10, 15, 20 veya 25 olabilir"
+                    "Sayfa boyutu yalnizca 10, 15, 20 veya 25 olabilir"
             );
         }
     }
 
     private CompanyListResponse toListResponse(
             Company company,
-            List<CompanyContact> contacts
+            List<CompanyContact> contacts,
+            List<CompanyContactMethod> contactMethods
     ) {
         List<CompanyContact> sortedContacts = sortContacts(contacts);
 
@@ -430,12 +846,11 @@ public class CompanyService {
         return new CompanyListResponse(
                 company.getId(),
                 company.getName(),
-                company.getEmail(),
-                company.getPhone(),
-                company.getSecondaryPhone(),
                 company.getActivityArea(),
-                company.getLogoUrl(),
                 company.getCompanyType(),
+                sortContactMethods(contactMethods).stream()
+                        .map(this::toContactMethodResponse)
+                        .toList(),
                 primaryContact,
                 sortedContacts.size()
         );
@@ -445,15 +860,31 @@ public class CompanyService {
         return new CompanyResponse(
                 company.getId(),
                 company.getName(),
-                company.getEmail(),
-                company.getPhone(),
-                company.getSecondaryPhone(),
                 company.getActivityArea(),
-                company.getLogoUrl(),
+                company.getCity(),
+                company.getDistrict(),
+                company.getOsb(),
+                company.getAddress(),
+                company.getBuilding(),
                 company.getCompanyType(),
+                sortContactMethods(company.getContactMethods()).stream()
+                        .map(this::toContactMethodResponse)
+                        .toList(),
                 sortContacts(company.getContacts()).stream()
                         .map(this::toContactResponse)
                         .toList()
+        );
+    }
+
+    private CompanyContactMethodResponse toContactMethodResponse(
+            CompanyContactMethod contactMethod
+    ) {
+        return new CompanyContactMethodResponse(
+                contactMethod.getId(),
+                contactMethod.getType(),
+                contactMethod.getValue(),
+                contactMethod.getLabel(),
+                contactMethod.isPrimary()
         );
     }
 
@@ -468,6 +899,26 @@ public class CompanyService {
         );
     }
 
+    private List<CompanyContactMethod> sortContactMethods(
+            List<CompanyContactMethod> contactMethods
+    ) {
+        return contactMethods.stream()
+                .sorted(Comparator
+                        .comparing(
+                                CompanyContactMethod::getType,
+                                Comparator.nullsLast(Comparator.naturalOrder())
+                        )
+                        .thenComparing(
+                                CompanyContactMethod::isPrimary,
+                                Comparator.reverseOrder()
+                        )
+                        .thenComparing(
+                                CompanyContactMethod::getId,
+                                Comparator.nullsLast(Long::compareTo)
+                        ))
+                .toList();
+    }
+
     private List<CompanyContact> sortContacts(List<CompanyContact> contacts) {
         return contacts.stream()
                 .sorted(Comparator
@@ -480,6 +931,52 @@ public class CompanyService {
                                 Comparator.nullsLast(Long::compareTo)
                         ))
                 .toList();
+    }
+
+    private static final class NormalizedContactMethodRequest {
+        private final Long id;
+        private final CompanyContactMethodType type;
+        private final String value;
+        private final String label;
+        private boolean primary;
+
+        private NormalizedContactMethodRequest(
+                Long id,
+                CompanyContactMethodType type,
+                String value,
+                String label,
+                boolean primary
+        ) {
+            this.id = id;
+            this.type = type;
+            this.value = value;
+            this.label = label;
+            this.primary = primary;
+        }
+
+        private Long id() {
+            return id;
+        }
+
+        private CompanyContactMethodType type() {
+            return type;
+        }
+
+        private String value() {
+            return value;
+        }
+
+        private String label() {
+            return label;
+        }
+
+        private boolean primary() {
+            return primary;
+        }
+
+        private void primary(boolean primary) {
+            this.primary = primary;
+        }
     }
 
     private record NormalizedContactRequest(

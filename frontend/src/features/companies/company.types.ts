@@ -1,5 +1,23 @@
 export type CompanyType = 'TGB' | 'EXTERNAL';
 
+export type CompanyContactMethodType = 'PHONE' | 'EMAIL';
+
+export type CompanyContactMethod = {
+    id: number;
+    type: CompanyContactMethodType;
+    value: string;
+    label: string | null;
+    primary: boolean;
+};
+
+export type CompanyContactMethodRequest = {
+    id: number | null;
+    type: CompanyContactMethodType;
+    value: string;
+    label: string | null;
+    primary: boolean;
+};
+
 export type CompanyContact = {
     id: number;
     fullName: string;
@@ -12,12 +30,9 @@ export type CompanyContact = {
 export type CompanyListItem = {
     id: number;
     name: string;
-    email: string | null;
-    phone: string | null;
-    secondaryPhone: string | null;
     activityArea: string | null;
-    logoUrl: string | null;
     companyType: CompanyType;
+    contactMethods: CompanyContactMethod[];
     primaryContact: CompanyContact | null;
     contactCount: number;
 };
@@ -25,16 +40,23 @@ export type CompanyListItem = {
 export type CompanyDetail = {
     id: number;
     name: string;
-    email: string | null;
-    phone: string | null;
-    secondaryPhone: string | null;
     activityArea: string | null;
-    logoUrl: string | null;
+    city: string | null;
+    district: string | null;
+    osb: string | null;
+    address: string | null;
+    building: string | null;
     companyType: CompanyType;
+    contactMethods: CompanyContactMethod[];
     contacts: CompanyContact[];
 };
 
 export type Company = CompanyListItem;
+
+export type CompanyNameWarningResponse = {
+    warning: boolean;
+    message: string | null;
+};
 
 export type CreateCompanyContactRequest = {
     fullName: string;
@@ -50,12 +72,14 @@ export type UpdateCompanyContactRequest = CreateCompanyContactRequest & {
 
 export type CreateCompanyRequest = {
     name: string;
-    email: string | null;
-    phone: string | null;
-    secondaryPhone: string | null;
     activityArea: string | null;
-    logoUrl: string | null;
+    city: string | null;
+    district: string | null;
+    osb: string | null;
+    address: string | null;
+    building: string | null;
     companyType: CompanyType;
+    contactMethods: CompanyContactMethodRequest[];
     contacts: CreateCompanyContactRequest[];
 };
 
@@ -71,13 +95,20 @@ export type CompanyImportPreviewRow = {
     rowNumber: number;
     name: string | null;
     activityArea: string | null;
-    phone: string | null;
-    secondaryPhone: string | null;
-    email: string | null;
+    status: 'NEW' | 'EXISTING' | 'DUPLICATE' | 'WARNING' | 'INVALID';
+    city: string | null;
+    district: string | null;
+    osb: string | null;
+    address: string | null;
+    building: string | null;
+    companyPhones: string[];
+    companyEmails: string[];
     contactFullName: string | null;
     contactPosition: string | null;
     contactPhone: string | null;
     contactEmail: string | null;
+    updateMessages: string[];
+    locationWarnings: string[];
     errors: string[];
     warnings: string[];
     valid: boolean;
@@ -97,16 +128,20 @@ export type CompanyImportPreviewResponse = {
     rows: CompanyImportPreviewRow[];
 };
 
-export type CompanyImportResultStatus = 'IMPORTED' | 'DUPLICATE' | 'INVALID';
+export type CompanyImportResultStatus = 'IMPORTED' | 'DUPLICATE' | 'INVALID' | 'FAILED';
 
 export type CompanyImportResultRow = {
     sheetName: string;
     rowNumber: number;
     name: string | null;
     activityArea: string | null;
-    phone: string | null;
-    secondaryPhone: string | null;
-    email: string | null;
+    city: string | null;
+    district: string | null;
+    osb: string | null;
+    address: string | null;
+    building: string | null;
+    companyPhones: string[];
+    companyEmails: string[];
     contactFullName: string | null;
     contactPosition: string | null;
     contactPhone: string | null;
@@ -119,6 +154,7 @@ export type CompanyImportResultResponse = {
     fileName: string;
     totalRowCount: number;
     importedCount: number;
+    updatedCount: number;
     duplicateCount: number;
     invalidCount: number;
     rows: CompanyImportResultRow[];
@@ -127,18 +163,40 @@ export type CompanyImportResultResponse = {
 export type CompanyPageParams = {
     companyType: CompanyType;
     search: string;
+    initial?: string;
     page: number;
     size: number;
 };
 
+export type CompanyExportParams = {
+    companyType: CompanyType;
+    ids: number[];
+};
+
+export type CompanyIdParams = {
+    companyType: CompanyType;
+    search: string;
+    initial?: string;
+};
+
 export type CompanyFormValues = {
     name: string;
-    email: string;
-    phone: string;
-    secondaryPhone: string;
     activityArea: string;
-    logoUrl: string;
+    city: string;
+    district: string;
+    osb: string;
+    address: string;
+    building: string;
+    contactMethods: CompanyContactMethodFormValues[];
     contacts: CompanyContactFormValues[];
+};
+
+export type CompanyContactMethodFormValues = {
+    id: number | null;
+    type: CompanyContactMethodType;
+    value: string;
+    label: string;
+    primary: boolean;
 };
 
 export type CompanyContactFormValues = {

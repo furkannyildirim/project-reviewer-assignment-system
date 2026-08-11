@@ -1,0 +1,6 @@
+ALTER TABLE companies
+    ADD COLUMN city VARCHAR(150),
+    ADD COLUMN district VARCHAR(150),
+    ADD COLUMN osb VARCHAR(255),
+    ADD COLUMN address TEXT,
+    ADD COLUMN building VARCHAR(255);

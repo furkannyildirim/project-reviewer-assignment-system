@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
-    Avatar,
     Box,
+    Checkbox,
     Chip,
     IconButton,
     Pagination,
@@ -17,13 +17,13 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
-import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import type { PageResponse } from '../../../types/api';
-import type { Company, CompanyListItem } from '../company.types';
+import type { Company, CompanyContactMethod, CompanyListItem } from '../company.types';
 import { CompanyContactsPopover } from './CompanyContactsPopover';
 
 type CompanyTableProps = {
@@ -33,13 +33,42 @@ type CompanyTableProps = {
     isLoading: boolean;
     isAdmin: boolean;
     isMutating: boolean;
+    selectedIds: Set<number>;
+    isAllSelected: boolean;
+    isSelectionIndeterminate: boolean;
+    isSelectionLoading: boolean;
     onPageChange: (page: number) => void;
+    onToggleAll: () => void;
+    onToggleOne: (id: number) => void;
+    onView: (company: Company) => void;
     onEdit: (company: Company) => void;
     onDelete: (company: Company) => void;
 };
 
+const selectionCheckboxSx = {
+    '&.Mui-checked, &.MuiCheckbox-indeterminate': {
+        color: '#2A2B61',
+    },
+    '&:hover': {
+        bgcolor: 'rgba(42, 43, 97, 0.08)',
+    },
+    '&.Mui-focusVisible': {
+        bgcolor: 'rgba(42, 43, 97, 0.08)',
+        outline: '2px solid rgba(42, 43, 97, 0.18)',
+        outlineOffset: 1,
+    },
+};
+
 function displayOptional(value: string | null) {
-    return value?.trim() ? value : '—';
+    return value?.trim() ? value : '-';
+}
+
+function contactMethodLabel(contactMethod: CompanyContactMethod) {
+    if (contactMethod.label?.trim()) {
+        return `${contactMethod.label}: ${contactMethod.value}`;
+    }
+
+    return contactMethod.value;
 }
 
 function CompanyContactSummary({ company }: { company: CompanyListItem }) {
@@ -50,7 +79,7 @@ function CompanyContactSummary({ company }: { company: CompanyListItem }) {
     if (!contact) {
         return (
             <Typography color="text.secondary">
-                Yetkili kişi eklenmemiş
+                Yetkili kisi eklenmemis
             </Typography>
         );
     }
@@ -75,7 +104,7 @@ function CompanyContactSummary({ company }: { company: CompanyListItem }) {
         <Box
             role="button"
             tabIndex={0}
-            aria-label="Yetkili iletişim bilgilerini görüntüle"
+            aria-label="Yetkili iletisim bilgilerini goruntule"
             onClick={handleOpenDetails}
             onKeyDown={handleKeyDown}
             sx={{
@@ -114,7 +143,7 @@ function CompanyContactSummary({ company }: { company: CompanyListItem }) {
                     />
                     {extraContactCount > 0 && (
                         <Chip
-                            label={`+${extraContactCount} kişi`}
+                            label={`+${extraContactCount} kisi`}
                             size="small"
                             variant="outlined"
                             sx={{
@@ -193,26 +222,66 @@ function CompanyContactSummary({ company }: { company: CompanyListItem }) {
 }
 
 function CompanyCommunication({ company }: { company: CompanyListItem }) {
-    const hasEmail = Boolean(company.email?.trim());
-    const hasPhone = Boolean(company.phone?.trim());
-    const secondaryPhone = company.secondaryPhone?.trim();
+    const emails = company.contactMethods
+        .filter((contactMethod) => contactMethod.type === 'EMAIL');
+    const phones = company.contactMethods
+        .filter((contactMethod) => contactMethod.type === 'PHONE');
+    const primaryEmail = emails.find((contactMethod) => contactMethod.primary)
+        ?? emails[0];
+    const primaryPhone = phones.find((contactMethod) => contactMethod.primary)
+        ?? phones[0];
+    const displayedCount = Number(Boolean(primaryEmail)) + Number(Boolean(primaryPhone));
+    const extraCount = Math.max(company.contactMethods.length - displayedCount, 0);
 
-    if (!hasEmail && !hasPhone && !secondaryPhone) {
-        return <Typography color="text.secondary">—</Typography>;
+    if (!primaryEmail && !primaryPhone) {
+        return <Typography color="text.secondary">-</Typography>;
     }
 
-    return (
-        <Stack spacing={0.25}>
-            {hasEmail && (
-                <Typography>{company.email}</Typography>
+    const tooltipContent = (
+        <Stack spacing={0.75}>
+            {emails.length > 0 && (
+                <Stack spacing={0.25}>
+                    <Typography variant="caption" color="text.secondary">
+                        E-postalar
+                    </Typography>
+                    {emails.map((email) => (
+                        <Typography key={email.id} variant="body2">
+                            {contactMethodLabel(email)}
+                        </Typography>
+                    ))}
+                </Stack>
             )}
-            {hasPhone && (
-                <Typography>{company.phone}</Typography>
-            )}
-            {secondaryPhone && (
-                <Typography>{`Tel 2: ${secondaryPhone}`}</Typography>
+            {phones.length > 0 && (
+                <Stack spacing={0.25}>
+                    <Typography variant="caption" color="text.secondary">
+                        Telefonlar
+                    </Typography>
+                    {phones.map((phone) => (
+                        <Typography key={phone.id} variant="body2">
+                            {contactMethodLabel(phone)}
+                        </Typography>
+                    ))}
+                </Stack>
             )}
         </Stack>
+    );
+
+    return (
+        <Tooltip title={tooltipContent} placement="right-start" arrow>
+            <Stack spacing={0.25} sx={{ display: 'inline-flex' }}>
+                {primaryEmail && (
+                    <Typography>{primaryEmail.value}</Typography>
+                )}
+                {primaryPhone && (
+                    <Typography>{primaryPhone.value}</Typography>
+                )}
+                {extraCount > 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                        {`+${extraCount} diger`}
+                    </Typography>
+                )}
+            </Stack>
+        </Tooltip>
     );
 }
 
@@ -241,42 +310,13 @@ function ActivityAreaCell({ activityArea }: { activityArea: string | null }) {
     );
 }
 
-function CompanyLogo({ company }: { company: Company }) {
-    const [hasError, setHasError] = useState(false);
-    const logoUrl = company.logoUrl?.trim();
-    const firstLetter = company.name.trim().charAt(0).toUpperCase();
-
-    if (!logoUrl || hasError) {
-        return (
-            <Avatar sx={{ width: 40, height: 40 }}>
-                {firstLetter || <BusinessOutlinedIcon />}
-            </Avatar>
-        );
-    }
-
-    return (
-        <Avatar
-            src={logoUrl}
-            alt={`${company.name} logosu`}
-            slotProps={{
-                img: {
-                    onError: () => setHasError(true),
-                },
-            }}
-            sx={{ width: 40, height: 40, bgcolor: 'background.default' }}
-        >
-            {firstLetter || <BusinessOutlinedIcon />}
-        </Avatar>
-    );
-}
-
 function LoadingRows() {
     return (
         <>
             {Array.from({ length: 5 }).map((_, index) => (
                 <TableRow key={index}>
-                    <TableCell>
-                        <Skeleton variant="circular" width={40} height={40} />
+                    <TableCell padding="checkbox">
+                        <Skeleton variant="rectangular" width={24} height={24} />
                     </TableCell>
                     <TableCell><Skeleton width="80%" /></TableCell>
                     <TableCell><Skeleton width="70%" /></TableCell>
@@ -295,7 +335,14 @@ export function CompanyTable({
     isLoading,
     isAdmin,
     isMutating,
+    selectedIds,
+    isAllSelected,
+    isSelectionIndeterminate,
+    isSelectionLoading,
     onPageChange,
+    onToggleAll,
+    onToggleOne,
+    onView,
     onEdit,
     onDelete,
 }: CompanyTableProps) {
@@ -313,15 +360,37 @@ export function CompanyTable({
             }}
         >
             <TableContainer sx={{ overflowX: 'auto' }}>
-                <Table sx={{ minWidth: 860 }} aria-label="Şirket tablosu">
-                    <TableHead>
+                <Table sx={{ minWidth: 860 }} aria-label="Sirket tablosu">
+                    <TableHead
+                        sx={{
+                            bgcolor: '#F7FAFC',
+                            '& .MuiTableCell-head': {
+                                borderBottom: '1px solid #E3EAF0',
+                                color: '#0A1026',
+                                fontWeight: 600,
+                            },
+                        }}
+                    >
                         <TableRow>
-                            <TableCell>Logo</TableCell>
-                            <TableCell>Şirket adı</TableCell>
-                            <TableCell>Yetkili Kişi</TableCell>
-                            <TableCell>Şirket iletişimi</TableCell>
-                            <TableCell>Faaliyet alanı</TableCell>
-                            <TableCell align="right">İşlemler</TableCell>
+                            <TableCell padding="checkbox">
+                                <Tooltip title="Filtreye uyan tüm kayıtları seç">
+                                    <span>
+                                        <Checkbox
+                                            aria-label="Tum firmalari sec"
+                                            checked={isAllSelected}
+                                            disabled={isSelectionLoading}
+                                            indeterminate={isSelectionIndeterminate}
+                                            onChange={onToggleAll}
+                                            sx={selectionCheckboxSx}
+                                        />
+                                    </span>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell>Sirket adi</TableCell>
+                            <TableCell>Yetkili Kisi</TableCell>
+                            <TableCell>Sirket iletisimi</TableCell>
+                            <TableCell>Faaliyet alani</TableCell>
+                            <TableCell align="right">Islemler</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -330,8 +399,14 @@ export function CompanyTable({
                         ) : (
                             companies.map((company) => (
                                 <TableRow key={company.id} hover>
-                                    <TableCell>
-                                        <CompanyLogo company={company} />
+                                    <TableCell padding="checkbox">
+                                        <Checkbox
+                                            aria-label="Firma sec"
+                                            checked={selectedIds.has(company.id)}
+                                            onClick={(event) => event.stopPropagation()}
+                                            onChange={() => onToggleOne(company.id)}
+                                            sx={selectionCheckboxSx}
+                                        />
                                     </TableCell>
                                     <TableCell>
                                         <Typography sx={{ fontWeight: 600 }}>
@@ -357,12 +432,34 @@ export function CompanyTable({
                                             spacing={0.5}
                                             sx={{ justifyContent: 'flex-end' }}
                                         >
-                                            <Tooltip title="Düzenle">
+                                            <Tooltip title="Şirket detaylarını görüntüle">
+                                                <IconButton
+                                                    aria-label="Şirket detaylarını görüntüle"
+                                                    onClick={() => onView(company)}
+                                                    sx={{
+                                                        color: 'text.secondary',
+                                                        '&:hover': {
+                                                            bgcolor: 'rgba(42, 43, 97, 0.08)',
+                                                            color: '#2A2B61',
+                                                        },
+                                                    }}
+                                                >
+                                                    <VisibilityOutlinedIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="Duzenle">
                                                 <span>
                                                     <IconButton
-                                                        aria-label="Şirketi düzenle"
+                                                        aria-label="Sirketi duzenle"
                                                         disabled={isMutating}
                                                         onClick={() => onEdit(company)}
+                                                        sx={{
+                                                            color: 'text.secondary',
+                                                            '&:hover': {
+                                                                bgcolor: 'rgba(42, 43, 97, 0.08)',
+                                                                color: '#2A2B61',
+                                                            },
+                                                        }}
                                                     >
                                                         <EditOutlinedIcon />
                                                     </IconButton>
@@ -372,10 +469,17 @@ export function CompanyTable({
                                                 <Tooltip title="Sil">
                                                     <span>
                                                         <IconButton
-                                                            aria-label="Şirketi sil"
+                                                            aria-label="Sirketi sil"
                                                             color="error"
                                                             disabled={isMutating}
                                                             onClick={() => onDelete(company)}
+                                                            sx={{
+                                                                color: 'text.secondary',
+                                                                '&:hover': {
+                                                                    bgcolor: 'rgba(180, 35, 24, 0.08)',
+                                                                    color: '#B42318',
+                                                                },
+                                                            }}
                                                         >
                                                             <DeleteOutlineOutlinedIcon />
                                                         </IconButton>
@@ -412,6 +516,28 @@ export function CompanyTable({
                     size="small"
                     sx={{
                         maxWidth: '100%',
+                        '& .MuiPaginationItem-root': {
+                            color: '#344054',
+                            '&:hover': {
+                                bgcolor: 'rgba(42, 43, 97, 0.06)',
+                            },
+                            '&.Mui-focusVisible': {
+                                bgcolor: 'rgba(42, 43, 97, 0.08)',
+                                outline: '2px solid rgba(42, 43, 97, 0.14)',
+                                outlineOffset: 1,
+                            },
+                        },
+                        '& .MuiPaginationItem-root.Mui-selected': {
+                            bgcolor: '#2A2B61',
+                            color: '#FFFFFF',
+                            '&:hover': {
+                                bgcolor: '#202153',
+                            },
+                            '&.Mui-focusVisible': {
+                                bgcolor: '#2A2B61',
+                                outlineColor: 'rgba(42, 43, 97, 0.24)',
+                            },
+                        },
                         '& .MuiPagination-ul': {
                             justifyContent: 'flex-end',
                             flexWrap: 'wrap',

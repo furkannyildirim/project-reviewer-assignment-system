@@ -2,7 +2,6 @@ package com.sakaryateknokent.reviewerassignment.dto;
 
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -12,30 +11,33 @@ import java.util.List;
 
 public record CreateCompanyRequest(
 
-        @NotBlank(message = "Şirket adı boş bırakılamaz")
-        @Size(max = 200, message = "Şirket adı en fazla 200 karakter olabilir")
+        @NotBlank(message = "Sirket adi bos birakilamaz")
+        @Size(max = 200, message = "Sirket adi en fazla 200 karakter olabilir")
         String name,
 
-        @Email(message = "Geçerli bir e-posta adresi girilmelidir")
-        @Size(max = 255, message = "E-posta en fazla 255 karakter olabilir")
-        String email,
-
-        @Size(max = 30, message = "Telefon en fazla 30 karakter olabilir")
-        String phone,
-
-        @Size(max = 30, message = "İkinci telefon en fazla 30 karakter olabilir")
-        String secondaryPhone,
-
-        @Size(max = 2000, message = "Faaliyet alanı en fazla 2000 karakter olabilir")
+        @Size(max = 2000, message = "Faaliyet alani en fazla 2000 karakter olabilir")
         String activityArea,
 
-        @Size(max = 500, message = "Logo adresi en fazla 500 karakter olabilir")
-        String logoUrl,
+        @Size(max = 150, message = "Il en fazla 150 karakter olabilir")
+        String city,
 
-        @NotNull(message = "Şirket türü zorunludur")
+        @Size(max = 150, message = "Ilce en fazla 150 karakter olabilir")
+        String district,
+
+        @Size(max = 255, message = "OSB en fazla 255 karakter olabilir")
+        String osb,
+
+        String address,
+
+        @Size(max = 255, message = "Bina en fazla 255 karakter olabilir")
+        String building,
+
+        @NotNull(message = "Sirket turu zorunludur")
         CompanyType companyType,
 
-        @NotEmpty(message = "En az bir yetkili kişi eklenmelidir")
-        List<@Valid @NotNull(message = "Yetkili kişi bilgisi boş olamaz") CreateCompanyContactRequest> contacts
+        List<@Valid @NotNull(message = "Iletisim bilgisi bos olamaz") CompanyContactMethodRequest> contactMethods,
+
+        @NotEmpty(message = "En az bir yetkili kisi eklenmelidir")
+        List<@Valid @NotNull(message = "Yetkili kisi bilgisi bos olamaz") CreateCompanyContactRequest> contacts
 ) {
 }

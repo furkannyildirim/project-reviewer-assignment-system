@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianResponse;
+import com.sakaryateknokent.reviewerassignment.dto.AcademicianIdentityWarningResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateAcademicianRequest;
@@ -14,11 +15,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 @Service
@@ -28,6 +31,10 @@ public class AcademicianService {
 
     private static final Set<Integer> ALLOWED_PAGE_SIZES =
             Set.of(10, 15, 20, 25);
+
+    private static final String IDENTITY_WARNING_MESSAGE =
+            "Aynı ad, soyad ve ünvanla kayıtlı bir akademisyen zaten var. "
+                    + "Yine de devam etmek istiyor musunuz?";
 
     private static final Sort DEFAULT_ACADEMICIAN_SORT = Sort.by(
             Sort.Order.asc("firstName"),
@@ -62,21 +69,22 @@ public class AcademicianService {
                         request.keywords()
                 )
         );
+        academician.refreshCanonicalIdentity();
 
-        return toResponse(academicianRepository.save(academician));
+        return toResponse(academicianRepository.saveAndFlush(academician));
     }
 
     @Transactional(readOnly = true)
     public PageResponse<AcademicianResponse> getAcademicians(
             String search,
+            String initial,
             int page,
             int size
     ) {
         validatePagination(page, size);
 
-        String normalizedSearch = search == null
-                ? ""
-                : search.trim();
+        String normalizedSearch = normalizeSearch(search);
+        String normalizedInitial = normalizeInitial(initial);
 
         Pageable pageable = PageRequest.of(
                 page,
@@ -86,7 +94,7 @@ public class AcademicianService {
 
         Page<AcademicianResponse> academicianPage =
                 academicianRepository
-                        .search(normalizedSearch, pageable)
+                        .search(normalizedSearch, normalizedInitial, pageable)
                         .map(this::toResponse);
 
         return new PageResponse<>(
@@ -98,6 +106,90 @@ public class AcademicianService {
                 academicianPage.isFirst(),
                 academicianPage.isLast()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public long countAcademicians() {
+        return academicianRepository.count();
+    }
+
+    @Transactional(readOnly = true)
+    public AcademicianIdentityWarningResponse getIdentityWarning(
+            String firstName,
+            String lastName,
+            String title,
+            Long excludeAcademicianId
+    ) {
+        boolean warning = academicianRepository.findByCanonicalIdentity(
+                        AcademicianTextNormalizer.canonicalizeIdentityPart(
+                                firstName
+                        ),
+                        AcademicianTextNormalizer.canonicalizeIdentityPart(
+                                lastName
+                        ),
+                        AcademicianTextNormalizer.canonicalizeIdentityPart(
+                                title
+                        )
+                )
+                .stream()
+                .anyMatch(academician -> !academician.getId().equals(
+                        excludeAcademicianId
+                ));
+
+        return new AcademicianIdentityWarningResponse(
+                warning,
+                warning ? IDENTITY_WARNING_MESSAGE : null
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<Long> getAcademicianIds(String search, String initial) {
+        String normalizedSearch = normalizeSearch(search);
+        String normalizedInitial = normalizeInitial(initial);
+
+        return academicianRepository
+                .search(
+                        normalizedSearch,
+                        normalizedInitial,
+                        Pageable.unpaged(DEFAULT_ACADEMICIAN_SORT)
+                )
+                .stream()
+                .map(Academician::getId)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AcademicianResponse> getAcademiciansForExport(
+            String search,
+            String initial
+    ) {
+        String normalizedSearch = normalizeSearch(search);
+        String normalizedInitial = normalizeInitial(initial);
+
+        return academicianRepository
+                .search(
+                        normalizedSearch,
+                        normalizedInitial,
+                        Pageable.unpaged(DEFAULT_ACADEMICIAN_SORT)
+                )
+                .map(this::toResponse)
+                .getContent();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AcademicianResponse> getAcademiciansForExport(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        return academicianRepository
+                .findByIdIn(
+                        new LinkedHashSet<>(ids),
+                        DEFAULT_ACADEMICIAN_SORT
+                )
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -113,6 +205,7 @@ public class AcademicianService {
         String normalizedEmail =
                 AcademicianTextNormalizer.normalizeEmail(request.email());
 
+        validateVersion(request.version(), academician);
         validateEmailForUpdate(normalizedEmail, id);
 
         academician.setFirstName(request.firstName().trim());
@@ -135,8 +228,9 @@ public class AcademicianService {
                         request.keywords()
                 )
         );
+        academician.refreshCanonicalIdentity();
 
-        return toResponse(academicianRepository.save(academician));
+        return toResponse(academicianRepository.saveAndFlush(academician));
     }
 
     public void deleteAcademician(Long id) {
@@ -182,6 +276,27 @@ public class AcademicianService {
         }
     }
 
+    private void validateVersion(Long requestVersion, Academician academician) {
+        if (!requestVersion.equals(academician.getVersion())) {
+            throw new ObjectOptimisticLockingFailureException(
+                    Academician.class,
+                    academician.getId()
+            );
+        }
+    }
+
+    private String normalizeSearch(String search) {
+        return search == null
+                ? ""
+                : search.trim();
+    }
+
+    private String normalizeInitial(String initial) {
+        return initial == null
+                ? ""
+                : initial.trim();
+    }
+
     private AcademicianResponse toResponse(Academician academician) {
         Set<String> keywords = Collections.unmodifiableSet(
                 new LinkedHashSet<>(academician.getKeywords())
@@ -189,6 +304,7 @@ public class AcademicianService {
 
         return new AcademicianResponse(
                 academician.getId(),
+                academician.getVersion(),
                 academician.getFirstName(),
                 academician.getLastName(),
                 academician.getEmail(),

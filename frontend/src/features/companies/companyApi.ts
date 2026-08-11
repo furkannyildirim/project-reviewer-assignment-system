@@ -2,21 +2,84 @@ import { httpClient } from '../../api/httpClient';
 import type { PageResponse } from '../../types/api';
 import type {
     CompanyDetail,
+    CompanyExportParams,
+    CompanyIdParams,
     CompanyImportPreviewResponse,
     CompanyImportResultResponse,
     CompanyListItem,
+    CompanyNameWarningResponse,
     CompanyPageParams,
     CompanyType,
     CreateCompanyRequest,
     UpdateCompanyRequest,
 } from './company.types';
 
+const companyImportTimeoutMs = 120_000;
+
 export async function getCompanies(
     params: CompanyPageParams,
 ): Promise<PageResponse<CompanyListItem>> {
+    const requestParams = {
+        ...params,
+        initial: params.initial || undefined,
+    };
+
     const response = await httpClient.get<PageResponse<CompanyListItem>>(
         '/companies',
-        { params },
+        { params: requestParams },
+    );
+
+    return response.data;
+}
+
+export async function exportCompanies(
+    params: CompanyExportParams,
+): Promise<Blob> {
+    const response = await httpClient.post<Blob>(
+        '/companies/export',
+        { ids: params.ids },
+        {
+            params: { companyType: params.companyType },
+            responseType: 'blob',
+        },
+    );
+
+    return response.data;
+}
+
+export async function getCompanyIds(params: CompanyIdParams): Promise<number[]> {
+    const requestParams = {
+        companyType: params.companyType,
+        search: params.search || undefined,
+        initial: params.initial || undefined,
+    };
+
+    const response = await httpClient.get<number[]>(
+        '/companies/ids',
+        { params: requestParams },
+    );
+
+    return response.data;
+}
+
+export async function getCompanyCount(
+    companyType: CompanyType,
+): Promise<number> {
+    const response = await httpClient.get<number>(
+        '/companies/count',
+        { params: { companyType } },
+    );
+
+    return response.data;
+}
+
+export async function getExternalCompanyNameWarning(
+    name: string,
+    excludeCompanyId?: number,
+): Promise<CompanyNameWarningResponse> {
+    const response = await httpClient.get<CompanyNameWarningResponse>(
+        '/companies/external-name-warning',
+        { params: { name, excludeCompanyId } },
     );
 
     return response.data;
@@ -42,6 +105,7 @@ export async function previewCompanyImport(
     const response = await httpClient.post<CompanyImportPreviewResponse>(
         endpoint,
         formData,
+        { timeout: companyImportTimeoutMs },
     );
 
     return response.data;
@@ -61,6 +125,7 @@ export async function importCompaniesFromExcel(
     const response = await httpClient.post<CompanyImportResultResponse>(
         endpoint,
         formData,
+        { timeout: companyImportTimeoutMs },
     );
 
     return response.data;

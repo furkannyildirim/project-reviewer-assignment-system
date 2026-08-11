@@ -6,12 +6,18 @@ public record AcademicianImportResultResponse(
         String fileName,
         int totalDetectedRows,
         int createdCount,
-        int skippedDuplicateCount,
-        int skippedInvalidCount,
+        int updatedCount,
+        int duplicateCount,
+        int conflictCount,
+        int invalidCount,
+        int failedCount,
         int warningCount,
         List<AcademicianImportResultRowResponse> createdRows,
-        List<AcademicianImportResultRowResponse> skippedRows,
+        List<AcademicianImportResultRowResponse> updatedRows,
+        List<AcademicianImportResultRowResponse> duplicateRows,
+        List<AcademicianImportResultRowResponse> conflictRows,
         List<AcademicianImportResultRowResponse> invalidRows,
+        List<AcademicianImportResultRowResponse> failedRows,
         List<String> generalWarnings
 ) {
 }

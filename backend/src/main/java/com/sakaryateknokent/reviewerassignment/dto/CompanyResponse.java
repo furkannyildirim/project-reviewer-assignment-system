@@ -7,12 +7,14 @@ import java.util.List;
 public record CompanyResponse(
         Long id,
         String name,
-        String email,
-        String phone,
-        String secondaryPhone,
         String activityArea,
-        String logoUrl,
+        String city,
+        String district,
+        String osb,
+        String address,
+        String building,
         CompanyType companyType,
+        List<CompanyContactMethodResponse> contactMethods,
         List<CompanyContactResponse> contacts
 ) {
 }

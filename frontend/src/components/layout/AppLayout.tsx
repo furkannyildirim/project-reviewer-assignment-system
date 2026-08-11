@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
     AppBar,
-    Avatar,
     Box,
     Button,
     Divider,
@@ -23,9 +22,11 @@ import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
+import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../features/auth/useAuth';
+import sakaryaTeknokentLogo from '../../assets/sakarya-teknokent-logo-on-dark.svg';
 
 const drawerWidth = 260;
 
@@ -67,6 +68,12 @@ export function AppLayout() {
     const theme = useTheme();
     const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
     const [mobileOpen, setMobileOpen] = useState(false);
+    const hasLocalPageHeader = [
+        '/academicians',
+        '/profile',
+        '/users',
+    ].includes(location.pathname)
+        || location.pathname.startsWith('/companies/');
 
     const visibleNavigationItems = navigationItems.filter(
         (item) => !item.adminOnly || role === 'ADMIN',
@@ -85,7 +92,8 @@ export function AppLayout() {
     const drawerContent = (
         <Box
             sx={{
-                bgcolor: 'background.paper',
+                bgcolor: '#0A1026',
+                color: '#F7F9FC',
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
@@ -93,42 +101,24 @@ export function AppLayout() {
         >
             <Toolbar
                 sx={{
+                    justifyContent: 'center',
                     minHeight: { xs: 68, sm: 72 },
                     px: 2.5,
                 }}
             >
-                <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
-                    <Box
-                        aria-hidden="true"
-                        sx={{
-                            alignItems: 'center',
-                            bgcolor: 'primary.light',
-                            border: '1px solid',
-                            borderColor: (theme) => alpha(theme.palette.primary.main, 0.16),
-                            borderRadius: 2.5,
-                            color: 'primary.main',
-                            display: 'flex',
-                            flexShrink: 0,
-                            fontSize: 18,
-                            fontWeight: 800,
-                            height: 40,
-                            justifyContent: 'center',
-                            width: 40,
-                        }}
-                    >
-                        H
-                    </Box>
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="h6" noWrap sx={{ fontSize: 18 }}>
-                            Hakem Atama
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                            Yönetim paneli
-                        </Typography>
-                    </Box>
-                </Stack>
+                <Box
+                    component="img"
+                    src={sakaryaTeknokentLogo}
+                    alt="Sakarya Teknokent"
+                    sx={{
+                        display: 'block',
+                        height: 'auto',
+                        maxWidth: '100%',
+                        width: 190,
+                    }}
+                />
             </Toolbar>
-            <Divider />
+            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.12)' }} />
             <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                 <List sx={{ px: 1.5, py: 2 }}>
                     {visibleNavigationItems.map((item) => {
@@ -142,7 +132,7 @@ export function AppLayout() {
                                 onClick={() => handleNavigate(item.path)}
                                 sx={{
                                     borderRadius: 2.5,
-                                    color: 'text.secondary',
+                                    color: 'rgba(247, 249, 252, 0.72)',
                                     mb: 0.5,
                                     minHeight: 46,
                                     overflow: 'hidden',
@@ -163,19 +153,19 @@ export function AppLayout() {
                                         width: 3,
                                     },
                                     '&:hover': {
-                                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.05),
-                                        color: 'text.primary',
+                                        bgcolor: 'rgba(255, 255, 255, 0.07)',
+                                        color: '#FFFFFF',
                                     },
                                     '&.Mui-selected': {
-                                        bgcolor: 'primary.light',
-                                        color: 'primary.main',
+                                        bgcolor: alpha('#2EA8D3', 0.14),
+                                        color: '#2EA8D3',
                                         fontWeight: 700,
                                     },
                                     '&.Mui-selected::before': {
-                                        bgcolor: 'primary.main',
+                                        bgcolor: '#2EA8D3',
                                     },
                                     '&.Mui-selected:hover': {
-                                        bgcolor: 'primary.light',
+                                        bgcolor: alpha('#2EA8D3', 0.18),
                                     },
                                 }}
                             >
@@ -209,7 +199,7 @@ export function AppLayout() {
             <Box
                 sx={{
                     borderTop: '1px solid',
-                    borderColor: 'divider',
+                    borderColor: 'rgba(255, 255, 255, 0.12)',
                     pb: 5,
                     pt: 1.5,
                     px: 1.5,
@@ -222,51 +212,62 @@ export function AppLayout() {
                         minWidth: 0,
                     }}
                 >
-                    <Stack
-                        direction="row"
-                        spacing={1}
-                        sx={{
-                            alignItems: 'center',
-                            minWidth: 0,
-                            px: 0.5,
-                        }}
-                    >
-                        <Avatar
+                    {role === 'ADMIN' && (
+                        <ListItemButton
+                            selected={location.pathname === '/profile'}
+                            aria-current={
+                                location.pathname === '/profile'
+                                    ? 'page'
+                                    : undefined
+                            }
+                            onClick={() => handleNavigate('/profile')}
                             sx={{
-                                bgcolor: 'primary.light',
-                                color: 'primary.main',
-                                fontSize: 13,
-                                fontWeight: 800,
-                                height: 34,
-                                width: 34,
+                                borderRadius: 2.5,
+                                color: 'rgba(247, 249, 252, 0.72)',
+                                minHeight: 42,
+                                px: 1.25,
+                                '&:hover': {
+                                    bgcolor: 'rgba(255, 255, 255, 0.07)',
+                                    color: '#FFFFFF',
+                                },
+                                '&.Mui-selected': {
+                                    bgcolor: alpha('#2EA8D3', 0.14),
+                                    color: '#2EA8D3',
+                                },
+                                '&.Mui-selected:hover': {
+                                    bgcolor: alpha('#2EA8D3', 0.18),
+                                },
                             }}
                         >
-                            P
-                        </Avatar>
-                        <Typography
-                            variant="body2"
-                            color="text.primary"
-                            noWrap
-                            sx={{ fontWeight: 600 }}
-                        >
-                            Profil
-                        </Typography>
-                    </Stack>
+                            <ListItemIcon sx={{ color: 'inherit', minWidth: 38 }}>
+                                <PersonOutlineOutlinedIcon />
+                            </ListItemIcon>
+                            <ListItemText
+                                primary="Profil"
+                                slotProps={{
+                                    primary: {
+                                        sx: { fontSize: 14, fontWeight: 600 },
+                                    },
+                                }}
+                            />
+                        </ListItemButton>
+                    )}
                     <Button
                         color="inherit"
                         startIcon={<LogoutOutlinedIcon />}
                         onClick={handleLogout}
                         sx={{
                             border: '1px solid',
-                            borderColor: 'divider',
-                            color: 'text.secondary',
+                            borderColor: 'rgba(255, 255, 255, 0.16)',
+                            color: 'rgba(247, 249, 252, 0.72)',
                             justifyContent: 'flex-start',
                             minHeight: 36,
                             px: 1.25,
                             width: '100%',
                             '&:hover': {
-                                borderColor: (theme) => alpha(theme.palette.primary.main, 0.28),
-                                color: 'primary.main',
+                                bgcolor: alpha('#2EA8D3', 0.08),
+                                borderColor: alpha('#2EA8D3', 0.42),
+                                color: '#2EA8D3',
                             },
                         }}
                     >
@@ -279,23 +280,29 @@ export function AppLayout() {
 
     return (
         <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+            {!hasLocalPageHeader && (
             <AppBar
-                position="fixed"
+                position="absolute"
                 color="inherit"
                 elevation={0}
                 sx={{
-                    bgcolor: 'background.paper',
-                    borderBottom: '1px solid',
-                    borderColor: 'divider',
+                    bgcolor: '#F3F7FA',
+                    borderRadius: 0,
                     ml: { md: `${drawerWidth}px` },
+                    px: { xs: 1.5, sm: 2 },
+                    py: 1.5,
                     width: { md: `calc(100% - ${drawerWidth}px)` },
                 }}
             >
                 <Toolbar
                     sx={{
+                        bgcolor: '#FFFFFF',
+                        border: '1px solid #E3EAF0',
+                        borderRadius: '12px',
+                        boxSizing: 'border-box',
                         gap: { xs: 1.25, sm: 2 },
-                        minHeight: { xs: 64, sm: 68 },
-                        px: { xs: 2, sm: 3 },
+                        minHeight: { xs: 64, sm: 76 },
+                        px: { xs: 2, md: 1, lg: 2 },
                     }}
                 >
                     {!isDesktop && (
@@ -309,20 +316,53 @@ export function AppLayout() {
                         </IconButton>
                     )}
 
-                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                        <Typography
-                            variant="h6"
-                            noWrap
+                    <Box
+                        sx={{
+                            alignItems: 'center',
+                            display: 'flex',
+                            flexGrow: 1,
+                            gap: { xs: 1.25, sm: 1.5 },
+                            minWidth: 0,
+                        }}
+                    >
+                        <Box
+                            aria-hidden="true"
                             sx={{
-                                fontSize: { xs: 16, sm: 18 },
-                                fontWeight: 700,
+                                bgcolor: '#2EA8D3',
+                                borderRadius: 999,
+                                flex: '0 0 auto',
+                                height: { xs: 34, sm: 38 },
+                                width: 3,
                             }}
-                        >
-                            Hakem Atama Yönetim Sistemi
-                        </Typography>
+                        />
+                        <Stack spacing={0.1} sx={{ minWidth: 0 }}>
+                            <Typography
+                                variant="h6"
+                                noWrap
+                                sx={{
+                                    fontSize: { xs: 15, sm: 17, md: 20 },
+                                    fontWeight: 700,
+                                    lineHeight: 1.35,
+                                }}
+                            >
+                                Hakem Atama Yönetim Sistemi
+                            </Typography>
+                            <Typography
+                                color="text.secondary"
+                                noWrap
+                                sx={{
+                                    fontSize: { xs: 11.5, sm: 12.5, md: 14 },
+                                    lineHeight: 1.35,
+                                }}
+                            >
+                                Proje değerlendirme ve hakem atama süreçleri
+                                için yönetim platformu.
+                            </Typography>
+                        </Stack>
                     </Box>
                 </Toolbar>
             </AppBar>
+            )}
 
             <Box
                 component="nav"
@@ -339,6 +379,8 @@ export function AppLayout() {
                     sx={{
                         display: { xs: 'block', md: 'none' },
                         '& .MuiDrawer-paper': {
+                            bgcolor: '#0A1026',
+                            borderRadius: 0,
                             borderRight: 'none',
                             boxSizing: 'border-box',
                             width: drawerWidth,
@@ -354,8 +396,10 @@ export function AppLayout() {
                     sx={{
                         display: { xs: 'none', md: 'block' },
                         '& .MuiDrawer-paper': {
+                            bgcolor: '#0A1026',
+                            borderRadius: 0,
                             borderRight: '1px solid',
-                            borderRightColor: 'divider',
+                            borderRightColor: 'rgba(255, 255, 255, 0.1)',
                             boxSizing: 'border-box',
                             width: drawerWidth,
                         },
@@ -370,15 +414,22 @@ export function AppLayout() {
                 sx={{
                     bgcolor: 'background.default',
                     flexGrow: 1,
+                    height: hasLocalPageHeader ? '100vh' : undefined,
                     minWidth: 0,
                     overflowX: 'hidden',
+                    overflowY: hasLocalPageHeader ? 'auto' : undefined,
                 }}
             >
-                <Toolbar sx={{ minHeight: { xs: 64, sm: 68 } }} />
+                {!hasLocalPageHeader && (
+                    <Toolbar sx={{ minHeight: { xs: 88, sm: 100 } }} />
+                )}
                 <Box
                     sx={{
+                        pb: { xs: 2.5, sm: 3, lg: 4 },
                         px: { xs: 2, sm: 3, lg: 4 },
-                        py: { xs: 2.5, sm: 3, lg: 4 },
+                        pt: hasLocalPageHeader
+                            ? 0
+                            : { xs: 2.5, sm: 3, lg: 4 },
                         width: '100%',
                     }}
                 >

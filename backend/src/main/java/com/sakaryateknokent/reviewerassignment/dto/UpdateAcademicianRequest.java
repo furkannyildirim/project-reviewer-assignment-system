@@ -2,11 +2,14 @@ package com.sakaryateknokent.reviewerassignment.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.Set;
 
 public record UpdateAcademicianRequest(
+        @NotNull(message = "Akademisyen version bilgisi zorunludur")
+        Long version,
 
         @NotBlank(message = "Akademisyen adı boş bırakılamaz")
         @Size(max = 100, message = "Ad en fazla 100 karakter olabilir")

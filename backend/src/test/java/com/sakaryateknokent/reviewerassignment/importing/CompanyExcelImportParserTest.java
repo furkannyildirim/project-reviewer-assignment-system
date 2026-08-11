@@ -48,9 +48,8 @@ class CompanyExcelImportParserTest {
         });
 
         assertEquals("ABC Teknoloji", row.getName());
-        assertNull(row.getPhone());
-        assertNull(row.getSecondaryPhone());
-        assertNull(row.getEmail());
+        assertEquals(List.of(), row.getCompanyPhones());
+        assertEquals(List.of(), row.getCompanyEmails());
         assertNull(row.getActivityArea());
         assertTrue(row.isValid());
     }
@@ -135,8 +134,7 @@ class CompanyExcelImportParserTest {
             writeRow(sheet, 1, "ABC Teknoloji", "111", "222");
         });
 
-        assertEquals("111", row.getPhone());
-        assertEquals("222", row.getSecondaryPhone());
+        assertEquals(List.of("111", "222"), row.getCompanyPhones());
     }
 
     @Test
@@ -148,7 +146,9 @@ class CompanyExcelImportParserTest {
         });
 
         assertFalse(row.isValid());
-        assertTrue(row.getErrors().contains("E-posta formati gecersiz"));
+        assertTrue(row.getErrors().contains(
+                "E-posta parcasi formati gecersiz: gecersiz"
+        ));
     }
 
     @Test
@@ -171,7 +171,7 @@ class CompanyExcelImportParserTest {
     }
 
     @Test
-    void keepsNoBuildingAndWebInIgnoredHeaders() {
+    void keepsOnlyNoAndWebInIgnoredHeaders() {
         CompanyImportPreview preview = parse(workbook -> {
             Sheet sheet = workbook.createSheet("Sirketler");
             writeRow(sheet, 0, "No", "Firma Unvanı", "Bina", "Web");
@@ -179,13 +179,13 @@ class CompanyExcelImportParserTest {
         });
 
         assertTrue(preview.getIgnoredHeaders().contains("No"));
-        assertTrue(preview.getIgnoredHeaders().contains("Bina"));
         assertTrue(preview.getIgnoredHeaders().contains("Web"));
         assertFalse(preview.getDetectedHeaders().contains("No"));
-        assertFalse(preview.getDetectedHeaders().contains("Bina"));
+        assertTrue(preview.getDetectedHeaders().contains("Bina"));
         assertFalse(preview.getDetectedHeaders().contains("Web"));
+        assertEquals("A Blok", preview.getRows().getFirst().getBuilding());
         assertTrue(preview.getGeneralInformationMessages().contains(
-                "No, Bina ve Web sutunlari bu aktarimda kullanilmayacaktir."
+                "No ve Web sutunlari bu aktarimda kullanilmayacaktir."
         ));
     }
 
@@ -229,9 +229,8 @@ class CompanyExcelImportParserTest {
         });
 
         assertEquals("ABC Teknoloji", row.getName());
-        assertEquals("111", row.getPhone());
-        assertEquals("222", row.getSecondaryPhone());
-        assertEquals("info@example.com", row.getEmail());
+        assertEquals(List.of("111", "222"), row.getCompanyPhones());
+        assertEquals(List.of("info@example.com"), row.getCompanyEmails());
     }
 
     @Test
@@ -256,9 +255,8 @@ class CompanyExcelImportParserTest {
         assertEquals(1, preview.getRows().size());
         assertEquals("Anonim Teknoloji", row.getName());
         assertEquals("Yazilim", row.getActivityArea());
-        assertEquals("111", row.getPhone());
-        assertEquals("222", row.getSecondaryPhone());
-        assertEquals("info@example.com", row.getEmail());
+        assertEquals(List.of("111", "222"), row.getCompanyPhones());
+        assertEquals(List.of("info@example.com"), row.getCompanyEmails());
         assertEquals(
                 List.of("Firma Unvan\u0131", "Sektor", "Telefon 1", "Telefon 2", "Email"),
                 List.copyOf(preview.getDetectedHeaders())
@@ -279,7 +277,7 @@ class CompanyExcelImportParserTest {
         });
 
         assertEquals("Aralik Kaymis Teknoloji", row.getName());
-        assertEquals("kaymis@example.com", row.getEmail());
+        assertEquals(List.of("kaymis@example.com"), row.getCompanyEmails());
         assertTrue(row.isValid());
     }
 
@@ -294,7 +292,7 @@ class CompanyExcelImportParserTest {
         });
 
         assertEquals("Dis Anchor Teknoloji", row.getName());
-        assertEquals("555", row.getPhone());
+        assertEquals(List.of("555"), row.getCompanyPhones());
         assertTrue(row.isValid());
     }
 
@@ -333,7 +331,7 @@ class CompanyExcelImportParserTest {
     }
 
     @Test
-    void parsesExternalCompanyAliasesAndIgnoresUnsupportedAddressColumns() {
+    void parsesExternalCompanyAliasesAndLocationColumns() {
         CompanyImportPreview preview = parse(CompanyType.EXTERNAL, workbook -> {
             Sheet sheet = workbook.createSheet("Dis Sirketler");
             writeRow(
@@ -368,15 +366,94 @@ class CompanyExcelImportParserTest {
 
         CompanyImportRow row = preview.getRows().getFirst();
         assertEquals("Dis Teknoloji", row.getName());
-        assertEquals("555", row.getPhone());
-        assertEquals("info@example.com", row.getEmail());
+        assertEquals("Sakarya", row.getCity());
+        assertEquals("Serdivan", row.getDistrict());
+        assertEquals("1. OSB", row.getOsb());
+        assertEquals("Adres", row.getAddress());
+        assertEquals(List.of("555"), row.getCompanyPhones());
+        assertEquals(List.of("info@example.com"), row.getCompanyEmails());
         assertEquals("Makine", row.getActivityArea());
-        assertTrue(preview.getIgnoredHeaders().contains("İL"));
-        assertTrue(preview.getIgnoredHeaders().contains("İLÇE"));
-        assertTrue(preview.getIgnoredHeaders().contains("OSB"));
-        assertTrue(preview.getIgnoredHeaders().contains("AÇIK ADRES"));
+        assertTrue(preview.getDetectedHeaders().contains("İL"));
+        assertTrue(preview.getDetectedHeaders().contains("İLÇE"));
+        assertTrue(preview.getDetectedHeaders().contains("OSB"));
+        assertTrue(preview.getDetectedHeaders().contains("AÇIK ADRES"));
+        assertFalse(preview.getIgnoredHeaders().contains("AÇIK ADRES"));
         assertTrue(preview.getIgnoredHeaders().contains("WEB SİTESİ"));
         assertTrue(row.isValid());
+    }
+
+    @Test
+    void parsesTgbBuildingLocationAndFutureSharedHeaders() {
+        CompanyImportRow row = parseFirstRow(CompanyType.TGB, workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            writeRow(
+                    sheet,
+                    0,
+                    "Firma Unvan\u0131",
+                    "B\u0130NA",
+                    "\u0130L",
+                    "A\u00C7IK ADRES"
+            );
+            writeRow(
+                    sheet,
+                    1,
+                    "ABC Teknoloji",
+                    "B Blok",
+                    "Sakarya",
+                    "Teknokent Kampusu"
+            );
+        });
+
+        assertEquals("B Blok", row.getBuilding());
+        assertEquals("Sakarya", row.getCity());
+        assertEquals("Teknokent Kampusu", row.getAddress());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void parsesExternalBuildingWhenHeaderExists() {
+        CompanyImportRow row = parseFirstRow(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(sheet, 0, "F\u0130RMA", "B\u0130NA");
+            writeRow(sheet, 1, "Dis Teknoloji", "C Blok");
+        });
+
+        assertEquals("C Blok", row.getBuilding());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void keepsLocationFieldsNullWhenColumnsAreMissingOrBlank() {
+        CompanyImportPreview preview = parse(CompanyType.EXTERNAL, workbook -> {
+            Sheet sheet = workbook.createSheet("Dis Sirketler");
+            writeRow(
+                    sheet,
+                    0,
+                    "F\u0130RMA",
+                    "\u0130L",
+                    "\u0130L\u00C7E",
+                    "OSB",
+                    "A\u00C7IK ADRES",
+                    "B\u0130NA"
+            );
+            writeRow(sheet, 1, "Blank Lokasyon", " ", "\t", "", "  ", " ");
+            writeRow(sheet, 2, "Kolonsuz Firma");
+        });
+
+        CompanyImportRow blankLocationRow = preview.getRows().getFirst();
+        CompanyImportRow missingLocationRow = preview.getRows().get(1);
+
+        assertNull(blankLocationRow.getCity());
+        assertNull(blankLocationRow.getDistrict());
+        assertNull(blankLocationRow.getOsb());
+        assertNull(blankLocationRow.getAddress());
+        assertNull(blankLocationRow.getBuilding());
+        assertNull(missingLocationRow.getCity());
+        assertNull(missingLocationRow.getDistrict());
+        assertNull(missingLocationRow.getOsb());
+        assertNull(missingLocationRow.getAddress());
+        assertNull(missingLocationRow.getBuilding());
+        assertTrue(preview.getRows().stream().allMatch(CompanyImportRow::isValid));
     }
 
     @Test
@@ -418,8 +495,8 @@ class CompanyExcelImportParserTest {
             );
         });
 
-        assertEquals("111", row.getPhone());
-        assertEquals("info@example.com", row.getEmail());
+        assertEquals(List.of("111"), row.getCompanyPhones());
+        assertEquals(List.of("info@example.com"), row.getCompanyEmails());
         assertEquals("Ayse Yilmaz", row.getContactFullName());
         assertEquals("Mudur", row.getContactPosition());
         assertEquals("222", row.getContactPhone());
@@ -450,7 +527,9 @@ class CompanyExcelImportParserTest {
         });
 
         assertEquals(2, preview.getRows().size());
-        assertTrue(preview.getRows().stream().allMatch(row -> row.getEmail() == null));
+        assertTrue(preview.getRows().stream().allMatch(
+                row -> row.getCompanyEmails().isEmpty()
+        ));
         assertTrue(preview.getRows().stream().allMatch(CompanyImportRow::isValid));
         assertTrue(preview.getRows().stream().allMatch(row -> row.getErrors().isEmpty()));
     }
@@ -463,7 +542,7 @@ class CompanyExcelImportParserTest {
             writeRow(sheet, 1, "Dis Teknoloji", "Bilgi Yok");
         });
 
-        assertNull(row.getPhone());
+        assertEquals(List.of(), row.getCompanyPhones());
         assertTrue(row.isValid());
     }
 
@@ -618,8 +697,8 @@ class CompanyExcelImportParserTest {
             );
         });
 
-        assertNull(row.getPhone());
-        assertNull(row.getEmail());
+        assertEquals(List.of(), row.getCompanyPhones());
+        assertEquals(List.of(), row.getCompanyEmails());
         assertNull(row.getActivityArea());
         assertNull(row.getContactPhone());
         assertTrue(row.isValid());
@@ -634,7 +713,130 @@ class CompanyExcelImportParserTest {
         });
 
         assertFalse(row.isValid());
-        assertTrue(row.getErrors().contains("E-posta formati gecersiz"));
+        assertTrue(row.getErrors().contains(
+                "E-posta parcasi formati gecersiz: gecersiz"
+        ));
+    }
+
+    @Test
+    void splitsMultipleCompanyPhonesAndEmailsWithSupportedSeparators() {
+        CompanyImportRow row = parseFirstRow(workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            writeRow(sheet, 0, "Firma Unvan\u0131", "Telefon 1", "Email");
+            writeRow(
+                    sheet,
+                    1,
+                    "ABC Teknoloji",
+                    "111 / 222; 333 & 444\n555",
+                    "A@EXAMPLE.COM / b@example.com; a@example.com"
+            );
+        });
+
+        assertEquals(
+                List.of("111", "222", "333", "444", "555"),
+                row.getCompanyPhones()
+        );
+        assertEquals(
+                List.of("a@example.com", "b@example.com"),
+                row.getCompanyEmails()
+        );
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void splitsDashSeparatedPhonePairButKeepsHyphenatedEmailWhole() {
+        CompanyImportRow row = parseFirstRow(workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            writeRow(sheet, 0, "Firma Unvan\u0131", "Telefon 1", "Email");
+            writeRow(
+                    sheet,
+                    1,
+                    "ABC Teknoloji",
+                    "111 - 222",
+                    "info-sales@example.com"
+            );
+        });
+
+        assertEquals(List.of("111", "222"), row.getCompanyPhones());
+        assertEquals(List.of("info-sales@example.com"), row.getCompanyEmails());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void splitsUnicodeDashSeparatedPhonePairs() {
+        CompanyImportPreview preview = parse(workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            writeRow(sheet, 0, "Firma Unvan\u0131", "Telefon 1");
+            writeRow(
+                    sheet,
+                    1,
+                    "En Dash Teknoloji",
+                    "0 262 658 86 65 – 0 262 658 94 92"
+            );
+            writeRow(
+                    sheet,
+                    2,
+                    "Em Dash Teknoloji",
+                    "0 262 658 86 65 — 0 262 658 94 92"
+            );
+        });
+
+        assertEquals(
+                List.of("0 262 658 86 65", "0 262 658 94 92"),
+                preview.getRows().getFirst().getCompanyPhones()
+        );
+        assertEquals(
+                List.of("0 262 658 86 65", "0 262 658 94 92"),
+                preview.getRows().get(1).getCompanyPhones()
+        );
+        assertTrue(preview.getRows().stream().allMatch(CompanyImportRow::isValid));
+    }
+
+    @Test
+    void keepsHyphenatedSinglePhoneWhole() {
+        CompanyImportRow row = parseFirstRow(workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            writeRow(sheet, 0, "Firma Unvan\u0131", "Telefon 1");
+            writeRow(sheet, 1, "ABC Teknoloji", "0532-111-22-33");
+        });
+
+        assertEquals(List.of("0532-111-22-33"), row.getCompanyPhones());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void keepsSpacedSinglePhoneWhole() {
+        CompanyImportRow row = parseFirstRow(workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            writeRow(sheet, 0, "Firma Unvan\u0131", "Telefon 1");
+            writeRow(sheet, 1, "ABC Teknoloji", "0532 123 45 67");
+        });
+
+        assertEquals(List.of("0532 123 45 67"), row.getCompanyPhones());
+        assertTrue(row.isValid());
+    }
+
+    @Test
+    void marksInvalidCompanyContactPartsInvalid() {
+        CompanyImportRow row = parseFirstRow(workbook -> {
+            Sheet sheet = workbook.createSheet("Sirketler");
+            writeRow(sheet, 0, "Firma Unvan\u0131", "Telefon 1", "Email");
+            writeRow(
+                    sheet,
+                    1,
+                    "ABC Teknoloji",
+                    "111 / abcxyz",
+                    "ok@example.com / gecersiz"
+            );
+        });
+
+        assertEquals(List.of("111"), row.getCompanyPhones());
+        assertEquals(List.of("ok@example.com"), row.getCompanyEmails());
+        assertFalse(row.isValid());
+        assertTrue(row.getErrors().contains("Telefon parcasi gecersiz: abcxyz"));
+        assertTrue(row.getErrors().contains(
+                "E-posta parcasi formati gecersiz: gecersiz"
+        ));
     }
 
     @Test

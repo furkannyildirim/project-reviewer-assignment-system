@@ -4,9 +4,14 @@ import com.sakaryateknokent.reviewerassignment.entity.Company;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import java.util.Collection;
+import java.util.List;
 
 public interface CompanyRepository extends JpaRepository<Company, Long> {
 
@@ -21,13 +26,31 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     boolean existsByEmailAndIdNot(String email, Long id);
 
+    long countByCompanyType(CompanyType companyType);
+
     @Query("""
             SELECT company.name
             FROM Company company
             WHERE company.companyType = :companyType
             """)
-    java.util.List<String> findNamesByCompanyType(
+    List<String> findNamesByCompanyType(
             @Param("companyType") CompanyType companyType
+    );
+
+    @EntityGraph(attributePaths = "contactMethods")
+    @Query("""
+            SELECT DISTINCT company
+            FROM Company company
+            WHERE company.companyType = :companyType
+            """)
+    List<Company> findByCompanyType(
+            @Param("companyType") CompanyType companyType
+    );
+
+    List<Company> findByCompanyTypeAndIdIn(
+            CompanyType companyType,
+            Collection<Long> ids,
+            Sort sort
     );
 
     @Query("""
@@ -38,17 +61,26 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
                    :search = ''
                    OR LOWER(company.name)
                         LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR LOWER(company.email)
-                        LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR LOWER(company.phone)
-                        LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR EXISTS (
+                        SELECT method.id
+                        FROM CompanyContactMethod method
+                        WHERE method.company = company
+                          AND LOWER(method.value)
+                              LIKE LOWER(CONCAT('%', :search, '%'))
+                   )
                    OR LOWER(company.activityArea)
                         LIKE LOWER(CONCAT('%', :search, '%'))
+              )
+              AND (
+                   :initial = ''
+                   OR LOWER(company.name)
+                        LIKE LOWER(CONCAT(:initial, '%'))
               )
             """)
     Page<Company> search(
             @Param("companyType") CompanyType companyType,
             @Param("search") String search,
+            @Param("initial") String initial,
             Pageable pageable
     );
 }

@@ -5,7 +5,9 @@ import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportPreviewRowRe
 import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.importing.AcademicianExcelImportParser;
 import com.sakaryateknokent.reviewerassignment.importing.AcademicianImportPreview;
-import com.sakaryateknokent.reviewerassignment.importing.AcademicianImportRow;
+import com.sakaryateknokent.reviewerassignment.service.AcademicianImportClassifier.AcademicianImportDecision;
+import com.sakaryateknokent.reviewerassignment.service.AcademicianImportClassifier.AcademicianImportPlan;
+import com.sakaryateknokent.reviewerassignment.service.AcademicianImportClassifier.ImportStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,11 +17,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +26,7 @@ import java.util.Set;
 public class AcademicianImportPreviewService {
 
     private final AcademicianExcelImportParser parser;
+    private final AcademicianImportClassifier classifier;
 
     public AcademicianImportPreviewResponse preview(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -40,8 +40,7 @@ public class AcademicianImportPreviewService {
                     file.getOriginalFilename(),
                     inputStream
             );
-            validateEmailDuplicatesInsideFile(preview.getRows());
-            return toResponse(preview);
+            return toResponse(classifier.classify(preview));
         } catch (IOException exception) {
             throw new InvalidRequestException(
                     "Excel dosyasi okunamadi"
@@ -49,52 +48,31 @@ public class AcademicianImportPreviewService {
         }
     }
 
-    private void validateEmailDuplicatesInsideFile(
-            List<AcademicianImportRow> rows
-    ) {
-        Map<String, Integer> emailCounts = new LinkedHashMap<>();
-
-        for (AcademicianImportRow row : rows) {
-            if (row.getEmail() == null) {
-                continue;
-            }
-
-            emailCounts.merge(row.getEmail(), 1, Integer::sum);
-        }
-
-        Set<String> duplicateEmails = new LinkedHashSet<>();
-        for (Map.Entry<String, Integer> entry : emailCounts.entrySet()) {
-            if (entry.getValue() > 1) {
-                duplicateEmails.add(entry.getKey());
-            }
-        }
-
-        for (AcademicianImportRow row : rows) {
-            String email = row.getEmail();
-            if (email == null) {
-                continue;
-            }
-
-            if (duplicateEmails.contains(email)) {
-                row.getErrors().add(
-                        "Dosya icinde ayni e-posta birden fazla kullanilmis"
-                );
-            }
-        }
-    }
-
     private AcademicianImportPreviewResponse toResponse(
-            AcademicianImportPreview preview
+            AcademicianImportPlan plan
     ) {
         List<AcademicianImportPreviewRowResponse> rowResponses =
                 new ArrayList<>();
-        int validRowCount = 0;
+        AcademicianImportPreview preview = plan.preview();
+        int newRowCount = 0;
+        int duplicateRowCount = 0;
+        int conflictRowCount = 0;
+        int invalidRowCount = 0;
         int warningCount = preview.getGeneralWarnings().size();
 
-        for (AcademicianImportRow row : preview.getRows()) {
-            if (row.isValid()) {
-                validRowCount++;
+        for (AcademicianImportDecision decision : plan.decisions()) {
+            ImportStatus status = decision.status();
+            if (status == ImportStatus.NEW) {
+                newRowCount++;
+            } else if (status == ImportStatus.DUPLICATE) {
+                duplicateRowCount++;
+            } else if (status == ImportStatus.CONFLICT) {
+                conflictRowCount++;
+            } else if (status == ImportStatus.INVALID) {
+                invalidRowCount++;
             }
+
+            var row = decision.row();
             warningCount += row.getWarnings().size();
 
             rowResponses.add(new AcademicianImportPreviewRowResponse(
@@ -108,7 +86,12 @@ public class AcademicianImportPreviewService {
                     Collections.unmodifiableSet(
                             new LinkedHashSet<>(row.getKeywords())
                     ),
-                    row.isValid(),
+                    status.name(),
+                    status != ImportStatus.INVALID
+                            && status != ImportStatus.CONFLICT,
+                    status == ImportStatus.INVALID
+                            ? List.of()
+                            : List.copyOf(decision.messages()),
                     List.copyOf(row.getWarnings()),
                     List.copyOf(row.getErrors())
             ));
@@ -118,8 +101,12 @@ public class AcademicianImportPreviewService {
                 preview.getFileName(),
                 preview.getSheetCount(),
                 preview.getRows().size(),
-                validRowCount,
-                preview.getRows().size() - validRowCount,
+                newRowCount,
+                0,
+                duplicateRowCount,
+                conflictRowCount,
+                newRowCount + duplicateRowCount,
+                invalidRowCount,
                 warningCount,
                 Collections.unmodifiableSet(
                         new LinkedHashSet<>(preview.getDetectedHeaders())

@@ -8,10 +8,14 @@ public class CompanyImportRow {
     private final String sheetName;
     private final int rowNumber;
     private String name;
-    private String phone;
-    private String secondaryPhone;
-    private String email;
+    private final List<String> companyPhones = new ArrayList<>();
+    private final List<String> companyEmails = new ArrayList<>();
     private String activityArea;
+    private String city;
+    private String district;
+    private String osb;
+    private String address;
+    private String building;
     private String contactFullName;
     private String contactPosition;
     private String contactPhone;
@@ -40,28 +44,20 @@ public class CompanyImportRow {
         this.name = name;
     }
 
-    public String getPhone() {
-        return phone;
+    public List<String> getCompanyPhones() {
+        return companyPhones;
     }
 
-    public void setPhone(String phone) {
-        this.phone = phone;
+    public void addCompanyPhone(String phone) {
+        companyPhones.add(phone);
     }
 
-    public String getSecondaryPhone() {
-        return secondaryPhone;
+    public List<String> getCompanyEmails() {
+        return companyEmails;
     }
 
-    public void setSecondaryPhone(String secondaryPhone) {
-        this.secondaryPhone = secondaryPhone;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
+    public void addCompanyEmail(String email) {
+        companyEmails.add(email);
     }
 
     public String getActivityArea() {
@@ -70,6 +66,46 @@ public class CompanyImportRow {
 
     public void setActivityArea(String activityArea) {
         this.activityArea = activityArea;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public void setCity(String city) {
+        this.city = city;
+    }
+
+    public String getDistrict() {
+        return district;
+    }
+
+    public void setDistrict(String district) {
+        this.district = district;
+    }
+
+    public String getOsb() {
+        return osb;
+    }
+
+    public void setOsb(String osb) {
+        this.osb = osb;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public String getBuilding() {
+        return building;
+    }
+
+    public void setBuilding(String building) {
+        this.building = building;
     }
 
     public String getContactFullName() {
