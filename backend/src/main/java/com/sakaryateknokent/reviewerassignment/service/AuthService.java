@@ -39,7 +39,15 @@ public class AuthService {
                         )
                 );
 
-        String accessToken = jwtTokenService.generateToken(authentication);
+        User user = userRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new UsernameNotFoundException(
+                        "Kullanıcı bulunamadı"
+                ));
+
+        String accessToken = jwtTokenService.generateToken(
+                authentication,
+                user.getTokenVersion()
+        );
 
         return new LoginResponse(
                 accessToken,

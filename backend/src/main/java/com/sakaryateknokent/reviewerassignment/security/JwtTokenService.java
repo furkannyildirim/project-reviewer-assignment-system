@@ -22,7 +22,10 @@ public class JwtTokenService {
     private final JwtEncoder jwtEncoder;
     private final JwtProperties jwtProperties;
 
-    public String generateToken(Authentication authentication) {
+    public String generateToken(
+            Authentication authentication,
+            long tokenVersion
+    ) {
         Instant issuedAt = Instant.now();
         Instant expiresAt = issuedAt.plus(
                 jwtProperties.accessTokenExpiration()
@@ -40,6 +43,7 @@ public class JwtTokenService {
                 .expiresAt(expiresAt)
                 .subject(authentication.getName())
                 .claim("roles", List.of(role))
+                .claim("tokenVersion", tokenVersion)
                 .build();
 
         return jwtEncoder.encode(
