@@ -53,6 +53,10 @@ public class SecurityConfig {
                                 "/api/auth/login"
                         ).permitAll()
                         .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/auth/me"
+                        ).authenticated()
+                        .requestMatchers(
                                 "/api/admin/profile",
                                 "/api/admin/profile/**"
                         ).hasRole("ADMIN")

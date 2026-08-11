@@ -2,11 +2,16 @@ package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.LoginRequest;
 import com.sakaryateknokent.reviewerassignment.dto.LoginResponse;
+import com.sakaryateknokent.reviewerassignment.dto.CurrentUserResponse;
+import com.sakaryateknokent.reviewerassignment.entity.User;
+import com.sakaryateknokent.reviewerassignment.repository.UserRepository;
 import com.sakaryateknokent.reviewerassignment.security.JwtTokenService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
@@ -19,6 +24,7 @@ public class AuthService {
 
     private final AuthenticationManager authenticationManager;
     private final JwtTokenService jwtTokenService;
+    private final UserRepository userRepository;
 
     public LoginResponse login(LoginRequest request) {
         String normalizedEmail = request.email()
@@ -39,6 +45,27 @@ public class AuthService {
                 accessToken,
                 TOKEN_TYPE,
                 jwtTokenService.getAccessTokenExpirationSeconds()
+        );
+    }
+
+    public CurrentUserResponse getCurrentUser(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException(
+                        "Kullanıcı bulunamadı"
+                ));
+
+        if (!user.isActive()) {
+            throw new DisabledException("Kullanıcı hesabı pasif");
+        }
+
+        return new CurrentUserResponse(
+                user.getId(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getRole(),
+                user.isActive()
         );
     }
 }
