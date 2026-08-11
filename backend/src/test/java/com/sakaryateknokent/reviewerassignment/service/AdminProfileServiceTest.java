@@ -73,6 +73,7 @@ class AdminProfileServiceTest {
         assertEquals("admin@example.com", response.email());
         assertEquals(Role.ADMIN, response.role());
         assertEquals("old-hash", admin.getPasswordHash());
+        assertEquals(0L, admin.getTokenVersion());
     }
 
     @Test
@@ -92,6 +93,7 @@ class AdminProfileServiceTest {
 
         assertEquals("Mevcut parola hatalı", exception.getMessage());
         assertEquals("old-hash", admin.getPasswordHash());
+        assertEquals(0L, admin.getTokenVersion());
         verify(passwordEncoder, never()).encode("new-password");
     }
 
@@ -113,6 +115,7 @@ class AdminProfileServiceTest {
         );
 
         assertEquals("new-hash", admin.getPasswordHash());
+        assertEquals(1L, admin.getTokenVersion());
         verify(passwordEncoder).encode("new-password");
     }
 
@@ -140,6 +143,7 @@ class AdminProfileServiceTest {
                 exception.getMessage()
         );
         assertEquals("old-hash", admin.getPasswordHash());
+        assertEquals(0L, admin.getTokenVersion());
         verify(passwordEncoder, never()).encode("same-password");
         verify(userRepository, never()).save(admin);
     }
