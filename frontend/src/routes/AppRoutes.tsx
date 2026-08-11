@@ -5,6 +5,7 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { useAuth } from '../features/auth/useAuth';
 import { CompaniesPage } from '../features/companies/CompaniesPage';
 import { CompanyDetailPage } from '../features/companies/CompanyDetailPage';
+import { AdminProfilePage } from '../features/profile/AdminProfilePage';
 import { UsersPage } from '../features/users/UsersPage';
 import { AdminRoute } from './AdminRoute';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -76,6 +77,7 @@ export function AppRoutes() {
                         element={<CompanyDetailPage />}
                     />
                     <Route element={<AdminRoute />}>
+                        <Route path="/profile" element={<AdminProfilePage />} />
                         <Route path="/users" element={<UsersPage />} />
                     </Route>
                 </Route>

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
     AppBar,
-    Avatar,
     Box,
     Button,
     Divider,
@@ -23,6 +22,7 @@ import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
+import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../features/auth/useAuth';
@@ -70,6 +70,7 @@ export function AppLayout() {
     const [mobileOpen, setMobileOpen] = useState(false);
     const hasLocalPageHeader = [
         '/academicians',
+        '/profile',
         '/users',
     ].includes(location.pathname)
         || location.pathname.startsWith('/companies/');
@@ -211,35 +212,46 @@ export function AppLayout() {
                         minWidth: 0,
                     }}
                 >
-                    <Stack
-                        direction="row"
-                        spacing={1}
-                        sx={{
-                            alignItems: 'center',
-                            minWidth: 0,
-                            px: 0.5,
-                        }}
-                    >
-                        <Avatar
+                    {role === 'ADMIN' && (
+                        <ListItemButton
+                            selected={location.pathname === '/profile'}
+                            aria-current={
+                                location.pathname === '/profile'
+                                    ? 'page'
+                                    : undefined
+                            }
+                            onClick={() => handleNavigate('/profile')}
                             sx={{
-                                bgcolor: alpha('#2EA8D3', 0.14),
-                                color: '#2EA8D3',
-                                fontSize: 13,
-                                fontWeight: 800,
-                                height: 34,
-                                width: 34,
+                                borderRadius: 2.5,
+                                color: 'rgba(247, 249, 252, 0.72)',
+                                minHeight: 42,
+                                px: 1.25,
+                                '&:hover': {
+                                    bgcolor: 'rgba(255, 255, 255, 0.07)',
+                                    color: '#FFFFFF',
+                                },
+                                '&.Mui-selected': {
+                                    bgcolor: alpha('#2EA8D3', 0.14),
+                                    color: '#2EA8D3',
+                                },
+                                '&.Mui-selected:hover': {
+                                    bgcolor: alpha('#2EA8D3', 0.18),
+                                },
                             }}
                         >
-                            P
-                        </Avatar>
-                        <Typography
-                            variant="body2"
-                            noWrap
-                            sx={{ color: '#F7F9FC', fontWeight: 600 }}
-                        >
-                            Profil
-                        </Typography>
-                    </Stack>
+                            <ListItemIcon sx={{ color: 'inherit', minWidth: 38 }}>
+                                <PersonOutlineOutlinedIcon />
+                            </ListItemIcon>
+                            <ListItemText
+                                primary="Profil"
+                                slotProps={{
+                                    primary: {
+                                        sx: { fontSize: 14, fontWeight: 600 },
+                                    },
+                                }}
+                            />
+                        </ListItemButton>
+                    )}
                     <Button
                         color="inherit"
                         startIcon={<LogoutOutlinedIcon />}
