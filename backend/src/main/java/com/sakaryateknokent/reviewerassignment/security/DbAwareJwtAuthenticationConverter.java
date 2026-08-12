@@ -14,7 +14,6 @@ import org.springframework.security.oauth2.server.resource.authentication.Abstra
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Locale;
 
 @Component
 @RequiredArgsConstructor
@@ -34,8 +33,19 @@ public class DbAwareJwtAuthenticationConverter implements
             throw invalidToken();
         }
 
-        String normalizedEmail = subject.trim().toLowerCase(Locale.ROOT);
-        User user = userRepository.findByEmail(normalizedEmail)
+        long userId;
+
+        try {
+            userId = Long.parseLong(subject);
+        } catch (NumberFormatException exception) {
+            throw invalidToken();
+        }
+
+        if (userId <= 0) {
+            throw invalidToken();
+        }
+
+        User user = userRepository.findById(userId)
                 .orElseThrow(this::invalidToken);
 
         if (!user.isActive()) {

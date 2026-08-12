@@ -24,6 +24,7 @@ public class JwtTokenService {
 
     public String generateToken(
             Authentication authentication,
+            long userId,
             long tokenVersion
     ) {
         Instant issuedAt = Instant.now();
@@ -41,7 +42,7 @@ public class JwtTokenService {
                 .issuer(jwtProperties.issuer())
                 .issuedAt(issuedAt)
                 .expiresAt(expiresAt)
-                .subject(authentication.getName())
+                .subject(Long.toString(userId))
                 .claim("roles", List.of(role))
                 .claim("tokenVersion", tokenVersion)
                 .build();

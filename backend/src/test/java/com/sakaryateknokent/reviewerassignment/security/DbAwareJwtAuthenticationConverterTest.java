@@ -28,25 +28,22 @@ class DbAwareJwtAuthenticationConverterTest {
             new DbAwareJwtAuthenticationConverter(userRepository);
 
     @Test
-    void acceptsActiveUserWithMatchingVersionAndQueriesOnce() {
-        User user = user();
-        when(userRepository.findByEmail("user@example.com"))
-                .thenReturn(Optional.of(user));
+    void acceptsActiveUserWithMatchingVersionAndQueriesByIdOnce() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user()));
 
-        JwtAuthenticationToken authentication = convert(jwt(4L));
+        JwtAuthenticationToken authentication = convert(jwt("1", 4L));
 
         assertTrue(authentication.isAuthenticated());
-        verify(userRepository, times(1)).findByEmail("user@example.com");
+        verify(userRepository, times(1)).findById(1L);
     }
 
     @Test
     void usesCurrentDatabaseEmailAsAuthenticationName() {
         User user = user();
         user.setEmail("current@example.com");
-        when(userRepository.findByEmail("user@example.com"))
-                .thenReturn(Optional.of(user));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
-        JwtAuthenticationToken authentication = convert(jwt(4L));
+        JwtAuthenticationToken authentication = convert(jwt("1", 4L));
 
         assertEquals("current@example.com", authentication.getName());
     }
@@ -55,10 +52,9 @@ class DbAwareJwtAuthenticationConverterTest {
     void usesCurrentDatabaseRoleAsAuthority() {
         User user = user();
         user.setRole(Role.ADMIN);
-        when(userRepository.findByEmail("user@example.com"))
-                .thenReturn(Optional.of(user));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
-        JwtAuthenticationToken authentication = convert(jwt(4L));
+        JwtAuthenticationToken authentication = convert(jwt("1", 4L));
 
         assertEquals(
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN")),
@@ -67,79 +63,99 @@ class DbAwareJwtAuthenticationConverterTest {
     }
 
     @Test
-    void rejectsWhenUserDoesNotExist() {
-        when(userRepository.findByEmail("user@example.com"))
-                .thenReturn(Optional.empty());
+    void rejectsLegacyEmailSubject() {
+        assertRejected(jwt("user@example.com", 4L));
+    }
 
-        assertThrows(OAuth2AuthenticationException.class, () -> convert(jwt(4L)));
+    @Test
+    void rejectsMissingSubject() {
+        assertRejected(jwt(null, 4L));
+    }
+
+    @Test
+    void rejectsBlankSubject() {
+        assertRejected(jwt(" ", 4L));
+    }
+
+    @Test
+    void rejectsNonNumericSubject() {
+        assertRejected(jwt("not-an-id", 4L));
+    }
+
+    @Test
+    void rejectsInvalidUserIdSubject() {
+        assertRejected(jwt("0", 4L));
+    }
+
+    @Test
+    void rejectsWhenUserDoesNotExist() {
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertRejected(jwt("1", 4L));
     }
 
     @Test
     void rejectsInactiveUser() {
         User user = user();
         user.setActive(false);
-        when(userRepository.findByEmail("user@example.com"))
-                .thenReturn(Optional.of(user));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
-        assertThrows(OAuth2AuthenticationException.class, () -> convert(jwt(4L)));
+        assertRejected(jwt("1", 4L));
     }
 
     @Test
     void rejectsMissingTokenVersionClaim() {
-        when(userRepository.findByEmail("user@example.com"))
-                .thenReturn(Optional.of(user()));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user()));
 
-        assertThrows(
-                OAuth2AuthenticationException.class,
-                () -> convert(jwtWithoutTokenVersion())
-        );
+        assertRejected(jwt("1", null));
     }
 
     @Test
     void rejectsNonNumericTokenVersionClaim() {
-        when(userRepository.findByEmail("user@example.com"))
-                .thenReturn(Optional.of(user()));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user()));
 
-        assertThrows(
-                OAuth2AuthenticationException.class,
-                () -> convert(jwt("4"))
-        );
+        assertRejected(jwt("1", "4"));
     }
 
     @Test
     void rejectsMismatchedTokenVersion() {
-        when(userRepository.findByEmail("user@example.com"))
-                .thenReturn(Optional.of(user()));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user()));
 
-        assertThrows(OAuth2AuthenticationException.class, () -> convert(jwt(3L)));
+        assertRejected(jwt("1", 3L));
+    }
+
+    private void assertRejected(Jwt jwt) {
+        assertThrows(
+                OAuth2AuthenticationException.class,
+                () -> converter.convert(jwt)
+        );
     }
 
     private JwtAuthenticationToken convert(Jwt jwt) {
         return (JwtAuthenticationToken) converter.convert(jwt);
     }
 
-    private Jwt jwt(Object tokenVersion) {
-        return jwtBuilder()
-                .claim("tokenVersion", tokenVersion)
-                .build();
-    }
-
-    private Jwt jwtWithoutTokenVersion() {
-        return jwtBuilder().build();
-    }
-
-    private Jwt.Builder jwtBuilder() {
+    private Jwt jwt(String subject, Object tokenVersion) {
         Instant issuedAt = Instant.now();
-
-        return Jwt.withTokenValue("token")
+        Jwt.Builder builder = Jwt.withTokenValue("token")
                 .header("alg", "HS256")
-                .subject(" USER@EXAMPLE.COM ")
                 .issuedAt(issuedAt)
                 .expiresAt(issuedAt.plusSeconds(900));
+
+        if (subject != null) {
+            builder.subject(subject);
+        }
+
+        if (tokenVersion != null) {
+            builder.claim("tokenVersion", tokenVersion);
+        }
+
+        return builder.build();
     }
 
     private User user() {
         User user = new User();
+        user.setId(1L);
         user.setEmail("user@example.com");
         user.setRole(Role.USER);
         user.setActive(true);

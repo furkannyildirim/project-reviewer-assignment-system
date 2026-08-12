@@ -41,7 +41,7 @@ class JwtTokenServiceTest {
                 .thenReturn(encodedJwt);
         when(encodedJwt.getTokenValue()).thenReturn("encoded-token");
 
-        String token = service.generateToken(authentication, 7L);
+        String token = service.generateToken(authentication, 42L, 7L);
 
         ArgumentCaptor<JwtEncoderParameters> parametersCaptor =
                 ArgumentCaptor.forClass(JwtEncoderParameters.class);
@@ -49,7 +49,7 @@ class JwtTokenServiceTest {
         JwtClaimsSet claims = parametersCaptor.getValue().getClaims();
 
         assertEquals("encoded-token", token);
-        assertEquals("user@example.com", claims.getSubject());
+        assertEquals("42", claims.getSubject());
         assertEquals(List.of("USER"), claims.getClaim("roles"));
         Number tokenVersion = claims.getClaim("tokenVersion");
         assertEquals(7L, tokenVersion.longValue());

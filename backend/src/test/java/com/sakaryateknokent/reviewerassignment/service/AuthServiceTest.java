@@ -46,7 +46,7 @@ class AuthServiceTest {
                 .thenReturn(authentication);
         when(userRepository.findByEmail("user@example.com"))
                 .thenReturn(Optional.of(user));
-        when(jwtTokenService.generateToken(authentication, 7L))
+        when(jwtTokenService.generateToken(authentication, 1L, 7L))
                 .thenReturn("access-token");
         when(jwtTokenService.getAccessTokenExpirationSeconds())
                 .thenReturn(900L);
@@ -57,7 +57,7 @@ class AuthServiceTest {
 
         assertEquals("access-token", response.accessToken());
         assertEquals(900L, response.expiresIn());
-        verify(jwtTokenService).generateToken(authentication, 7L);
+        verify(jwtTokenService).generateToken(authentication, 1L, 7L);
     }
 
     @Test
@@ -76,6 +76,7 @@ class AuthServiceTest {
         );
         verify(jwtTokenService, never()).generateToken(
                 any(Authentication.class),
+                anyLong(),
                 anyLong()
         );
     }
