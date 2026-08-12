@@ -1,5 +1,6 @@
 package com.sakaryateknokent.reviewerassignment.config;
 
+import com.sakaryateknokent.reviewerassignment.security.DbAwareJwtAuthenticationConverter;
 import com.sakaryateknokent.reviewerassignment.security.JwtProperties;
 import com.sakaryateknokent.reviewerassignment.security.RestSecurityErrorHandler;
 import jakarta.servlet.DispatcherType;
@@ -14,8 +15,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -37,7 +36,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            JwtAuthenticationConverter jwtAuthenticationConverter,
+            DbAwareJwtAuthenticationConverter jwtAuthenticationConverter,
             RestSecurityErrorHandler restSecurityErrorHandler
     ) throws Exception {
 
@@ -52,6 +51,10 @@ public class SecurityConfig {
                                 HttpMethod.POST,
                                 "/api/auth/login"
                         ).permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/auth/me"
+                        ).authenticated()
                         .requestMatchers(
                                 "/api/admin/profile",
                                 "/api/admin/profile/**"
@@ -87,23 +90,4 @@ public class SecurityConfig {
 
         return http.build();
     }
-
-    @Bean
-    public JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter rolesConverter =
-                new JwtGrantedAuthoritiesConverter();
-
-        rolesConverter.setAuthoritiesClaimName("roles");
-        rolesConverter.setAuthorityPrefix("ROLE_");
-
-        JwtAuthenticationConverter authenticationConverter =
-                new JwtAuthenticationConverter();
-
-        authenticationConverter.setJwtGrantedAuthoritiesConverter(
-                rolesConverter
-        );
-
-        return authenticationConverter;
-    }
-
 }

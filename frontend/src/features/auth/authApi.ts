@@ -1,5 +1,9 @@
 import { httpClient } from '../../api/httpClient';
-import type { LoginCredentials, LoginResponse } from './auth.types';
+import type {
+    CurrentUserResponse,
+    LoginCredentials,
+    LoginResponse,
+} from './auth.types';
 
 export async function loginRequest(
     credentials: LoginCredentials,
@@ -8,6 +12,12 @@ export async function loginRequest(
         '/auth/login',
         credentials,
     );
+
+    return response.data;
+}
+
+export async function getCurrentUser(): Promise<CurrentUserResponse> {
+    const response = await httpClient.get<CurrentUserResponse>('/auth/me');
 
     return response.data;
 }

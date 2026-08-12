@@ -68,8 +68,10 @@ public class UserService {
     public UserResponse updateUser(Long id, UpdateUserRequest request) {
         User user = findNormalUserById(id);
         String normalizedEmail = normalizeEmail(request.email());
+        boolean emailChanged = !user.getEmail().equals(normalizedEmail);
+        boolean activeChanged = user.isActive() != request.active();
 
-        if (!user.getEmail().equals(normalizedEmail)) {
+        if (emailChanged) {
             ensureEmailIsAvailable(
                     normalizedEmail,
                     "Bu e-posta adresiyle kayıtlı başka bir kullanıcı zaten var"
@@ -81,6 +83,10 @@ public class UserService {
         user.setEmail(normalizedEmail);
         user.setPhone(request.phone().trim());
         user.setActive(request.active());
+
+        if (emailChanged || activeChanged) {
+            incrementTokenVersion(user);
+        }
 
         return toResponse(user);
     }
@@ -105,6 +111,10 @@ public class UserService {
         if (userRepository.existsByEmail(email)) {
             throw new DuplicateResourceException(errorMessage);
         }
+    }
+
+    private void incrementTokenVersion(User user) {
+        user.setTokenVersion(user.getTokenVersion() + 1);
     }
 
     private UserResponse toResponse(User user) {

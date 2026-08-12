@@ -61,6 +61,11 @@ public class AdminProfileService {
         }
 
         admin.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        incrementTokenVersion(admin);
+    }
+
+    private void incrementTokenVersion(User user) {
+        user.setTokenVersion(user.getTokenVersion() + 1);
     }
 
     private User findAuthenticatedAdmin(String authenticatedEmail) {
