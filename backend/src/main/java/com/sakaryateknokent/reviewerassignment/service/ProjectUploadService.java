@@ -11,6 +11,7 @@ import com.sakaryateknokent.reviewerassignment.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.io.InputStream;
 import java.io.IOException;
@@ -18,6 +19,7 @@ import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Optional;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
@@ -119,6 +121,32 @@ public class ProjectUploadService {
         upload.setStatus(ProjectUploadStatus.CONSUMED);
         upload.setConsumedAt(clock.instant());
         return toInfo(projectUploadRepository.saveAndFlush(upload));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    Optional<ExpiredProjectUpload> claimExpiredUploadForCleanup(
+            UUID uploadId,
+            Instant now
+    ) {
+        return projectUploadRepository.findById(uploadId)
+                .flatMap(upload -> {
+                    if (ProjectUploadStatus.PENDING.equals(upload.getStatus())) {
+                        if (!upload.getExpiresAt().isBefore(now)) {
+                            return Optional.empty();
+                        }
+                        upload.setStatus(ProjectUploadStatus.EXPIRED);
+                        projectUploadRepository.saveAndFlush(upload);
+                    } else if (!ProjectUploadStatus.EXPIRED.equals(upload.getStatus())) {
+                        return Optional.empty();
+                    }
+                    return Optional.of(new ExpiredProjectUpload(
+                            upload.getId(), upload.getStorageKey()));
+                });
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    void deleteExpiredUpload(UUID uploadId) {
+        projectUploadRepository.deleteExpiredById(uploadId);
     }
 
     private ProjectUpload findUsableUpload(UUID uploadId, String currentUserEmail) {

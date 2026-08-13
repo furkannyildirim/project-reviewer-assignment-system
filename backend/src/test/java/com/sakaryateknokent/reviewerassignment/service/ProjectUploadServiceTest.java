@@ -140,6 +140,39 @@ class ProjectUploadServiceTest {
     }
 
     @Test
+    void claimsOnlyExpiredPendingUploadForCleanupUsingOptimisticVersionedSave() {
+        UUID uploadId = UUID.randomUUID();
+        ProjectUpload upload = upload(uploadId, "owner@example.com",
+                ProjectUploadStatus.PENDING, NOW.minusSeconds(1));
+        when(uploadRepository.findById(uploadId)).thenReturn(Optional.of(upload));
+        when(uploadRepository.saveAndFlush(upload)).thenReturn(upload);
+
+        Optional<ExpiredProjectUpload> claimed = uploadService.claimExpiredUploadForCleanup(
+                uploadId, NOW);
+
+        assertEquals(ProjectUploadStatus.EXPIRED, upload.getStatus());
+        assertEquals(uploadId, claimed.orElseThrow().uploadId());
+        assertEquals("temporary/file.pdf", claimed.orElseThrow().storageKey());
+        verify(uploadRepository).saveAndFlush(upload);
+    }
+
+    @Test
+    void doesNotClaimConsumedOrNotYetExpiredUploadForCleanup() {
+        UUID consumedId = UUID.randomUUID();
+        UUID validId = UUID.randomUUID();
+        when(uploadRepository.findById(consumedId)).thenReturn(Optional.of(upload(
+                consumedId, "owner@example.com", ProjectUploadStatus.CONSUMED,
+                NOW.minusSeconds(1))));
+        when(uploadRepository.findById(validId)).thenReturn(Optional.of(upload(
+                validId, "owner@example.com", ProjectUploadStatus.PENDING,
+                NOW.plusSeconds(1))));
+
+        assertEquals(Optional.empty(), uploadService.claimExpiredUploadForCleanup(consumedId, NOW));
+        assertEquals(Optional.empty(), uploadService.claimExpiredUploadForCleanup(validId, NOW));
+        verify(uploadRepository, never()).saveAndFlush(any(ProjectUpload.class));
+    }
+
+    @Test
     void doesNotStoreFileForUnknownUser() {
         when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
 
