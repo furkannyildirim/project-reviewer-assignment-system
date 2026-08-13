@@ -80,7 +80,8 @@ export function AppLayout() {
         '/users',
         '/projects',
     ].includes(location.pathname)
-        || location.pathname.startsWith('/companies/');
+        || location.pathname.startsWith('/companies/')
+        || location.pathname.startsWith('/projects/');
 
     const visibleNavigationItems = navigationItems.filter(
         (item) => !item.adminOnly || role === 'ADMIN',

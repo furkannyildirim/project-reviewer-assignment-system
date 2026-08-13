@@ -127,6 +127,14 @@ public class ProjectFileStorageService {
         return openFile(file);
     }
 
+    public InputStream loadProjectFile(String storageKey) {
+        Path file = resolveStorageKey(storageKey);
+        if (!file.startsWith(projectsRoot)) {
+            throw new InvalidRequestException("Proje dosyasi anahtari gecersiz");
+        }
+        return openFile(file);
+    }
+
     private InputStream openFile(Path file) {
         if (!Files.isRegularFile(file)) {
             throw new ResourceNotFoundException("Proje dosyasi bulunamadi");

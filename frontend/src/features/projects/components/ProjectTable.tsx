@@ -13,7 +13,9 @@ import {
     TableRow,
     Tooltip,
     Typography,
+    IconButton,
 } from '@mui/material';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import type { PageResponse } from '../../../types/api';
 import type { ProjectListItem, ProjectStatus } from '../project.types';
 
@@ -24,6 +26,7 @@ type ProjectTableProps = {
     isLoading: boolean;
     onPageChange: (page: number) => void;
     onSizeChange: (size: number) => void;
+    onView: (project: ProjectListItem) => void;
 };
 
 const statusPresentation: Record<ProjectStatus, { label: string; sx: object }> = {
@@ -88,6 +91,7 @@ export function ProjectTable({
     isLoading,
     onPageChange,
     onSizeChange,
+    onView,
 }: ProjectTableProps) {
     const projects = data?.content ?? [];
     const totalElements = data?.totalElements ?? 0;
@@ -116,6 +120,7 @@ export function ProjectTable({
                             <TableCell>Başlangıç – Bitiş</TableCell>
                             <TableCell>Durum</TableCell>
                             <TableCell>Aktif hakem</TableCell>
+                            <TableCell align="right">İşlemler</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -164,6 +169,21 @@ export function ProjectTable({
                                         {project.activeReviewerCount === 0
                                             ? 'Atanmadı'
                                             : `${project.activeReviewerCount} hakem`}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                        <Tooltip title="Görüntüle">
+                                            <IconButton
+                                                aria-label={`${project.name} projesini görüntüle`}
+                                                onClick={() => onView(project)}
+                                                size="small"
+                                                sx={{
+                                                    color: '#526273',
+                                                    '&:hover': { bgcolor: '#F2F7FA', color: '#2A2B61' },
+                                                }}
+                                            >
+                                                <VisibilityOutlinedIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
                                     </TableCell>
                                 </TableRow>
                             );

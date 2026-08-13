@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Alert, Box, Button, Skeleton, Snackbar, Stack } from '@mui/material';
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import NoteAddOutlinedIcon from '@mui/icons-material/NoteAddOutlined';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ResultSummary } from '../../components/common/ResultSummary';
@@ -11,6 +12,7 @@ import { ProjectTable } from './components/ProjectTable';
 import { ProjectUploadDialog } from './components/ProjectUploadDialog';
 
 export function ProjectsPage() {
+    const navigate = useNavigate();
     const [page, setPage] = useState(0);
     const [size, setSize] = useState(10);
     const [isUploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -116,6 +118,7 @@ export function ProjectsPage() {
                         setSize(nextSize);
                         setPage(0);
                     }}
+                    onView={(project) => navigate(`/projects/${project.id}`)}
                 />
             )}
             <ProjectUploadDialog

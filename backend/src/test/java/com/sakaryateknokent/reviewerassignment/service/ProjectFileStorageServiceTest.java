@@ -103,6 +103,21 @@ class ProjectFileStorageServiceTest {
     }
 
     @Test
+    void projectFileLoaderAcceptsOnlyPermanentProjectsArea() throws Exception {
+        ProjectFileStorageService service = service(4096);
+        StoredProjectFile temporary = service.storeTemporary("proposal.pdf",
+                new ByteArrayInputStream(pdfBytes()));
+
+        assertThrows(InvalidRequestException.class,
+                () -> service.loadProjectFile(temporary.storageKey()));
+
+        StoredProjectFile permanent = service.moveTemporaryToProjects(temporary);
+        try (InputStream loaded = service.loadProjectFile(permanent.storageKey())) {
+            assertArrayEquals(pdfBytes(), loaded.readAllBytes());
+        }
+    }
+
+    @Test
     void rejectsInvalidStorageKeyAndTraversal() {
         ProjectFileStorageService service = service(4096);
 

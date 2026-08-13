@@ -7,4 +7,5 @@ export const projectQueryKeys = {
         'list',
         params,
     ] as const,
+    detail: (id: number) => [...projectQueryKeys.all, 'detail', id] as const,
 };
