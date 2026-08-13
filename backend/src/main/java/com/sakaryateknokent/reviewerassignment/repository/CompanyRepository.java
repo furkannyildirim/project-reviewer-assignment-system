@@ -37,6 +37,14 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
             @Param("companyType") CompanyType companyType
     );
 
+    @Query("""
+            SELECT company.id AS id,
+                   company.name AS name,
+                   company.companyType AS companyType
+            FROM Company company
+            """)
+    List<CompanyMatchCandidateProjection> findAllMatchCandidates();
+
     @EntityGraph(attributePaths = "contactMethods")
     @Query("""
             SELECT DISTINCT company

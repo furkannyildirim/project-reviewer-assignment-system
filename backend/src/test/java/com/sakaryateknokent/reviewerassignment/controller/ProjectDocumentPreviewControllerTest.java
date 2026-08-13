@@ -77,7 +77,7 @@ class ProjectDocumentPreviewControllerTest {
                 LocalDate.of(2026, 1, 1), 3, LocalDate.of(2026, 4, 1),
                 "Ar-Ge", "Yazılım", "Özet", "Ar-Ge", "Yenilik",
                 "Finans Teknolojileri", "Detay", List.of("Yapay Zekâ"),
-                List.of(ProjectFormField.COMPANY_NAME), List.of(), List.of()
+                List.of(ProjectFormField.COMPANY_NAME), List.of(), List.of(), null
         );
     }
 

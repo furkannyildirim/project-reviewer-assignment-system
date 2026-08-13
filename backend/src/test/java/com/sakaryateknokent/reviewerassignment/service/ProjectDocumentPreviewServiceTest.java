@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.ProjectDocumentPreviewResponse;
+import com.sakaryateknokent.reviewerassignment.enums.ProjectCompanyMatchStatus;
 import com.sakaryateknokent.reviewerassignment.enums.ProjectFormField;
 import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import org.junit.jupiter.api.Test;
@@ -33,9 +34,12 @@ class ProjectDocumentPreviewServiceTest {
     private final ProjectDocumentTextExtractionService extractionService =
             mock(ProjectDocumentTextExtractionService.class);
     private final ProjectFormParserService parserService = mock(ProjectFormParserService.class);
+    private final ProjectCompanyMatchingService companyMatchingService =
+            mock(ProjectCompanyMatchingService.class);
     private final ProjectDocumentPreviewService previewService =
             new ProjectDocumentPreviewService(
-                    uploadService, extractionService, parserService);
+                    uploadService, extractionService, parserService,
+                    companyMatchingService);
 
     @Test
     void sendsUsableUploadThroughExtractionAndParserAndMapsSafeResponse() {
@@ -53,6 +57,7 @@ class ProjectDocumentPreviewServiceTest {
                 .thenReturn(new OpenedProjectUpload(metadata, stream));
         when(extractionService.extract(stream, metadata.contentType())).thenReturn(extracted);
         when(parserService.parse(extracted)).thenReturn(parsed);
+        when(companyMatchingService.match(parsed.companyName())).thenReturn(uniqueMatch());
 
         ProjectDocumentPreviewResponse response = previewService.preview(
                 uploadId, "owner@example.com");
@@ -66,11 +71,15 @@ class ProjectDocumentPreviewServiceTest {
         assertEquals(List.of(ProjectFormField.COMPANY_NAME,
                 ProjectFormField.PROJECT_MANAGER), response.missingFields());
         assertEquals(List.of(ProjectFormField.SECTOR), response.reviewRequiredFields());
+        assertEquals(ProjectCompanyMatchStatus.UNIQUE_MATCH,
+                response.companyMatch().status());
+        assertEquals(42L, response.companyMatch().matchedCompany().id());
         assertEquals(List.of("Şirket bilgisi tamamlanmalı"), response.warnings());
         assertTrue(stream.closed);
         verify(uploadService).openUsableUpload(uploadId, "owner@example.com");
         verify(extractionService).extract(stream, metadata.contentType());
         verify(parserService).parse(extracted);
+        verify(companyMatchingService).match(parsed.companyName());
     }
 
     @Test
@@ -86,6 +95,7 @@ class ProjectDocumentPreviewServiceTest {
         when(parserService.parse(extracted)).thenReturn(parsed(
                 null, 12, linkedSet(ProjectFormField.START_DATE),
                 linkedSet(), List.of()));
+        when(companyMatchingService.match("Örnek Şirket")).thenReturn(notFoundMatch());
 
         ProjectDocumentPreviewResponse response = previewService.preview(
                 uploadId, "owner@example.com");
@@ -142,6 +152,7 @@ class ProjectDocumentPreviewServiceTest {
         when(extractionService.extract(stream, metadata.contentType())).thenReturn(extracted);
         when(parserService.parse(extracted)).thenReturn(parsed(
                 LocalDate.of(2026, 1, 1), 1, linkedSet(), linkedSet(), List.of()));
+        when(companyMatchingService.match("Örnek Şirket")).thenReturn(notFoundMatch());
 
         previewService.preview(uploadId, "owner@example.com");
 
@@ -155,12 +166,31 @@ class ProjectDocumentPreviewServiceTest {
         assertFalse(fields.contains("path"));
         assertFalse(fields.contains("uploadedBy"));
         assertFalse(fields.contains("extractedText"));
+        assertEquals(List.of("id", "name", "companyType"), Arrays.stream(
+                        com.sakaryateknokent.reviewerassignment.dto
+                                .ProjectCompanyCandidateResponse.class.getRecordComponents())
+                .map(component -> component.getName())
+                .toList());
     }
 
     private ProjectUploadInfo metadata(UUID uploadId) {
         return new ProjectUploadInfo(uploadId, "project.docx",
                 ProjectDocumentTextExtractionService.DOCX_CONTENT_TYPE, 2048,
                 Instant.parse("2026-08-14T10:00:00Z"));
+    }
+
+    private ProjectCompanyMatchResult notFoundMatch() {
+        return new ProjectCompanyMatchResult(
+                ProjectCompanyMatchStatus.NOT_FOUND, null, List.of(),
+                "Firma sistemde bulunamadı; önce şirket kaydı oluşturmanız gerekiyor.");
+    }
+
+    private ProjectCompanyMatchResult uniqueMatch() {
+        return new ProjectCompanyMatchResult(
+                ProjectCompanyMatchStatus.UNIQUE_MATCH,
+                new ProjectCompanyMatchCandidate(42L, "Örnek Şirket",
+                        com.sakaryateknokent.reviewerassignment.enums.CompanyType.TGB),
+                List.of(), "Firma sistemdeki bir şirketle eşleşti.");
     }
 
     private ParsedProjectForm parsed(

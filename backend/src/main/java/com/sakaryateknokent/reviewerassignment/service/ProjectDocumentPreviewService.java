@@ -1,6 +1,8 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.ProjectDocumentPreviewResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ProjectCompanyCandidateResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ProjectCompanyMatchResponse;
 import com.sakaryateknokent.reviewerassignment.enums.ProjectFormField;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,7 @@ public class ProjectDocumentPreviewService {
     private final ProjectUploadService projectUploadService;
     private final ProjectDocumentTextExtractionService textExtractionService;
     private final ProjectFormParserService formParserService;
+    private final ProjectCompanyMatchingService projectCompanyMatchingService;
 
     public ProjectDocumentPreviewResponse preview(
             UUID uploadId,
@@ -51,8 +54,31 @@ public class ProjectDocumentPreviewService {
                 parsed.mainTechnologyArea(), parsed.projectDetail(),
                 List.copyOf(parsed.keywords()), orderedFields(parsed.missingFields()),
                 orderedFields(parsed.reviewRequiredFields()),
-                List.copyOf(parsed.warnings())
+                List.copyOf(parsed.warnings()),
+                toCompanyMatchResponse(projectCompanyMatchingService.match(
+                        parsed.companyName()))
         );
+    }
+
+    private ProjectCompanyMatchResponse toCompanyMatchResponse(
+            ProjectCompanyMatchResult result
+    ) {
+        return new ProjectCompanyMatchResponse(
+                result.status(), toCandidateResponse(result.matchedCompany()),
+                result.candidates().stream()
+                        .map(this::toCandidateResponse)
+                        .toList(),
+                result.message());
+    }
+
+    private ProjectCompanyCandidateResponse toCandidateResponse(
+            ProjectCompanyMatchCandidate candidate
+    ) {
+        if (candidate == null) {
+            return null;
+        }
+        return new ProjectCompanyCandidateResponse(
+                candidate.id(), candidate.name(), candidate.companyType());
     }
 
     private List<ProjectFormField> orderedFields(

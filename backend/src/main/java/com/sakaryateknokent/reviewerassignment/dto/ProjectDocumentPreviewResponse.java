@@ -30,6 +30,7 @@ public record ProjectDocumentPreviewResponse(
         List<String> keywords,
         List<ProjectFormField> missingFields,
         List<ProjectFormField> reviewRequiredFields,
-        List<String> warnings
+        List<String> warnings,
+        ProjectCompanyMatchResponse companyMatch
 ) {
 }
