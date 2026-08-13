@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -134,7 +135,7 @@ class ProjectFileStorageServiceTest {
 
     private ProjectFileStorageService service(long maxBytes) {
         return new ProjectFileStorageService(new ProjectFileStorageProperties(
-                storageRoot, DataSize.ofBytes(maxBytes)));
+                storageRoot, DataSize.ofBytes(maxBytes), Duration.ofHours(24)));
     }
 
     private byte[] pdfBytes() {

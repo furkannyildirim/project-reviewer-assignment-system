@@ -6,11 +6,13 @@ import org.springframework.util.unit.DataSize;
 import org.springframework.validation.annotation.Validated;
 
 import java.nio.file.Path;
+import java.time.Duration;
 
 @Validated
 @ConfigurationProperties(prefix = "project.file.storage")
 public record ProjectFileStorageProperties(
         @NotNull Path path,
-        @NotNull DataSize maxSize
+        @NotNull DataSize maxSize,
+        @NotNull Duration uploadTtl
 ) {
 }
