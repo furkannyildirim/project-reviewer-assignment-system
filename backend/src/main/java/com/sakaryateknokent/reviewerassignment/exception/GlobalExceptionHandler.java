@@ -11,6 +11,8 @@ import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.security.core.AuthenticationException;
 
 import java.time.Instant;
@@ -140,6 +142,32 @@ public class GlobalExceptionHandler {
                 exception.getMessage(),
                 request.getRequestURI(),
                 Map.of()
+        );
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingMultipartFile(
+            MissingServletRequestPartException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "Dosya parametresi zorunludur",
+                request.getRequestURI(),
+                Map.of("file", "Dosya parametresi zorunludur")
+        );
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "Dosya boyutu izin verilen limiti asiyor",
+                request.getRequestURI(),
+                Map.of("file", "Dosya boyutu izin verilen limiti asiyor")
         );
     }
 

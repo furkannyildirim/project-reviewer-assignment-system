@@ -13,9 +13,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.InputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +33,24 @@ public class ProjectUploadService {
     private final ProjectFileStorageService fileStorageService;
     private final ProjectFileStorageProperties storageProperties;
     private final Clock clock;
+
+    public ProjectUploadInfo createTemporaryUpload(
+            MultipartFile file,
+            String currentUserEmail
+    ) {
+        if (file == null) {
+            throw new InvalidRequestException("Dosya zorunludur");
+        }
+        try {
+            return createTemporaryUpload(
+                    file.getOriginalFilename(),
+                    file.getInputStream(),
+                    currentUserEmail
+            );
+        } catch (IOException exception) {
+            throw new UncheckedIOException("Dosya okunamadi", exception);
+        }
+    }
 
     public ProjectUploadInfo createTemporaryUpload(
             String originalFileName,
