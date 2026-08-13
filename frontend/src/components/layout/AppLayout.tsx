@@ -23,6 +23,7 @@ import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
+import TopicOutlinedIcon from '@mui/icons-material/TopicOutlined';
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../features/auth/useAuth';
@@ -42,6 +43,11 @@ const navigationItems: NavigationItem[] = [
         label: 'Akademisyenler',
         path: '/academicians',
         icon: <SchoolOutlinedIcon />,
+    },
+    {
+        label: 'Projeler',
+        path: '/projects',
+        icon: <TopicOutlinedIcon />,
     },
     {
         label: 'TGB Şirketleri',
@@ -72,6 +78,7 @@ export function AppLayout() {
         '/academicians',
         '/profile',
         '/users',
+        '/projects',
     ].includes(location.pathname)
         || location.pathname.startsWith('/companies/');
 

@@ -6,6 +6,7 @@ import { useAuth } from '../features/auth/useAuth';
 import { CompaniesPage } from '../features/companies/CompaniesPage';
 import { CompanyDetailPage } from '../features/companies/CompanyDetailPage';
 import { AdminProfilePage } from '../features/profile/AdminProfilePage';
+import { ProjectsPage } from '../features/projects/ProjectsPage';
 import { UsersPage } from '../features/users/UsersPage';
 import { AdminRoute } from './AdminRoute';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -44,6 +45,7 @@ export function AppRoutes() {
                         path="/academicians"
                         element={<AcademiciansPage />}
                     />
+                    <Route path="/projects" element={<ProjectsPage />} />
                     <Route
                         path="/companies"
                         element={<Navigate to="/companies/tgb" replace />}
