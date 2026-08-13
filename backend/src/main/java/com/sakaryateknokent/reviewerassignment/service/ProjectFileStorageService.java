@@ -86,6 +86,34 @@ public class ProjectFileStorageService {
                 temporaryFile.fileSize());
     }
 
+    public StoredProjectFile copyTemporaryToProjects(StoredProjectFile temporaryFile) {
+        Path source = resolveStorageKey(temporaryFile.storageKey());
+        if (!source.startsWith(temporaryRoot) || !Files.isRegularFile(source)) {
+            throw new ResourceNotFoundException("Gecici proje dosyasi bulunamadi");
+        }
+        UUID fileId = UUID.randomUUID();
+        String permanentKey = PROJECTS_AREA + "/" + fileId + "."
+                + extensionOf(temporaryFile.storageKey());
+        Path target = resolveStorageKey(permanentKey);
+        try {
+            Files.copy(source, target);
+        } catch (IOException exception) {
+            deleteQuietly(target);
+            throw new UncheckedIOException("Proje dosyasi kopyalanamadi", exception);
+        }
+        return new StoredProjectFile(fileId, permanentKey,
+                temporaryFile.originalFileName(), temporaryFile.contentType(),
+                temporaryFile.fileSize());
+    }
+
+    public void deleteTemporary(String storageKey) {
+        deleteFromArea(storageKey, temporaryRoot);
+    }
+
+    public void deleteProjectFile(String storageKey) {
+        deleteFromArea(storageKey, projectsRoot);
+    }
+
     public InputStream load(String storageKey) {
         Path file = resolveStorageKey(storageKey);
         return openFile(file);
@@ -116,6 +144,18 @@ public class ProjectFileStorageService {
             if (!Files.deleteIfExists(file)) {
                 throw new ResourceNotFoundException("Proje dosyasi bulunamadi");
             }
+        } catch (IOException exception) {
+            throw new UncheckedIOException("Proje dosyasi silinemedi", exception);
+        }
+    }
+
+    private void deleteFromArea(String storageKey, Path allowedRoot) {
+        Path file = resolveStorageKey(storageKey);
+        if (!file.startsWith(allowedRoot)) {
+            throw new InvalidRequestException("Dosya anahtari gecersiz");
+        }
+        try {
+            Files.deleteIfExists(file);
         } catch (IOException exception) {
             throw new UncheckedIOException("Proje dosyasi silinemedi", exception);
         }

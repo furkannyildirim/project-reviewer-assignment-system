@@ -1,10 +1,12 @@
 package com.sakaryateknokent.reviewerassignment.controller;
 
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
+import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.service.ProjectService;
+import com.sakaryateknokent.reviewerassignment.service.ProjectCreationFromUploadService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,6 +31,7 @@ public class ProjectController {
     private static final String ADMIN_AUTHORITY = "ROLE_ADMIN";
 
     private final ProjectService projectService;
+    private final ProjectCreationFromUploadService projectCreationFromUploadService;
 
     @PostMapping
     public ResponseEntity<ProjectResponse> createProject(
@@ -37,6 +40,16 @@ public class ProjectController {
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 projectService.createProject(request, authentication.getName())
+        );
+    }
+
+    @PostMapping("/from-upload")
+    public ResponseEntity<ProjectResponse> createProjectFromUpload(
+            @Valid @RequestBody CreateProjectFromUploadRequest request,
+            Authentication authentication
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                projectCreationFromUploadService.create(request, authentication.getName())
         );
     }
 

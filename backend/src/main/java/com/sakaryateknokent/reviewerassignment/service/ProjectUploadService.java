@@ -94,6 +94,16 @@ public class ProjectUploadService {
         return toInfo(findUsableUpload(uploadId, currentUserEmail));
     }
 
+    UsableProjectUpload getUsableUploadForCreation(
+            UUID uploadId,
+            String currentUserEmail
+    ) {
+        ProjectUpload upload = findUsableUpload(uploadId, currentUserEmail);
+        return new UsableProjectUpload(upload.getId(), upload.getStorageKey(),
+                upload.getOriginalFileName(), upload.getContentType(),
+                upload.getFileSize(), upload.getExpiresAt());
+    }
+
     @Transactional(readOnly = true)
     public OpenedProjectUpload openUsableUpload(
             UUID uploadId,

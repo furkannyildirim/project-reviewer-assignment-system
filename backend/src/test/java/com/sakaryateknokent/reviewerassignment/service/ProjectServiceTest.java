@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
+import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.entity.Company;
@@ -23,6 +24,7 @@ import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -97,6 +99,38 @@ class ProjectServiceTest {
                 "user@example.com");
 
         assertEquals(Set.of("AI", "Robotik"), response.keywords());
+    }
+
+    @Test
+    void createsFromUploadWithAwaitingReviewerStatusVerifiedMetadataAndNormalizedKeywords() {
+        Company company = company(3L);
+        User user = user(7L, "Ayse", "Yilmaz");
+        StoredProjectFile storedFile = new StoredProjectFile(UUID.randomUUID(),
+                "projects/11111111-1111-1111-1111-111111111111.pdf",
+                "onayli-kaynak.pdf", "application/pdf", 2048);
+        when(projectRepository.saveAndFlush(any(Project.class))).thenAnswer(i -> {
+            Project project = i.getArgument(0);
+            project.setId(15L);
+            return project;
+        });
+
+        ProjectResponse response = projectService.createProjectFromUpload(
+                new CreateProjectFromUploadRequest(UUID.randomUUID(), company.getId(),
+                        " Onayli Proje ", null, LocalDate.of(2026, 1, 31), 1,
+                        null, null, null, null, null, null, null,
+                        new LinkedHashSet<>(Set.of(" AI ", "ai", " ", "Robotik "))),
+                company, user, storedFile);
+
+        Project saved = savedProject();
+        assertEquals(ProjectStatus.AWAITING_REVIEWER, saved.getStatus());
+        assertEquals(LocalDate.of(2026, 2, 28), saved.getEndDate());
+        assertEquals(Set.of("AI", "Robotik"), saved.getKeywords());
+        assertEquals(storedFile.fileId(), saved.getSourceFileId());
+        assertEquals(storedFile.originalFileName(), saved.getOriginalFileName());
+        assertEquals(storedFile.storageKey(), saved.getStorageKey());
+        assertEquals(storedFile.contentType(), saved.getContentType());
+        assertEquals(storedFile.fileSize(), saved.getFileSize());
+        assertEquals(ProjectStatus.AWAITING_REVIEWER, response.status());
     }
 
     @Test

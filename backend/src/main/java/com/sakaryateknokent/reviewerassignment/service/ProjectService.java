@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
+import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
@@ -23,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -55,6 +57,34 @@ public class ProjectService {
         apply(project, request);
 
         return toResponse(projectRepository.saveAndFlush(project));
+    }
+
+    ProjectResponse createProjectFromUpload(
+            CreateProjectFromUploadRequest request,
+            Company company,
+            User createdBy,
+            StoredProjectFile storedFile
+    ) {
+        Project project = new Project();
+        project.setCompany(company);
+        project.setCreatedBy(createdBy);
+        project.setStatus(ProjectStatus.AWAITING_REVIEWER);
+        apply(project, request);
+        project.setSourceFileId(storedFile.fileId());
+        project.setOriginalFileName(storedFile.originalFileName());
+        project.setStorageKey(storedFile.storageKey());
+        project.setContentType(storedFile.contentType());
+        project.setFileSize(storedFile.fileSize());
+        return toResponse(projectRepository.saveAndFlush(project));
+    }
+
+    Company findCompanyForProject(Long companyId) {
+        return findCompany(companyId);
+    }
+
+    User findUserForProject(String currentUserEmail) {
+        return userRepository.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("Kullanici bulunamadi"));
     }
 
     @Transactional(readOnly = true)
@@ -137,6 +167,22 @@ public class ProjectService {
         replaceKeywords(project, request.keywords());
     }
 
+    private void apply(Project project, CreateProjectFromUploadRequest request) {
+        project.setName(request.name().trim());
+        project.setProjectManager(normalizeOptionalText(request.projectManager()));
+        project.setStartDate(request.startDate());
+        project.setDurationMonths(request.durationMonths());
+        project.setEndDate(request.startDate().plusMonths(request.durationMonths()));
+        project.setCategory(normalizeOptionalText(request.category()));
+        project.setSector(normalizeOptionalText(request.sector()));
+        project.setSummary(normalizeOptionalText(request.summary()));
+        project.setResearchAndDevelopmentNature(normalizeOptionalText(request.researchAndDevelopmentNature()));
+        project.setInnovativeAspect(normalizeOptionalText(request.innovativeAspect()));
+        project.setMainTechnologyArea(normalizeOptionalText(request.mainTechnologyArea()));
+        project.setProjectDetail(normalizeOptionalText(request.projectDetail()));
+        replaceKeywords(project, request.keywords());
+    }
+
     private void replaceKeywords(Project project, Set<String> keywords) {
         project.getKeywords().clear();
         project.getKeywords().addAll(normalizeKeywords(keywords));
@@ -148,12 +194,16 @@ public class ProjectService {
         }
         Set<String> normalized = new LinkedHashSet<>();
         Set<String> canonical = new LinkedHashSet<>();
-        for (String keyword : keywords) {
-            String trimmed = normalizeOptionalText(keyword);
-            if (trimmed != null && canonical.add(trimmed.toLowerCase(Locale.ROOT))) {
-                normalized.add(trimmed);
-            }
-        }
+        keywords.stream()
+                .map(this::normalizeOptionalText)
+                .filter(java.util.Objects::nonNull)
+                .sorted(String.CASE_INSENSITIVE_ORDER
+                        .thenComparing(Comparator.naturalOrder()))
+                .forEach(trimmed -> {
+                    if (canonical.add(trimmed.toLowerCase(Locale.ROOT))) {
+                        normalized.add(trimmed);
+                    }
+                });
         return normalized;
     }
 
