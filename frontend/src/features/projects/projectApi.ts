@@ -5,6 +5,8 @@ import type {
     ProjectPageParams,
     ProjectDocumentPreviewResponse,
     ProjectUploadResponse,
+    CreateProjectFromUploadRequest,
+    ProjectResponse,
 } from './project.types';
 
 export async function getProjects(
@@ -42,6 +44,17 @@ export async function uploadProjectDocument(
     const response = await httpClient.post<ProjectUploadResponse>(
         '/projects/uploads',
         formData,
+    );
+
+    return response.data;
+}
+
+export async function createProjectFromUpload(
+    request: CreateProjectFromUploadRequest,
+): Promise<ProjectResponse> {
+    const response = await httpClient.post<ProjectResponse>(
+        '/projects/from-upload',
+        request,
     );
 
     return response.data;

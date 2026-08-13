@@ -21,6 +21,8 @@ type ProjectCompanySelectionProps = {
     match: ProjectCompanyMatch;
     selectedCompanyId: number | null;
     onSelect: (companyId: number | null) => void;
+    error?: string;
+    disabled: boolean;
 };
 
 function typeLabel(type: CompanyType) {
@@ -43,6 +45,8 @@ export function ProjectCompanySelection({
     match,
     selectedCompanyId,
     onSelect,
+    error,
+    disabled,
 }: ProjectCompanySelectionProps) {
     const [searchOpen, setSearchOpen] = useState(false);
     const [search, setSearch] = useState('');
@@ -80,8 +84,6 @@ export function ProjectCompanySelection({
             : null);
     const isSearching = queryTgb.isFetching || queryExternal.isFetching;
     const searchError = queryTgb.error ?? queryExternal.error;
-    const showSearch = searchOpen
-        || (!selectedCompany && initialCandidates.length === 0);
 
     useEffect(() => {
         if (selectedCompanyId === null) {
@@ -121,7 +123,7 @@ export function ProjectCompanySelection({
                         </Box>
                         <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
                             <Chip label="Seçili şirket" size="small" sx={{ bgcolor: '#DDF3FA', color: '#187A9C' }} />
-                            <Button onClick={openSearch} size="small" sx={{ color: '#526273', minWidth: 0 }}>
+                            <Button disabled={disabled} onClick={openSearch} size="small" sx={{ color: '#526273', minWidth: 0 }}>
                                 Değiştir
                             </Button>
                         </Stack>
@@ -136,6 +138,7 @@ export function ProjectCompanySelection({
                     {initialCandidates.map((candidate) => (
                         <Button
                             key={candidate.id}
+                            disabled={disabled}
                             onClick={() => selectCompany(candidate)}
                             sx={{
                                 alignItems: 'center',
@@ -163,6 +166,7 @@ export function ProjectCompanySelection({
             )}
             {!selectedCompany && !searchOpen && (
                 <Button
+                    disabled={disabled}
                     onClick={openSearch}
                     startIcon={<SearchOutlinedIcon />}
                     sx={{ alignSelf: 'flex-start', color: '#2A2B61' }}
@@ -170,17 +174,19 @@ export function ProjectCompanySelection({
                     Farklı şirket seç
                 </Button>
             )}
-            {showSearch && (
+            {searchOpen && (
                 <Autocomplete
+                    disabled={disabled}
                     filterOptions={(values) => values}
                     getOptionLabel={(option) => option.name}
+                    id="project-preview-companyId"
                     inputValue={search}
                     isOptionEqualToValue={(option, value) => option.id === value.id}
                     loading={isSearching}
                     noOptionsText={debouncedSearch ? 'Şirket bulunamadı' : 'Şirket aramak için yazın'}
                     onChange={(_, value) => selectCompany(value)}
                     onInputChange={(_, newInputValue, reason) => {
-                        if (reason === 'input' || reason === 'reset' || reason === 'clear') {
+                        if (reason === 'input' || reason === 'clear') {
                             setSearch(newInputValue);
                         }
                     }}
@@ -190,7 +196,7 @@ export function ProjectCompanySelection({
                             {...params}
                             error={Boolean(searchError)}
                             helperText={searchError ? getApiErrorMessage(searchError, 'Şirketler alınamadı.') : undefined}
-                            label="Kayıtlı şirket ara"
+                            placeholder="Şirket adı yazın"
                             sx={{
                                 '& .MuiInputLabel-root.Mui-focused:not(.Mui-error)': {
                                     color: '#2A2B61',
@@ -214,10 +220,11 @@ export function ProjectCompanySelection({
                 />
             )}
             {searchOpen && (
-                <Button onClick={cancelSearch} size="small" sx={{ alignSelf: 'flex-start', color: '#526273' }}>
+                <Button disabled={disabled} onClick={cancelSearch} size="small" sx={{ alignSelf: 'flex-start', color: '#526273' }}>
                     İptal
                 </Button>
             )}
+            {error && <Typography color="error" id="project-preview-companyId" variant="body2">{error}</Typography>}
         </Stack>
     );
 }

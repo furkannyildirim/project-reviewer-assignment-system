@@ -149,7 +149,7 @@ export function ProjectTable({
                                     <TableCell>
                                         <Stack spacing={0.25}>
                                             <Typography>{formatDate(project.startDate)}</Typography>
-                                            <Typography color="text.secondary" variant="body2">
+                                            <Typography>
                                                 {formatDate(project.endDate)}
                                             </Typography>
                                         </Stack>

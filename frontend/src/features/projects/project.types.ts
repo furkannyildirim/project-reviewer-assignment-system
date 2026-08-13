@@ -111,4 +111,50 @@ export type ProjectDocumentPreviewDraft = {
     keywords: string[];
 };
 
+export type CreateProjectFromUploadRequest = {
+    uploadId: string;
+    companyId: number;
+    name: string;
+    projectManager: string | null;
+    startDate: string;
+    durationMonths: number;
+    category: string | null;
+    sector: string | null;
+    summary: string | null;
+    researchAndDevelopmentNature: string | null;
+    innovativeAspect: string | null;
+    mainTechnologyArea: string | null;
+    projectDetail: string | null;
+    keywords: string[];
+};
+
+export type ProjectResponse = {
+    id: number;
+    companyId: number;
+    companyName: string;
+    companyType: ProjectCompanyType;
+    createdById: number;
+    createdByName: string;
+    name: string;
+    projectManager: string | null;
+    startDate: string;
+    durationMonths: number;
+    endDate: string;
+    category: string | null;
+    sector: string | null;
+    summary: string | null;
+    researchAndDevelopmentNature: string | null;
+    innovativeAspect: string | null;
+    mainTechnologyArea: string | null;
+    projectDetail: string | null;
+    keywords: string[];
+    status: ProjectStatus;
+    sourceFileId: string | null;
+    originalFileName: string | null;
+    contentType: string | null;
+    fileSize: number | null;
+    createdAt: string;
+    updatedAt: string;
+};
+
 export const projectPageSizes = [10, 15, 20, 25] as const;

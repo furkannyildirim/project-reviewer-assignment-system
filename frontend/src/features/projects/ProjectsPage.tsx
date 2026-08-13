@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Alert, Box, Button, Skeleton, Stack } from '@mui/material';
+import { Alert, Box, Button, Skeleton, Snackbar, Stack } from '@mui/material';
 import { useState } from 'react';
 import NoteAddOutlinedIcon from '@mui/icons-material/NoteAddOutlined';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -14,6 +14,7 @@ export function ProjectsPage() {
     const [page, setPage] = useState(0);
     const [size, setSize] = useState(10);
     const [isUploadDialogOpen, setUploadDialogOpen] = useState(false);
+    const [creationSuccessOpen, setCreationSuccessOpen] = useState(false);
     const queryParams = { page, size };
     const projectsQuery = useQuery({
         queryKey: projectQueryKeys.list(queryParams),
@@ -120,7 +121,17 @@ export function ProjectsPage() {
             <ProjectUploadDialog
                 open={isUploadDialogOpen}
                 onClose={() => setUploadDialogOpen(false)}
+                onCreated={() => setCreationSuccessOpen(true)}
             />
+            <Snackbar
+                autoHideDuration={4000}
+                onClose={() => setCreationSuccessOpen(false)}
+                open={creationSuccessOpen}
+            >
+                <Alert severity="success" variant="filled" onClose={() => setCreationSuccessOpen(false)}>
+                    Proje başarıyla oluşturuldu.
+                </Alert>
+            </Snackbar>
         </Stack>
     );
 }

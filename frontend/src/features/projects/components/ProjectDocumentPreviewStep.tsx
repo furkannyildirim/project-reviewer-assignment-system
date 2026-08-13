@@ -25,7 +25,14 @@ type ProjectDocumentPreviewStepProps = {
     onDraftChange: (draft: ProjectDocumentPreviewDraft) => void;
     selectedCompanyId: number | null;
     onCompanySelect: (companyId: number | null) => void;
+    errors: ProjectDocumentPreviewFormErrors;
+    disabled: boolean;
 };
+
+export type ProjectDocumentPreviewFormErrors = Partial<Record<
+    keyof ProjectDocumentPreviewDraft | 'companyId',
+    string
+>>;
 
 const fieldLabels: Record<ProjectFormField, string> = {
     COMPANY_NAME: 'Firma adı',
@@ -124,6 +131,8 @@ export function ProjectDocumentPreviewStep({
     onDraftChange,
     selectedCompanyId,
     onCompanySelect,
+    errors,
+    disabled,
 }: ProjectDocumentPreviewStepProps) {
     const endDate = calculateEndDate(draft.startDate, draft.durationMonths);
     const missingLabels = preview.missingFields.map((field) => fieldLabels[field]);
@@ -132,6 +141,15 @@ export function ProjectDocumentPreviewStep({
 
     function setField(field: Exclude<keyof ProjectDocumentPreviewDraft, 'keywords'>, value: string) {
         onDraftChange({ ...draft, [field]: value });
+    }
+
+    function fieldProps(field: keyof ProjectDocumentPreviewDraft) {
+        return {
+            disabled,
+            error: Boolean(errors[field]),
+            helperText: errors[field],
+            id: `project-preview-${field}`,
+        };
     }
 
     return (
@@ -175,6 +193,8 @@ export function ProjectDocumentPreviewStep({
                             </Stack>
                         )}
                         <ProjectCompanySelection
+                            disabled={disabled}
+                            error={errors.companyId}
                             match={match}
                             onSelect={onCompanySelect}
                             selectedCompanyId={selectedCompanyId}
@@ -186,16 +206,16 @@ export function ProjectDocumentPreviewStep({
             <Divider />
             <Section title="Temel proje bilgileri">
                 <Stack spacing={2}>
-                    <TextField sx={previewTextFieldSx} fullWidth label="Proje adı" value={draft.name} onChange={(event) => setField('name', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-                    <TextField sx={previewTextFieldSx} fullWidth label="Proje yöneticisi" value={draft.projectManager} onChange={(event) => setField('projectManager', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                    <TextField {...fieldProps('name')} sx={previewTextFieldSx} fullWidth label="Proje adı" value={draft.name} onChange={(event) => setField('name', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                    <TextField {...fieldProps('projectManager')} sx={previewTextFieldSx} fullWidth label="Proje yöneticisi" value={draft.projectManager} onChange={(event) => setField('projectManager', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                        <TextField sx={previewTextFieldSx} fullWidth label="Başlangıç tarihi" type="date" value={draft.startDate} onChange={(event) => setField('startDate', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-                        <TextField sx={previewTextFieldSx} fullWidth label="Süre (ay)" type="number" value={draft.durationMonths} onChange={(event) => setField('durationMonths', event.target.value)} slotProps={{ htmlInput: { min: 1 }, inputLabel: { shrink: true } }} />
-                        <TextField sx={previewTextFieldSx} fullWidth label="Bitiş tarihi" value={endDate} slotProps={{ inputLabel: { shrink: true }, input: { readOnly: true } }} placeholder="Hesaplanamadı" />
+                        <TextField {...fieldProps('startDate')} sx={previewTextFieldSx} fullWidth label="Başlangıç tarihi" type="date" value={draft.startDate} onChange={(event) => setField('startDate', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                        <TextField {...fieldProps('durationMonths')} sx={previewTextFieldSx} fullWidth label="Süre (ay)" type="number" value={draft.durationMonths} onChange={(event) => setField('durationMonths', event.target.value)} slotProps={{ htmlInput: { min: 1 }, inputLabel: { shrink: true } }} />
+                        <TextField disabled={disabled} sx={previewTextFieldSx} fullWidth label="Bitiş tarihi" value={endDate} slotProps={{ inputLabel: { shrink: true }, input: { readOnly: true } }} placeholder="Hesaplanamadı" />
                     </Stack>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                        <TextField sx={previewTextFieldSx} fullWidth label="Kategori" value={draft.category} onChange={(event) => setField('category', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-                        <TextField sx={previewTextFieldSx} fullWidth label="Sektör" value={draft.sector} onChange={(event) => setField('sector', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                        <TextField {...fieldProps('category')} sx={previewTextFieldSx} fullWidth label="Kategori" value={draft.category} onChange={(event) => setField('category', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                        <TextField {...fieldProps('sector')} sx={previewTextFieldSx} fullWidth label="Sektör" value={draft.sector} onChange={(event) => setField('sector', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
                     </Stack>
                 </Stack>
             </Section>
@@ -203,12 +223,13 @@ export function ProjectDocumentPreviewStep({
             <Divider />
             <Section title="Teknik içerik">
                 <Stack spacing={2}>
-                    <TextField sx={previewTextFieldSx} fullWidth label="Proje özeti" minRows={3} multiline value={draft.summary} onChange={(event) => setField('summary', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-                    <TextField sx={previewTextFieldSx} fullWidth label="Ar-Ge niteliği" minRows={3} multiline value={draft.researchAndDevelopmentNature} onChange={(event) => setField('researchAndDevelopmentNature', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-                    <TextField sx={previewTextFieldSx} fullWidth label="Yenilikçi yönü" minRows={3} multiline value={draft.innovativeAspect} onChange={(event) => setField('innovativeAspect', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-                    <TextField sx={previewTextFieldSx} fullWidth label="Ana teknoloji alanı" value={draft.mainTechnologyArea} onChange={(event) => setField('mainTechnologyArea', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-                    <TextField sx={previewTextFieldSx} fullWidth label="Proje detayı" minRows={4} multiline value={draft.projectDetail} onChange={(event) => setField('projectDetail', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                    <TextField {...fieldProps('summary')} sx={previewTextFieldSx} fullWidth label="Proje özeti" minRows={3} multiline value={draft.summary} onChange={(event) => setField('summary', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                    <TextField {...fieldProps('researchAndDevelopmentNature')} sx={previewTextFieldSx} fullWidth label="Ar-Ge niteliği" minRows={3} multiline value={draft.researchAndDevelopmentNature} onChange={(event) => setField('researchAndDevelopmentNature', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                    <TextField {...fieldProps('innovativeAspect')} sx={previewTextFieldSx} fullWidth label="Yenilikçi yönü" minRows={3} multiline value={draft.innovativeAspect} onChange={(event) => setField('innovativeAspect', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                    <TextField {...fieldProps('mainTechnologyArea')} sx={previewTextFieldSx} fullWidth label="Ana teknoloji alanı" value={draft.mainTechnologyArea} onChange={(event) => setField('mainTechnologyArea', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                    <TextField {...fieldProps('projectDetail')} sx={previewTextFieldSx} fullWidth label="Proje detayı" minRows={4} multiline value={draft.projectDetail} onChange={(event) => setField('projectDetail', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
                     <TextField
+                        {...fieldProps('keywords')}
                         sx={previewTextFieldSx}
                         fullWidth
                         helperText="Anahtar kelimeleri virgülle ayırarak düzenleyebilirsiniz."
