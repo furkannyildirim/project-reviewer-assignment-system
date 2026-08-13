@@ -94,6 +94,16 @@ public class ProjectUploadService {
         return toInfo(findUsableUpload(uploadId, currentUserEmail));
     }
 
+    @Transactional(readOnly = true)
+    public OpenedProjectUpload openUsableUpload(
+            UUID uploadId,
+            String currentUserEmail
+    ) {
+        ProjectUpload upload = findUsableUpload(uploadId, currentUserEmail);
+        InputStream inputStream = fileStorageService.loadTemporary(upload.getStorageKey());
+        return new OpenedProjectUpload(toInfo(upload), inputStream);
+    }
+
     public ProjectUploadInfo markConsumed(UUID uploadId, String currentUserEmail) {
         ProjectUpload upload = findUsableUpload(uploadId, currentUserEmail);
         upload.setStatus(ProjectUploadStatus.CONSUMED);

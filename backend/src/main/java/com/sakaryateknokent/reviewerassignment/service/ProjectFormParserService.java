@@ -10,6 +10,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -133,7 +134,8 @@ public class ProjectFormParserService {
                 durationMonths, category, sector, summary,
                 researchAndDevelopmentNature, innovativeAspect,
                 mainTechnologyArea, projectDetail, keywords,
-                Set.copyOf(state.missing), Set.copyOf(state.reviewRequired),
+                immutableOrderedSet(state.missing),
+                immutableOrderedSet(state.reviewRequired),
                 List.copyOf(state.warnings)
         );
     }
@@ -340,7 +342,7 @@ public class ProjectFormParserService {
         if (keywords.isEmpty()) {
             state.missing.add(ProjectFormField.KEYWORDS);
         }
-        return Set.copyOf(keywords);
+        return immutableOrderedSet(keywords);
     }
 
     private String fieldWarning(ProjectFormField field) {
@@ -369,6 +371,10 @@ public class ProjectFormParserService {
             result.add(normalizeLabel(value));
         }
         return Set.copyOf(result);
+    }
+
+    private static <T> Set<T> immutableOrderedSet(Set<T> values) {
+        return Collections.unmodifiableSet(new LinkedHashSet<>(values));
     }
 
     private static String normalizeLabel(String value) {

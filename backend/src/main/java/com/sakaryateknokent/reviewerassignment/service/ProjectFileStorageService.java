@@ -88,6 +88,18 @@ public class ProjectFileStorageService {
 
     public InputStream load(String storageKey) {
         Path file = resolveStorageKey(storageKey);
+        return openFile(file);
+    }
+
+    public InputStream loadTemporary(String storageKey) {
+        Path file = resolveStorageKey(storageKey);
+        if (!file.startsWith(temporaryRoot)) {
+            throw new InvalidRequestException("Gecici dosya anahtari gecersiz");
+        }
+        return openFile(file);
+    }
+
+    private InputStream openFile(Path file) {
         if (!Files.isRegularFile(file)) {
             throw new ResourceNotFoundException("Proje dosyasi bulunamadi");
         }
