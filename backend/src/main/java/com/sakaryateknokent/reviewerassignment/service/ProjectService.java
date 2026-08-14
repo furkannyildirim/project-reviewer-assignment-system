@@ -3,20 +3,28 @@ package com.sakaryateknokent.reviewerassignment.service;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ReviewerAssignmentRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
+import com.sakaryateknokent.reviewerassignment.entity.Academician;
 import com.sakaryateknokent.reviewerassignment.entity.Company;
 import com.sakaryateknokent.reviewerassignment.entity.Project;
+import com.sakaryateknokent.reviewerassignment.entity.ProjectReviewerAssignment;
 import com.sakaryateknokent.reviewerassignment.entity.User;
 import com.sakaryateknokent.reviewerassignment.enums.AssignmentStatus;
 import com.sakaryateknokent.reviewerassignment.enums.ProjectStatus;
+import com.sakaryateknokent.reviewerassignment.exception.DuplicateResourceException;
+import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.exception.ResourceNotFoundException;
+import com.sakaryateknokent.reviewerassignment.repository.AcademicianRepository;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyRepository;
 import com.sakaryateknokent.reviewerassignment.repository.ProjectActiveReviewerCount;
 import com.sakaryateknokent.reviewerassignment.repository.ProjectRepository;
 import com.sakaryateknokent.reviewerassignment.repository.ProjectReviewerAssignmentRepository;
 import com.sakaryateknokent.reviewerassignment.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -26,10 +34,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -41,6 +49,7 @@ public class ProjectService {
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
     private final ProjectReviewerAssignmentRepository assignmentRepository;
+    private final AcademicianRepository academicianRepository;
 
     public ProjectResponse createProject(
             CreateProjectRequest request,
@@ -123,6 +132,70 @@ public class ProjectService {
         project.setCompany(findCompany(request.companyId()));
         apply(project, request);
         return toResponse(projectRepository.saveAndFlush(project));
+    }
+
+    public ProjectReviewerAssignmentResponse assignReviewer(
+            Long projectId,
+            ReviewerAssignmentRequest request,
+            String currentUserEmail
+    ) {
+        Project project = projectRepository.findByIdForReviewerAssignment(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proje bulunamadi"));
+        Academician academician = academicianRepository.findById(request.academicianId())
+                .orElseThrow(() -> new ResourceNotFoundException("Akademisyen bulunamadi"));
+        User assignedBy = userRepository.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("Kullanici bulunamadi"));
+
+        if (project.getStatus() != ProjectStatus.AWAITING_REVIEWER
+                && project.getStatus() != ProjectStatus.ACTIVE) {
+            throw new InvalidRequestException(
+                    "Yalnizca hakem bekleyen veya aktif projelere hakem atanabilir"
+            );
+        }
+        if (assignmentRepository.existsByProjectIdAndAcademicianIdAndStatus(
+                projectId, academician.getId(), AssignmentStatus.ACTIVE)) {
+            throw new DuplicateResourceException(
+                    "Akademisyen bu projeye zaten aktif hakem olarak atanmis"
+            );
+        }
+        if (assignmentRepository.countByProjectIdAndStatus(
+                projectId, AssignmentStatus.ACTIVE) >= 2) {
+            throw new InvalidRequestException("Bir projeye en fazla iki aktif hakem atanabilir");
+        }
+
+        ProjectReviewerAssignment assignment = new ProjectReviewerAssignment();
+        assignment.setProject(project);
+        assignment.setAcademician(academician);
+        assignment.setAssignedBy(assignedBy);
+        assignment.setStatus(AssignmentStatus.ACTIVE);
+
+        if (project.getStatus() == ProjectStatus.AWAITING_REVIEWER) {
+            project.setStatus(ProjectStatus.ACTIVE);
+        }
+
+        try {
+            ProjectReviewerAssignment saved = assignmentRepository.saveAndFlush(assignment);
+            return toAssignmentResponse(saved);
+        } catch (DataIntegrityViolationException exception) {
+            throw new DuplicateResourceException(
+                    "Akademisyen bu projeye zaten aktif hakem olarak atanmis"
+            );
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProjectReviewerAssignmentResponse> listActiveReviewerAssignments(
+            Long projectId
+    ) {
+        if (!projectRepository.existsById(projectId)) {
+            throw new ResourceNotFoundException("Proje bulunamadi");
+        }
+        return assignmentRepository.findByProjectIdAndStatusWithPeople(
+                        projectId, AssignmentStatus.ACTIVE)
+                .stream()
+                .filter(assignment -> assignment.getStatus() == AssignmentStatus.ACTIVE)
+                .map(this::toAssignmentResponse)
+                .toList();
     }
 
     private Project findProjectDetail(Long id) {
@@ -247,5 +320,22 @@ public class ProjectService {
                 project.getCompany().getCompanyType(), project.getCategory(), project.getSector(),
                 project.getStartDate(), project.getEndDate(), project.getStatus(),
                 activeReviewerCount, project.getCreatedAt());
+    }
+
+    private ProjectReviewerAssignmentResponse toAssignmentResponse(
+            ProjectReviewerAssignment assignment
+    ) {
+        Academician academician = assignment.getAcademician();
+        User assignedBy = assignment.getAssignedBy();
+        return new ProjectReviewerAssignmentResponse(
+                assignment.getId(),
+                assignment.getProject().getId(),
+                academician.getId(),
+                academician.getFirstName() + " " + academician.getLastName(),
+                academician.getTitle(),
+                assignment.getStatus(),
+                assignment.getAssignedAt(),
+                assignedBy.getFirstName() + " " + assignedBy.getLastName()
+        );
     }
 }

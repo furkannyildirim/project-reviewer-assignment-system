@@ -38,6 +38,13 @@ public interface AcademicianRepository
     List<Academician> findByIdIn(Collection<Long> ids, Sort sort);
 
     @Query("""
+            SELECT DISTINCT academician
+            FROM Academician academician
+            LEFT JOIN FETCH academician.keywords
+            """)
+    List<Academician> findAllWithKeywords();
+
+    @Query("""
             SELECT academician
             FROM Academician academician
             WHERE academician.canonicalFirstName = :firstName

@@ -157,4 +157,36 @@ export type ProjectResponse = {
     updatedAt: string;
 };
 
+export type ReviewerRecommendationLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type ReviewerRecommendation = {
+    academicianId: number;
+    firstName: string;
+    lastName: string;
+    title: string | null;
+    level: ReviewerRecommendationLevel;
+    matchedKeywords: string[];
+    activeProjectCount: number;
+    totalProjectCount: number;
+};
+
+export type ProjectReviewerRecommendationsResponse = {
+    projectId: number;
+    strongRecommendationAvailable: boolean;
+    recommendations: ReviewerRecommendation[];
+};
+
+export type ProjectReviewerAssignmentStatus = 'ACTIVE' | 'COMPLETED' | 'REMOVED';
+
+export type ProjectReviewerAssignment = {
+    assignmentId: number;
+    projectId: number;
+    academicianId: number;
+    academicianName: string;
+    academicianTitle: string | null;
+    status: ProjectReviewerAssignmentStatus;
+    assignedAt: string;
+    assignedByName: string;
+};
+
 export const projectPageSizes = [10, 15, 20, 25] as const;

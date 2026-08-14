@@ -3,14 +3,21 @@ package com.sakaryateknokent.reviewerassignment.service;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ReviewerAssignmentRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
+import com.sakaryateknokent.reviewerassignment.entity.Academician;
 import com.sakaryateknokent.reviewerassignment.entity.Company;
 import com.sakaryateknokent.reviewerassignment.entity.Project;
+import com.sakaryateknokent.reviewerassignment.entity.ProjectReviewerAssignment;
 import com.sakaryateknokent.reviewerassignment.entity.User;
 import com.sakaryateknokent.reviewerassignment.enums.AssignmentStatus;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.enums.ProjectStatus;
+import com.sakaryateknokent.reviewerassignment.exception.DuplicateResourceException;
+import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.exception.ResourceNotFoundException;
+import com.sakaryateknokent.reviewerassignment.repository.AcademicianRepository;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyRepository;
 import com.sakaryateknokent.reviewerassignment.repository.ProjectRepository;
 import com.sakaryateknokent.reviewerassignment.repository.ProjectReviewerAssignmentRepository;
@@ -19,16 +26,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,8 +53,11 @@ class ProjectServiceTest {
     private final UserRepository userRepository = org.mockito.Mockito.mock(UserRepository.class);
     private final ProjectReviewerAssignmentRepository assignmentRepository =
             org.mockito.Mockito.mock(ProjectReviewerAssignmentRepository.class);
+    private final AcademicianRepository academicianRepository =
+            org.mockito.Mockito.mock(AcademicianRepository.class);
     private final ProjectService projectService = new ProjectService(
-            projectRepository, companyRepository, userRepository, assignmentRepository);
+            projectRepository, companyRepository, userRepository, assignmentRepository,
+            academicianRepository);
 
     @Test
     void createsProjectUsingAuthenticatedUserAndDraftStatus() {
@@ -180,6 +195,190 @@ class ProjectServiceTest {
         assertThrows(ResourceNotFoundException.class, () -> projectService.getProjectById(99L));
     }
 
+    @Test
+    void assignsFirstReviewerAndActivatesAwaitingProject() {
+        Project project = project(11L);
+        project.setStatus(ProjectStatus.AWAITING_REVIEWER);
+        Academician academician = academician(21L, "Ayse", "Demir", "Prof. Dr.");
+        User assignedBy = user(7L, "Ali", "Yilmaz");
+        when(projectRepository.findByIdForReviewerAssignment(11L))
+                .thenReturn(Optional.of(project));
+        when(academicianRepository.findById(21L)).thenReturn(Optional.of(academician));
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(assignedBy));
+        when(assignmentRepository.saveAndFlush(any(ProjectReviewerAssignment.class)))
+                .thenAnswer(invocation -> {
+                    ProjectReviewerAssignment assignment = invocation.getArgument(0);
+                    assignment.setId(31L);
+                    assignment.setCreationTimestamps();
+                    return assignment;
+                });
+
+        ProjectReviewerAssignmentResponse response = projectService.assignReviewer(
+                11L, new ReviewerAssignmentRequest(21L), "user@example.com");
+
+        assertEquals(31L, response.assignmentId());
+        assertEquals(11L, response.projectId());
+        assertEquals(21L, response.academicianId());
+        assertEquals("Ayse Demir", response.academicianName());
+        assertEquals("Prof. Dr.", response.academicianTitle());
+        assertEquals(AssignmentStatus.ACTIVE, response.status());
+        assertNotNull(response.assignedAt());
+        assertEquals("Ali Yilmaz", response.assignedByName());
+        assertEquals(ProjectStatus.ACTIVE, project.getStatus());
+    }
+
+    @Test
+    void keepsActiveProjectActiveWhenAssigningSecondReviewer() {
+        Project project = project(11L);
+        project.setStatus(ProjectStatus.ACTIVE);
+        when(projectRepository.findByIdForReviewerAssignment(11L))
+                .thenReturn(Optional.of(project));
+        when(academicianRepository.findById(21L))
+                .thenReturn(Optional.of(academician(21L, "Ayse", "Demir", null)));
+        when(userRepository.findByEmail("admin@example.com"))
+                .thenReturn(Optional.of(user(7L, "Admin", "Kullanici")));
+        when(assignmentRepository.countByProjectIdAndStatus(11L, AssignmentStatus.ACTIVE))
+                .thenReturn(1L);
+        when(assignmentRepository.saveAndFlush(any(ProjectReviewerAssignment.class)))
+                .thenAnswer(invocation -> {
+                    ProjectReviewerAssignment assignment = invocation.getArgument(0);
+                    assignment.setCreationTimestamps();
+                    return assignment;
+                });
+
+        projectService.assignReviewer(
+                11L, new ReviewerAssignmentRequest(21L), "admin@example.com");
+
+        assertEquals(ProjectStatus.ACTIVE, project.getStatus());
+    }
+
+    @Test
+    void rejectsReviewerAssignmentWhenProjectStatusIsNotEligible() {
+        Project project = project(11L);
+        project.setStatus(ProjectStatus.COMPLETED);
+        when(projectRepository.findByIdForReviewerAssignment(11L))
+                .thenReturn(Optional.of(project));
+        when(academicianRepository.findById(21L))
+                .thenReturn(Optional.of(academician(21L, "Ayse", "Demir", null)));
+        when(userRepository.findByEmail("user@example.com"))
+                .thenReturn(Optional.of(user(7L, "Ali", "Yilmaz")));
+
+        assertThrows(InvalidRequestException.class, () -> projectService.assignReviewer(
+                11L, new ReviewerAssignmentRequest(21L), "user@example.com"));
+        verify(assignmentRepository, never()).saveAndFlush(any(ProjectReviewerAssignment.class));
+    }
+
+    @Test
+    void rejectsThirdActiveReviewerWhileHoldingProjectLock() {
+        Project project = project(11L);
+        project.setStatus(ProjectStatus.ACTIVE);
+        when(projectRepository.findByIdForReviewerAssignment(11L))
+                .thenReturn(Optional.of(project));
+        when(academicianRepository.findById(21L))
+                .thenReturn(Optional.of(academician(21L, "Ayse", "Demir", null)));
+        when(userRepository.findByEmail("user@example.com"))
+                .thenReturn(Optional.of(user(7L, "Ali", "Yilmaz")));
+        when(assignmentRepository.countByProjectIdAndStatus(11L, AssignmentStatus.ACTIVE))
+                .thenReturn(2L);
+
+        assertThrows(InvalidRequestException.class, () -> projectService.assignReviewer(
+                11L, new ReviewerAssignmentRequest(21L), "user@example.com"));
+        verify(projectRepository).findByIdForReviewerAssignment(11L);
+        verify(assignmentRepository, never()).saveAndFlush(any(ProjectReviewerAssignment.class));
+    }
+
+    @Test
+    void rejectsDuplicateActiveReviewerAndMapsDatabaseRaceToConflict() {
+        Project project = project(11L);
+        project.setStatus(ProjectStatus.ACTIVE);
+        Academician academician = academician(21L, "Ayse", "Demir", null);
+        User user = user(7L, "Ali", "Yilmaz");
+        when(projectRepository.findByIdForReviewerAssignment(11L))
+                .thenReturn(Optional.of(project));
+        when(academicianRepository.findById(21L)).thenReturn(Optional.of(academician));
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(assignmentRepository.saveAndFlush(any(ProjectReviewerAssignment.class)))
+                .thenThrow(new DataIntegrityViolationException("unique constraint"));
+
+        assertThrows(DuplicateResourceException.class, () -> projectService.assignReviewer(
+                11L, new ReviewerAssignmentRequest(21L), "user@example.com"));
+    }
+
+    @Test
+    void listsTwoActiveReviewerAssignmentsInRepositoryOrderWithSafeFields() {
+        Instant firstTime = Instant.parse("2026-08-14T09:00:00Z");
+        Instant secondTime = Instant.parse("2026-08-14T10:00:00Z");
+        ProjectReviewerAssignment first = assignment(
+                31L, 11L, 21L, "Ayse", "Demir", "Prof. Dr.",
+                7L, "Ali", "Yilmaz", AssignmentStatus.ACTIVE, firstTime);
+        ProjectReviewerAssignment second = assignment(
+                32L, 11L, 22L, "Mehmet", "Kaya", "Doc. Dr.",
+                8L, "Admin", "Kullanici", AssignmentStatus.ACTIVE, secondTime);
+        when(projectRepository.existsById(11L)).thenReturn(true);
+        when(assignmentRepository.findByProjectIdAndStatusWithPeople(
+                11L, AssignmentStatus.ACTIVE)).thenReturn(List.of(first, second));
+
+        List<ProjectReviewerAssignmentResponse> response =
+                projectService.listActiveReviewerAssignments(11L);
+
+        assertEquals(List.of(31L, 32L), response.stream()
+                .map(ProjectReviewerAssignmentResponse::assignmentId).toList());
+        assertEquals("Ayse Demir", response.get(0).academicianName());
+        assertEquals("Prof. Dr.", response.get(0).academicianTitle());
+        assertEquals("Ali Yilmaz", response.get(0).assignedByName());
+        assertEquals(firstTime, response.get(0).assignedAt());
+        assertEquals(AssignmentStatus.ACTIVE, response.get(0).status());
+        verify(assignmentRepository).findByProjectIdAndStatusWithPeople(
+                11L, AssignmentStatus.ACTIVE);
+    }
+
+    @Test
+    void excludesCompletedAndRemovedAssignmentsByQueryingOnlyActiveStatus() {
+        when(projectRepository.existsById(11L)).thenReturn(true);
+        Instant assignedAt = Instant.parse("2026-08-14T09:00:00Z");
+        ProjectReviewerAssignment active = assignment(
+                31L, 11L, 21L, "Ayse", "Demir", null,
+                7L, "Ali", "Yilmaz", AssignmentStatus.ACTIVE, assignedAt);
+        ProjectReviewerAssignment completed = assignment(
+                30L, 11L, 22L, "Mehmet", "Kaya", null,
+                7L, "Ali", "Yilmaz", AssignmentStatus.COMPLETED, assignedAt);
+        ProjectReviewerAssignment removed = assignment(
+                29L, 11L, 23L, "Fatma", "Celik", null,
+                7L, "Ali", "Yilmaz", AssignmentStatus.REMOVED, assignedAt);
+        when(assignmentRepository.findByProjectIdAndStatusWithPeople(
+                11L, AssignmentStatus.ACTIVE))
+                .thenReturn(List.of(active, completed, removed));
+
+        List<ProjectReviewerAssignmentResponse> response =
+                projectService.listActiveReviewerAssignments(11L);
+
+        assertEquals(List.of(31L), response.stream()
+                .map(ProjectReviewerAssignmentResponse::assignmentId).toList());
+        verify(assignmentRepository, never()).findByProjectIdAndStatusWithPeople(
+                eq(11L), eq(AssignmentStatus.COMPLETED));
+        verify(assignmentRepository, never()).findByProjectIdAndStatusWithPeople(
+                eq(11L), eq(AssignmentStatus.REMOVED));
+    }
+
+    @Test
+    void returnsEmptyListWhenProjectHasNoActiveAssignments() {
+        when(projectRepository.existsById(11L)).thenReturn(true);
+        when(assignmentRepository.findByProjectIdAndStatusWithPeople(
+                11L, AssignmentStatus.ACTIVE)).thenReturn(List.of());
+
+        assertEquals(List.of(), projectService.listActiveReviewerAssignments(11L));
+    }
+
+    @Test
+    void rejectsActiveAssignmentListWhenProjectDoesNotExist() {
+        when(projectRepository.existsById(99L)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> projectService.listActiveReviewerAssignments(99L));
+        verify(assignmentRepository, never()).findByProjectIdAndStatusWithPeople(
+                any(), any());
+    }
+
     private CreateProjectRequest createRequest(LocalDate startDate, int duration, Set<String> keywords) {
         return new CreateProjectRequest(3L, " Proje ", " Yonetici ", startDate, duration,
                 "Kategori", "Sektor", null, null, null, null, null, keywords);
@@ -206,6 +405,20 @@ class ProjectServiceTest {
         return user;
     }
 
+    private Academician academician(
+            Long id,
+            String firstName,
+            String lastName,
+            String title
+    ) {
+        Academician academician = new Academician();
+        academician.setId(id);
+        academician.setFirstName(firstName);
+        academician.setLastName(lastName);
+        academician.setTitle(title);
+        return academician;
+    }
+
     private Project project(Long id) {
         Project project = new Project();
         project.setId(id);
@@ -214,6 +427,31 @@ class ProjectServiceTest {
         project.setName("Eski Proje");
         project.setStatus(ProjectStatus.DRAFT);
         return project;
+    }
+
+    private ProjectReviewerAssignment assignment(
+            Long assignmentId,
+            Long projectId,
+            Long academicianId,
+            String academicianFirstName,
+            String academicianLastName,
+            String academicianTitle,
+            Long assignedById,
+            String assignedByFirstName,
+            String assignedByLastName,
+            AssignmentStatus status,
+            Instant assignedAt
+    ) {
+        ProjectReviewerAssignment assignment = new ProjectReviewerAssignment();
+        assignment.setId(assignmentId);
+        assignment.setProject(project(projectId));
+        assignment.setAcademician(academician(
+                academicianId, academicianFirstName, academicianLastName, academicianTitle));
+        assignment.setAssignedBy(user(
+                assignedById, assignedByFirstName, assignedByLastName));
+        assignment.setStatus(status);
+        assignment.setAssignedAt(assignedAt);
+        return assignment;
     }
 
     private Project savedProject() {

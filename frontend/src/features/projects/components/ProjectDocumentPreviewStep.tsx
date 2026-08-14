@@ -91,6 +91,11 @@ function calculateEndDate(startDate: string, durationMonths: string): string {
     return target.toISOString().slice(0, 10);
 }
 
+function formatIsoDateForDisplay(value: string): string {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    return match ? `${match[3]}.${match[2]}.${match[1]}` : value;
+}
+
 function companyTypeLabel(type: ProjectCompanyCandidate['companyType']): string {
     return type === 'TGB' ? 'TGB Şirketi' : 'Dış Şirket';
 }
@@ -135,6 +140,7 @@ export function ProjectDocumentPreviewStep({
     disabled,
 }: ProjectDocumentPreviewStepProps) {
     const endDate = calculateEndDate(draft.startDate, draft.durationMonths);
+    const displayedEndDate = formatIsoDateForDisplay(endDate);
     const missingLabels = preview.missingFields.map((field) => fieldLabels[field]);
     const reviewLabels = preview.reviewRequiredFields.map((field) => fieldLabels[field]);
     const match = preview.companyMatch;
@@ -211,7 +217,7 @@ export function ProjectDocumentPreviewStep({
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                         <TextField {...fieldProps('startDate')} sx={previewTextFieldSx} fullWidth label="Başlangıç tarihi" type="date" value={draft.startDate} onChange={(event) => setField('startDate', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
                         <TextField {...fieldProps('durationMonths')} sx={previewTextFieldSx} fullWidth label="Süre (ay)" type="number" value={draft.durationMonths} onChange={(event) => setField('durationMonths', event.target.value)} slotProps={{ htmlInput: { min: 1 }, inputLabel: { shrink: true } }} />
-                        <TextField disabled={disabled} sx={previewTextFieldSx} fullWidth label="Bitiş tarihi" value={endDate} slotProps={{ inputLabel: { shrink: true }, input: { readOnly: true } }} placeholder="Hesaplanamadı" />
+                        <TextField disabled={disabled} sx={previewTextFieldSx} fullWidth label="Bitiş tarihi" value={displayedEndDate} slotProps={{ inputLabel: { shrink: true }, input: { readOnly: true } }} placeholder="Hesaplanamadı" />
                     </Stack>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                         <TextField {...fieldProps('category')} sx={previewTextFieldSx} fullWidth label="Kategori" value={draft.category} onChange={(event) => setField('category', event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />

@@ -22,9 +22,14 @@ import axios from 'axios';
 import { useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
-import { downloadProjectDocument, getProjectById } from './projectApi';
+import {
+    downloadProjectDocument,
+    getActiveProjectReviewerAssignments,
+    getProjectById,
+} from './projectApi';
 import { projectQueryKeys } from './projectQueryKeys';
 import type { ProjectCompanyType, ProjectResponse, ProjectStatus } from './project.types';
+import { ProjectReviewerRecommendationsDialog } from './components/ProjectReviewerRecommendationsDialog';
 
 const missingValue = 'Bilgi girilmemiş';
 const backButtonSx = {
@@ -57,6 +62,15 @@ function formatDate(value: string | null | undefined) {
     const date = new Date(`${value.slice(0, 10)}T00:00:00`);
     return Number.isNaN(date.getTime()) ? missingValue : new Intl.DateTimeFormat('tr-TR', {
         day: '2-digit', month: 'short', year: 'numeric',
+    }).format(date);
+}
+
+function formatDateTime(value: string | null | undefined) {
+    if (!value) return missingValue;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? missingValue : new Intl.DateTimeFormat('tr-TR', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
     }).format(date);
 }
 
@@ -115,6 +129,8 @@ export function ProjectDetailPage() {
     const navigate = useNavigate();
     const [isDownloading, setIsDownloading] = useState(false);
     const [downloadErrorOpen, setDownloadErrorOpen] = useState(false);
+    const [assignmentSuccessOpen, setAssignmentSuccessOpen] = useState(false);
+    const [recommendationsOpen, setRecommendationsOpen] = useState(false);
     const { projectId } = useParams();
     const id = Number(projectId);
     const validId = Number.isInteger(id) && id > 0;
@@ -122,6 +138,11 @@ export function ProjectDetailPage() {
         queryKey: projectQueryKeys.detail(validId ? id : 0),
         queryFn: () => getProjectById(id),
         enabled: validId,
+    });
+    const assignmentsQuery = useQuery({
+        queryKey: projectQueryKeys.activeReviewerAssignments(validId ? id : 0),
+        queryFn: () => getActiveProjectReviewerAssignments(id),
+        enabled: validId && query.isSuccess,
     });
     const project = query.data as ProjectResponse | undefined;
     const notFound = !validId || (axios.isAxiosError(query.error) && query.error.response?.status === 404);
@@ -167,6 +188,13 @@ export function ProjectDetailPage() {
         && project.contentType
         && project.fileSize !== null,
     );
+    const activeAssignments = assignmentsQuery.data ?? [];
+    const assignmentLimitReached = activeAssignments.length >= 2;
+    const assignmentEligibleStatus = project.status === 'AWAITING_REVIEWER'
+        || project.status === 'ACTIVE';
+    const showRecommendationAction = assignmentEligibleStatus
+        && assignmentsQuery.isSuccess
+        && !assignmentLimitReached;
     return <Stack spacing={2.5} sx={{ maxWidth: 1280, mx: 'auto', pb: 3, pt: { xs: 2.5, sm: 3 } }}>
         <Paper elevation={0} sx={{ border: '1px solid #D9E2EA', borderRadius: '13px', bgcolor: '#FFFFFF', p: { xs: 2, sm: 3 } }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
@@ -202,7 +230,110 @@ export function ProjectDetailPage() {
                     <Field label="Başlangıç tarihi" value={formatDate(project.startDate)} /><Field label="Süre" value={`${project.durationMonths} ay`} /><Field label="Bitiş tarihi" value={formatDate(project.endDate)} />
                 </Box>
             </DetailCard>
-            <DetailCard title="Hakem durumu" icon={<EngineeringOutlinedIcon />}><Typography color="text.secondary" sx={{ fontSize: 15, lineHeight: 1.5 }}>{project.status === 'AWAITING_REVIEWER' ? 'Henüz hakem atanmadı.' : 'Hakem bilgisi bulunmuyor.'}</Typography></DetailCard>
+            <DetailCard title="Hakem durumu" icon={<EngineeringOutlinedIcon />}>
+                <Stack spacing={1.75}>
+                    {assignmentsQuery.isLoading ? (
+                        <Stack spacing={1.25}>
+                            <Skeleton height={72} variant="rounded" />
+                            <Skeleton height={72} variant="rounded" />
+                        </Stack>
+                    ) : assignmentsQuery.isError ? (
+                        <Alert
+                            severity="error"
+                            action={(
+                                <Button
+                                    color="inherit"
+                                    size="small"
+                                    onClick={() => void assignmentsQuery.refetch()}
+                                >
+                                    Tekrar Dene
+                                </Button>
+                            )}
+                        >
+                            Aktif hakemler yüklenemedi.
+                        </Alert>
+                    ) : activeAssignments.length === 0 ? (
+                        <Typography color="text.secondary" sx={{ fontSize: 15, lineHeight: 1.5 }}>
+                            Henüz hakem atanmadı
+                        </Typography>
+                    ) : (
+                        <Stack spacing={1.25}>
+                            {activeAssignments.slice(0, 2).map((assignment) => (
+                                <Paper
+                                    key={assignment.assignmentId}
+                                    elevation={0}
+                                    sx={{
+                                        border: '1px solid #D9E2EA',
+                                        borderRadius: '10px',
+                                        bgcolor: '#F9FBFC',
+                                        p: 1.75,
+                                    }}
+                                >
+                                    <Stack spacing={1} sx={{ minWidth: 0 }}>
+                                        <Stack
+                                            direction="row"
+                                            spacing={1}
+                                            useFlexGap
+                                            sx={{
+                                                alignItems: 'flex-start',
+                                                justifyContent: 'space-between',
+                                                flexWrap: 'wrap',
+                                            }}
+                                        >
+                                            <Box sx={{ minWidth: 0 }}>
+                                                <Typography sx={{
+                                                    color: '#2A2B61',
+                                                    fontWeight: 700,
+                                                    overflowWrap: 'anywhere',
+                                                }}>
+                                                    {assignment.academicianName}
+                                                </Typography>
+                                                <Typography color="text.secondary" sx={{ fontSize: 14, mt: 0.2 }}>
+                                                    {assignment.academicianTitle?.trim() || missingValue}
+                                                </Typography>
+                                            </Box>
+                                            <Chip
+                                                label="Aktif"
+                                                size="small"
+                                                sx={{
+                                                    bgcolor: '#EAF7FB',
+                                                    color: '#176B8A',
+                                                    fontWeight: 700,
+                                                }}
+                                            />
+                                        </Stack>
+                                        <Box sx={{
+                                            display: 'grid',
+                                            gap: 1,
+                                            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+                                        }}>
+                                            <Field
+                                                label="Atanma tarihi"
+                                                value={formatDateTime(assignment.assignedAt)}
+                                            />
+                                            <Field label="Atayan" value={assignment.assignedByName} />
+                                        </Box>
+                                    </Stack>
+                                </Paper>
+                            ))}
+                        </Stack>
+                    )}
+                    {assignmentLimitReached && assignmentEligibleStatus && (
+                        <Typography color="text.secondary" sx={{ fontSize: 14, lineHeight: 1.5 }}>
+                            Bu projeye en fazla iki aktif hakem atanabilir.
+                        </Typography>
+                    )}
+                    {showRecommendationAction && (
+                        <Button
+                            variant="contained"
+                            onClick={() => setRecommendationsOpen(true)}
+                            sx={{ ...backButtonSx, alignSelf: 'flex-start', maxWidth: '100%' }}
+                        >
+                            Hakem Önerilerini Gör
+                        </Button>
+                    )}
+                </Stack>
+            </DetailCard>
             <Box sx={{ gridColumn: { md: '1 / -1' } }}><DetailCard title="Teknik içerik" icon={<EngineeringOutlinedIcon />}>
                 <Stack spacing={2}><Field label="Proje özeti" value={project.summary} /><Field label="Ar-Ge niteliği" value={project.researchAndDevelopmentNature} /><Field label="Yenilikçi yönü" value={project.innovativeAspect} /><Field label="Ana teknoloji alanı" value={project.mainTechnologyArea} /><Field label="Proje detayı" value={project.projectDetail} /></Stack>
             </DetailCard></Box>
@@ -227,5 +358,25 @@ export function ProjectDetailPage() {
                 Belge indirilemedi. Lütfen tekrar deneyin.
             </Alert>
         </Snackbar>
+        <Snackbar
+            autoHideDuration={4000}
+            open={assignmentSuccessOpen}
+            onClose={() => setAssignmentSuccessOpen(false)}
+        >
+            <Alert
+                severity="success"
+                variant="filled"
+                onClose={() => setAssignmentSuccessOpen(false)}
+            >
+                Hakem başarıyla atandı.
+            </Alert>
+        </Snackbar>
+        <ProjectReviewerRecommendationsDialog
+            open={recommendationsOpen}
+            projectId={project.id}
+            projectName={project.name}
+            onClose={() => setRecommendationsOpen(false)}
+            onAssigned={() => setAssignmentSuccessOpen(true)}
+        />
     </Stack>;
 }

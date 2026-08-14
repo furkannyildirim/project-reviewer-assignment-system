@@ -34,6 +34,9 @@ public class ProjectFormParserService {
     private static final Pattern CHECKBOX_PATTERN = Pattern.compile(
             "([☐☑☒□■○●✓✔]|\\[[xX ]]|\\([xX ]\\))\\s*"
     );
+    private static final Pattern LEADING_TECHNOLOGY_SELECTION_MARKER = Pattern.compile(
+            "^[☑☒☐✓✔]\\s*"
+    );
     private static final Set<String> CHECKED_MARKERS = Set.of(
             "☑", "☒", "■", "●", "✓", "✔", "[x]", "(x)"
     );
@@ -222,6 +225,7 @@ public class ProjectFormParserService {
     ) {
         return valueLines(sections, ProjectFormField.MAIN_TECHNOLOGY_AREA).stream()
                 .filter(line -> !normalizeLabel(line).equals(normalizeLabel("Bir öğe seçin.")))
+                .map(line -> LEADING_TECHNOLOGY_SELECTION_MARKER.matcher(line).replaceFirst(""))
                 .toList();
     }
 

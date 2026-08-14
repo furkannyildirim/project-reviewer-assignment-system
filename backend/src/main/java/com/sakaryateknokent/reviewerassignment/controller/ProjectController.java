@@ -3,7 +3,9 @@ package com.sakaryateknokent.reviewerassignment.controller;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ReviewerAssignmentRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.service.ProjectService;
 import com.sakaryateknokent.reviewerassignment.service.ProjectCreationFromUploadService;
@@ -22,6 +24,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/projects")
@@ -67,6 +71,25 @@ public class ProjectController {
             @PathVariable Long projectId
     ) {
         return ResponseEntity.ok(projectService.getProjectById(projectId));
+    }
+
+    @GetMapping("/{projectId}/reviewer-assignments")
+    public ResponseEntity<List<ProjectReviewerAssignmentResponse>>
+    listActiveReviewerAssignments(@PathVariable Long projectId) {
+        return ResponseEntity.ok(
+                projectService.listActiveReviewerAssignments(projectId)
+        );
+    }
+
+    @PostMapping("/{projectId}/reviewer-assignments")
+    public ResponseEntity<ProjectReviewerAssignmentResponse> assignReviewer(
+            @PathVariable Long projectId,
+            @Valid @RequestBody ReviewerAssignmentRequest request,
+            Authentication authentication
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                projectService.assignReviewer(projectId, request, authentication.getName())
+        );
     }
 
     @PutMapping("/{projectId}")

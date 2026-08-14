@@ -7,6 +7,8 @@ import type {
     ProjectUploadResponse,
     CreateProjectFromUploadRequest,
     ProjectResponse,
+    ProjectReviewerRecommendationsResponse,
+    ProjectReviewerAssignment,
 } from './project.types';
 
 export async function getProjects(
@@ -27,6 +29,35 @@ export async function getProjects(
 
 export async function getProjectById(id: number): Promise<ProjectResponse> {
     const response = await httpClient.get<ProjectResponse>(`/projects/${id}`);
+    return response.data;
+}
+
+export async function getProjectReviewerRecommendations(
+    id: number,
+): Promise<ProjectReviewerRecommendationsResponse> {
+    const response = await httpClient.get<ProjectReviewerRecommendationsResponse>(
+        `/projects/${id}/reviewer-recommendations`,
+    );
+    return response.data;
+}
+
+export async function getActiveProjectReviewerAssignments(
+    id: number,
+): Promise<ProjectReviewerAssignment[]> {
+    const response = await httpClient.get<ProjectReviewerAssignment[]>(
+        `/projects/${id}/reviewer-assignments`,
+    );
+    return response.data;
+}
+
+export async function assignProjectReviewer(
+    projectId: number,
+    academicianId: number,
+): Promise<ProjectReviewerAssignment> {
+    const response = await httpClient.post<ProjectReviewerAssignment>(
+        `/projects/${projectId}/reviewer-assignments`,
+        { academicianId },
+    );
     return response.data;
 }
 

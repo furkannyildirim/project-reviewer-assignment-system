@@ -106,6 +106,16 @@ class ProjectFormParserServiceTest {
     }
 
     @Test
+    void removesOnlyLeadingSelectionMarkerFromMainTechnologyArea() {
+        ParsedProjectForm result = parse(completedForm().replace(
+                "Finans Teknolojileri",
+                "☑ Enerji Depolama ve Güç Elektroniği"
+        ));
+
+        assertEquals("Enerji Depolama ve Güç Elektroniği", result.mainTechnologyArea());
+    }
+
+    @Test
     void marksSelectionAsReviewRequiredWhenCheckboxStateIsUnclear() {
         String ambiguous = completedForm()
                 .replace("☒ Ar-Ge ☐ Tasarım ☑ Yazılım", "Ar-Ge / Tasarım / Yazılım")
