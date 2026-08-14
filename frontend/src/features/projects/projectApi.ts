@@ -80,6 +80,10 @@ export async function removeProjectReviewerAssignment(
     );
 }
 
+export async function completeProject(id: number): Promise<void> {
+    await httpClient.post(`/projects/${id}/complete`);
+}
+
 export async function downloadProjectDocument(
     id: number,
 ): Promise<{ blob: Blob; fileName: string | null }> {

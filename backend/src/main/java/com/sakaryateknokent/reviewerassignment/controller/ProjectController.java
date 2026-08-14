@@ -110,6 +110,12 @@ public class ProjectController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{projectId}/complete")
+    public ResponseEntity<Void> completeProject(@PathVariable Long projectId) {
+        projectService.completeProject(projectId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/{projectId}")
     public ResponseEntity<ProjectResponse> updateProject(
             @PathVariable Long projectId,

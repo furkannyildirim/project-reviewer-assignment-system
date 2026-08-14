@@ -249,6 +249,32 @@ public class ProjectService {
         }
     }
 
+    public void completeProject(Long projectId) {
+        Project project = projectRepository.findByIdForReviewerAssignment(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proje bulunamadi"));
+
+        if (project.getStatus() != ProjectStatus.ACTIVE) {
+            throw new DuplicateResourceException("Yalnizca aktif projeler tamamlanabilir");
+        }
+
+        List<ProjectReviewerAssignment> activeAssignments =
+                assignmentRepository.findByProjectIdAndStatusForCompletion(
+                        projectId, AssignmentStatus.ACTIVE);
+        if (activeAssignments.isEmpty()) {
+            throw new DuplicateResourceException(
+                    "Aktif hakemi olmayan proje tamamlanamaz"
+            );
+        }
+
+        Instant completedAt = Instant.now();
+        activeAssignments.forEach(assignment -> {
+            assignment.setStatus(AssignmentStatus.COMPLETED);
+            assignment.setEndedAt(completedAt);
+        });
+        assignmentRepository.saveAllAndFlush(activeAssignments);
+        project.setStatus(ProjectStatus.COMPLETED);
+    }
+
     private Project findProjectDetail(Long id) {
         return projectRepository.findDetailById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Proje bulunamadi"));

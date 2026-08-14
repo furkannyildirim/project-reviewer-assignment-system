@@ -55,6 +55,22 @@ function formatDate(value: string | null): string {
     }).format(date);
 }
 
+function activeReviewerLabel(project: ProjectListItem): string {
+    if (project.activeReviewerCount > 0) {
+        return `${project.activeReviewerCount} hakem`;
+    }
+
+    if (project.status === 'ACTIVE') {
+        return 'Aktif hakem bulunmuyor';
+    }
+
+    if (project.status === 'COMPLETED' || project.status === 'CANCELLED') {
+        return 'Aktif hakem yok';
+    }
+
+    return 'Atanmadı';
+}
+
 function LoadingRows() {
     return Array.from({ length: 5 }).map((_, index) => (
         <TableRow key={index}>
@@ -166,9 +182,7 @@ export function ProjectTable({
                                         }} />
                                     </TableCell>
                                     <TableCell>
-                                        {project.activeReviewerCount === 0
-                                            ? 'Atanmadı'
-                                            : `${project.activeReviewerCount} hakem`}
+                                        {activeReviewerLabel(project)}
                                     </TableCell>
                                     <TableCell align="right">
                                         <Tooltip title="Görüntüle">

@@ -327,6 +327,30 @@ class ProjectControllerTest {
     }
 
     @Test
+    void completeProjectReturnsNoContent() {
+        ResponseEntity<Void> response = projectController.completeProject(5L);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        assertEquals(null, response.getBody());
+        verify(projectService).completeProject(5L);
+    }
+
+    @Test
+    void projectCompletionAllowsAuthenticatedUserAndAdminButRejectsAnonymous()
+            throws Exception {
+        String path = "/api/projects/5/complete";
+
+        securedMockMvc.perform(post(path)
+                        .with(user("user@example.com").roles("USER")))
+                .andExpect(status().isNoContent());
+        securedMockMvc.perform(post(path)
+                        .with(user("admin@example.com").roles("ADMIN")))
+                .andExpect(status().isNoContent());
+        securedMockMvc.perform(post(path))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void rejectsInvalidCreateRequestWithExistingFieldErrorFormat() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(projectController)
                 .setControllerAdvice(new GlobalExceptionHandler())

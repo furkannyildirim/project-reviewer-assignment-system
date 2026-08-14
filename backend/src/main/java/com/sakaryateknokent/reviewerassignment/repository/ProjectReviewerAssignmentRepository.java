@@ -50,6 +50,17 @@ public interface ProjectReviewerAssignmentRepository
             @Param("statuses") Collection<AssignmentStatus> statuses
     );
 
+    @Query("""
+            SELECT assignment
+            FROM ProjectReviewerAssignment assignment
+            WHERE assignment.project.id = :projectId
+              AND assignment.status = :status
+            """)
+    List<ProjectReviewerAssignment> findByProjectIdAndStatusForCompletion(
+            @Param("projectId") Long projectId,
+            @Param("status") AssignmentStatus status
+    );
+
     long countByAcademicianIdAndStatus(Long academicianId, AssignmentStatus status);
 
     long countByAcademicianIdAndStatusIn(
