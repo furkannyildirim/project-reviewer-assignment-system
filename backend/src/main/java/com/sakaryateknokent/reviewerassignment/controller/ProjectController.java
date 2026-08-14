@@ -3,6 +3,7 @@ package com.sakaryateknokent.reviewerassignment.controller;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ReviewerAssignmentRequest;
@@ -81,6 +82,14 @@ public class ProjectController {
         );
     }
 
+    @GetMapping("/{projectId}/reviewer-assignments/history")
+    public ResponseEntity<List<ProjectReviewerAssignmentHistoryResponse>>
+    listReviewerAssignmentHistory(@PathVariable Long projectId) {
+        return ResponseEntity.ok(
+                projectService.listReviewerAssignmentHistory(projectId)
+        );
+    }
+
     @PostMapping("/{projectId}/reviewer-assignments")
     public ResponseEntity<ProjectReviewerAssignmentResponse> assignReviewer(
             @PathVariable Long projectId,
@@ -90,6 +99,15 @@ public class ProjectController {
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 projectService.assignReviewer(projectId, request, authentication.getName())
         );
+    }
+
+    @PostMapping("/{projectId}/reviewer-assignments/{assignmentId}/remove")
+    public ResponseEntity<Void> removeReviewerAssignment(
+            @PathVariable Long projectId,
+            @PathVariable Long assignmentId
+    ) {
+        projectService.removeReviewerAssignment(projectId, assignmentId);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{projectId}")

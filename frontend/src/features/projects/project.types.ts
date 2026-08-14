@@ -189,4 +189,18 @@ export type ProjectReviewerAssignment = {
     assignedByName: string;
 };
 
+export type ProjectReviewerAssignmentHistoryStatus = 'REMOVED' | 'COMPLETED';
+
+export type ProjectReviewerAssignmentHistory = {
+    assignmentId: number;
+    projectId: number;
+    academicianId: number;
+    academicianName: string;
+    academicianTitle: string | null;
+    status: ProjectReviewerAssignmentHistoryStatus;
+    assignedAt: string;
+    endedAt: string | null;
+    assignedByName: string;
+};
+
 export const projectPageSizes = [10, 15, 20, 25] as const;

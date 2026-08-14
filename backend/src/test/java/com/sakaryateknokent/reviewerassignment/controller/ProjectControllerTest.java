@@ -5,6 +5,7 @@ import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ReviewerAssignmentRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
@@ -236,6 +237,96 @@ class ProjectControllerTest {
     }
 
     @Test
+    void listsReviewerAssignmentHistoryWithSafeResponseFields() throws Exception {
+        when(projectService.listReviewerAssignmentHistory(5L))
+                .thenReturn(List.of(historyResponse()));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(projectController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        mockMvc.perform(get("/api/projects/5/reviewer-assignments/history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].assignmentId").value(41))
+                .andExpect(jsonPath("$[0].projectId").value(5))
+                .andExpect(jsonPath("$[0].academicianId").value(21))
+                .andExpect(jsonPath("$[0].academicianName").value("Ayse Demir"))
+                .andExpect(jsonPath("$[0].academicianTitle").value("Prof. Dr."))
+                .andExpect(jsonPath("$[0].status").value("REMOVED"))
+                .andExpect(jsonPath("$[0].assignedAt").exists())
+                .andExpect(jsonPath("$[0].endedAt").exists())
+                .andExpect(jsonPath("$[0].assignedByName").value("Ali Yilmaz"))
+                .andExpect(jsonPath("$[0].email").doesNotExist())
+                .andExpect(jsonPath("$[0].phone").doesNotExist())
+                .andExpect(jsonPath("$[0].passwordHash").doesNotExist())
+                .andExpect(jsonPath("$[0].storageKey").doesNotExist())
+                .andExpect(jsonPath("$[0].removedBy").doesNotExist());
+    }
+
+    @Test
+    void returnsEmptyReviewerAssignmentHistoryList() {
+        when(projectService.listReviewerAssignmentHistory(5L)).thenReturn(List.of());
+
+        ResponseEntity<List<ProjectReviewerAssignmentHistoryResponse>> response =
+                projectController.listReviewerAssignmentHistory(5L);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(List.of(), response.getBody());
+    }
+
+    @Test
+    void returnsNotFoundWhenHistoryProjectDoesNotExist() throws Exception {
+        when(projectService.listReviewerAssignmentHistory(99L))
+                .thenThrow(new ResourceNotFoundException("Proje bulunamadi"));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(projectController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        mockMvc.perform(get("/api/projects/99/reviewer-assignments/history"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Proje bulunamadi"));
+    }
+
+    @Test
+    void reviewerAssignmentHistoryAllowsUserAndAdminButRejectsAnonymous()
+            throws Exception {
+        when(projectService.listReviewerAssignmentHistory(5L)).thenReturn(List.of());
+        String path = "/api/projects/5/reviewer-assignments/history";
+
+        securedMockMvc.perform(get(path)
+                        .with(user("user@example.com").roles("USER")))
+                .andExpect(status().isOk());
+        securedMockMvc.perform(get(path)
+                        .with(user("admin@example.com").roles("ADMIN")))
+                .andExpect(status().isOk());
+        securedMockMvc.perform(get(path))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void removeReviewerAssignmentReturnsNoContent() {
+        ResponseEntity<Void> response = projectController.removeReviewerAssignment(5L, 31L);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        assertEquals(null, response.getBody());
+        verify(projectService).removeReviewerAssignment(5L, 31L);
+    }
+
+    @Test
+    void reviewerRemovalAllowsAuthenticatedUserAndAdminButRejectsAnonymous()
+            throws Exception {
+        String path = "/api/projects/5/reviewer-assignments/31/remove";
+
+        securedMockMvc.perform(post(path)
+                        .with(user("user@example.com").roles("USER")))
+                .andExpect(status().isNoContent());
+        securedMockMvc.perform(post(path)
+                        .with(user("admin@example.com").roles("ADMIN")))
+                .andExpect(status().isNoContent());
+        securedMockMvc.perform(post(path))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void rejectsInvalidCreateRequestWithExistingFieldErrorFormat() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(projectController)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -304,6 +395,20 @@ class ProjectControllerTest {
         return new ProjectReviewerAssignmentResponse(
                 31L, 5L, 21L, "Ayse Demir", "Prof. Dr.",
                 AssignmentStatus.ACTIVE, Instant.parse("2026-08-14T10:00:00Z"),
+                "Ali Yilmaz"
+        );
+    }
+
+    private ProjectReviewerAssignmentHistoryResponse historyResponse() {
+        return new ProjectReviewerAssignmentHistoryResponse(
+                41L,
+                5L,
+                21L,
+                "Ayse Demir",
+                "Prof. Dr.",
+                AssignmentStatus.REMOVED,
+                Instant.parse("2026-08-01T09:00:00Z"),
+                Instant.parse("2026-08-14T10:00:00Z"),
                 "Ali Yilmaz"
         );
     }

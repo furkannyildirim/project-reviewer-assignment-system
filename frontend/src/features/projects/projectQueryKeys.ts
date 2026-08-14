@@ -18,4 +18,9 @@ export const projectQueryKeys = {
         'active-reviewer-assignments',
         id,
     ] as const,
+    reviewerAssignmentHistory: (id: number) => [
+        ...projectQueryKeys.all,
+        'reviewer-assignment-history',
+        id,
+    ] as const,
 };

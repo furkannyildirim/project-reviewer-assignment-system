@@ -3,6 +3,7 @@ package com.sakaryateknokent.reviewerassignment.service;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ReviewerAssignmentRequest;
@@ -31,6 +32,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -44,6 +46,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 public class ProjectService {
+
+    private static final Set<AssignmentStatus> ASSIGNMENT_HISTORY_STATUSES = Set.of(
+            AssignmentStatus.REMOVED,
+            AssignmentStatus.COMPLETED
+    );
 
     private final ProjectRepository projectRepository;
     private final CompanyRepository companyRepository;
@@ -198,6 +205,50 @@ public class ProjectService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<ProjectReviewerAssignmentHistoryResponse> listReviewerAssignmentHistory(
+            Long projectId
+    ) {
+        if (!projectRepository.existsById(projectId)) {
+            throw new ResourceNotFoundException("Proje bulunamadi");
+        }
+        return assignmentRepository.findHistoryByProjectIdWithPeople(
+                        projectId, ASSIGNMENT_HISTORY_STATUSES)
+                .stream()
+                .filter(assignment -> ASSIGNMENT_HISTORY_STATUSES.contains(
+                        assignment.getStatus()))
+                .map(this::toAssignmentHistoryResponse)
+                .toList();
+    }
+
+    public void removeReviewerAssignment(Long projectId, Long assignmentId) {
+        Project project = projectRepository.findByIdForReviewerAssignment(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proje bulunamadi"));
+        ProjectReviewerAssignment assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hakem atamasi bulunamadi"));
+
+        if (!projectId.equals(assignment.getProject().getId())) {
+            throw new InvalidRequestException("Hakem atamasi belirtilen projeye ait degil");
+        }
+        if (project.getStatus() != ProjectStatus.ACTIVE) {
+            throw new InvalidRequestException(
+                    "Yalnizca aktif projelerdeki hakem atamalari kaldirilabilir"
+            );
+        }
+        if (assignment.getStatus() != AssignmentStatus.ACTIVE) {
+            throw new DuplicateResourceException("Hakem atamasi artik aktif degil");
+        }
+
+        assignment.setStatus(AssignmentStatus.REMOVED);
+        assignment.setEndedAt(Instant.now());
+        assignmentRepository.saveAndFlush(assignment);
+
+        if (assignmentRepository.countByProjectIdAndStatus(
+                projectId, AssignmentStatus.ACTIVE) == 0) {
+            project.setStatus(ProjectStatus.AWAITING_REVIEWER);
+        }
+    }
+
     private Project findProjectDetail(Long id) {
         return projectRepository.findDetailById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Proje bulunamadi"));
@@ -335,6 +386,24 @@ public class ProjectService {
                 academician.getTitle(),
                 assignment.getStatus(),
                 assignment.getAssignedAt(),
+                assignedBy.getFirstName() + " " + assignedBy.getLastName()
+        );
+    }
+
+    private ProjectReviewerAssignmentHistoryResponse toAssignmentHistoryResponse(
+            ProjectReviewerAssignment assignment
+    ) {
+        Academician academician = assignment.getAcademician();
+        User assignedBy = assignment.getAssignedBy();
+        return new ProjectReviewerAssignmentHistoryResponse(
+                assignment.getId(),
+                assignment.getProject().getId(),
+                academician.getId(),
+                academician.getFirstName() + " " + academician.getLastName(),
+                academician.getTitle(),
+                assignment.getStatus(),
+                assignment.getAssignedAt(),
+                assignment.getEndedAt(),
                 assignedBy.getFirstName() + " " + assignedBy.getLastName()
         );
     }

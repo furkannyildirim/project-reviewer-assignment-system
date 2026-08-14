@@ -1,10 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import EngineeringOutlinedIcon from '@mui/icons-material/EngineeringOutlined';
+import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
+import PersonRemoveOutlinedIcon from '@mui/icons-material/PersonRemoveOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import {
     Alert,
@@ -12,6 +14,10 @@ import {
     Button,
     Chip,
     CircularProgress,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     Paper,
     Skeleton,
     Snackbar,
@@ -26,9 +32,17 @@ import {
     downloadProjectDocument,
     getActiveProjectReviewerAssignments,
     getProjectById,
+    getProjectReviewerAssignmentHistory,
+    removeProjectReviewerAssignment,
 } from './projectApi';
 import { projectQueryKeys } from './projectQueryKeys';
-import type { ProjectCompanyType, ProjectResponse, ProjectStatus } from './project.types';
+import type {
+    ProjectCompanyType,
+    ProjectResponse,
+    ProjectReviewerAssignment,
+    ProjectReviewerAssignmentHistoryStatus,
+    ProjectStatus,
+} from './project.types';
 import { ProjectReviewerRecommendationsDialog } from './components/ProjectReviewerRecommendationsDialog';
 
 const missingValue = 'Bilgi girilmemiş';
@@ -51,6 +65,22 @@ const statusLabels: Record<ProjectStatus, string> = {
     ACTIVE: 'Aktif',
     COMPLETED: 'Tamamlandı',
     CANCELLED: 'İptal edildi',
+};
+const historyStatusPresentation: Record<ProjectReviewerAssignmentHistoryStatus, {
+    label: string;
+    backgroundColor: string;
+    color: string;
+}> = {
+    REMOVED: {
+        label: 'Kaldırıldı',
+        backgroundColor: '#FFF2EC',
+        color: '#9A461D',
+    },
+    COMPLETED: {
+        label: 'Tamamlandı',
+        backgroundColor: '#EAF7FB',
+        color: '#176B8A',
+    },
 };
 
 function companyTypeLabel(type: ProjectCompanyType) {
@@ -127,10 +157,16 @@ function LoadingState() {
 
 export function ProjectDetailPage() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [isDownloading, setIsDownloading] = useState(false);
     const [downloadErrorOpen, setDownloadErrorOpen] = useState(false);
     const [assignmentSuccessOpen, setAssignmentSuccessOpen] = useState(false);
+    const [removalSuccessOpen, setRemovalSuccessOpen] = useState(false);
+    const [selectedAssignment, setSelectedAssignment] =
+        useState<ProjectReviewerAssignment | null>(null);
+    const [removalError, setRemovalError] = useState<string | null>(null);
     const [recommendationsOpen, setRecommendationsOpen] = useState(false);
+    const [historyOpen, setHistoryOpen] = useState(false);
     const { projectId } = useParams();
     const id = Number(projectId);
     const validId = Number.isInteger(id) && id > 0;
@@ -143,6 +179,45 @@ export function ProjectDetailPage() {
         queryKey: projectQueryKeys.activeReviewerAssignments(validId ? id : 0),
         queryFn: () => getActiveProjectReviewerAssignments(id),
         enabled: validId && query.isSuccess,
+    });
+    const historyQuery = useQuery({
+        queryKey: projectQueryKeys.reviewerAssignmentHistory(validId ? id : 0),
+        queryFn: () => getProjectReviewerAssignmentHistory(id),
+        enabled: validId && historyOpen,
+    });
+    const removalMutation = useMutation({
+        mutationFn: (assignmentId: number) => removeProjectReviewerAssignment(
+            id,
+            assignmentId,
+        ),
+        onSuccess: async () => {
+            setSelectedAssignment(null);
+            setRemovalError(null);
+            setRemovalSuccessOpen(true);
+            await Promise.all([
+                queryClient.invalidateQueries({
+                    queryKey: projectQueryKeys.activeReviewerAssignments(id),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: projectQueryKeys.reviewerRecommendations(id),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: projectQueryKeys.reviewerAssignmentHistory(id),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: projectQueryKeys.detail(id),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: projectQueryKeys.lists(),
+                }),
+            ]);
+        },
+        onError: (error) => {
+            setRemovalError(getApiErrorMessage(
+                error,
+                'Hakem aktif görevden kaldırılamadı. Lütfen tekrar deneyin.',
+            ));
+        },
     });
     const project = query.data as ProjectResponse | undefined;
     const notFound = !validId || (axios.isAxiosError(query.error) && query.error.response?.status === 404);
@@ -167,6 +242,20 @@ export function ProjectDetailPage() {
             if (objectUrl) URL.revokeObjectURL(objectUrl);
             setIsDownloading(false);
         }
+    }
+
+    function selectAssignmentForRemoval(assignment: ProjectReviewerAssignment) {
+        if (removalMutation.isPending) return;
+        setSelectedAssignment(assignment);
+        setRemovalError(null);
+        removalMutation.reset();
+    }
+
+    function closeRemovalDialog() {
+        if (removalMutation.isPending) return;
+        setSelectedAssignment(null);
+        setRemovalError(null);
+        removalMutation.reset();
     }
 
     if (query.isLoading) return <LoadingState />;
@@ -313,6 +402,35 @@ export function ProjectDetailPage() {
                                             />
                                             <Field label="Atayan" value={assignment.assignedByName} />
                                         </Box>
+                                        {project.status === 'ACTIVE' && (
+                                            <Button
+                                                color="warning"
+                                                disabled={removalMutation.isPending}
+                                                loading={removalMutation.isPending
+                                                    && selectedAssignment?.assignmentId
+                                                    === assignment.assignmentId}
+                                                onClick={() => selectAssignmentForRemoval(assignment)}
+                                                size="small"
+                                                startIcon={<PersonRemoveOutlinedIcon />}
+                                                variant="outlined"
+                                                sx={{
+                                                    alignSelf: { xs: 'stretch', sm: 'flex-start' },
+                                                    borderColor: '#C96A36',
+                                                    color: '#9A461D',
+                                                    minHeight: 38,
+                                                    '&:hover': {
+                                                        bgcolor: '#FFF7F2',
+                                                        borderColor: '#A95127',
+                                                    },
+                                                    '&:focus-visible': {
+                                                        outline: '2px solid #2EA8D3',
+                                                        outlineOffset: 2,
+                                                    },
+                                                }}
+                                            >
+                                                Hakemi Kaldır
+                                            </Button>
+                                        )}
                                     </Stack>
                                 </Paper>
                             ))}
@@ -332,6 +450,28 @@ export function ProjectDetailPage() {
                             Hakem Önerilerini Gör
                         </Button>
                     )}
+                    <Button
+                        onClick={() => setHistoryOpen(true)}
+                        size="small"
+                        startIcon={<HistoryOutlinedIcon />}
+                        variant="outlined"
+                        sx={{
+                            alignSelf: { xs: 'stretch', sm: 'flex-start' },
+                            borderColor: '#D9E2EA',
+                            color: '#526273',
+                            minHeight: 38,
+                            '&:hover': {
+                                bgcolor: '#F7FAFC',
+                                borderColor: '#AEBCC9',
+                            },
+                            '&:focus-visible': {
+                                outline: '2px solid #2EA8D3',
+                                outlineOffset: 2,
+                            },
+                        }}
+                    >
+                        Atama Geçmişi
+                    </Button>
                 </Stack>
             </DetailCard>
             <Box sx={{ gridColumn: { md: '1 / -1' } }}><DetailCard title="Teknik içerik" icon={<EngineeringOutlinedIcon />}>
@@ -371,6 +511,233 @@ export function ProjectDetailPage() {
                 Hakem başarıyla atandı.
             </Alert>
         </Snackbar>
+        <Snackbar
+            autoHideDuration={4000}
+            open={removalSuccessOpen}
+            onClose={() => setRemovalSuccessOpen(false)}
+        >
+            <Alert
+                severity="success"
+                variant="filled"
+                onClose={() => setRemovalSuccessOpen(false)}
+            >
+                Hakem aktif görevden kaldırıldı.
+            </Alert>
+        </Snackbar>
+        <Dialog
+            fullWidth
+            maxWidth="xs"
+            open={selectedAssignment !== null}
+            onClose={removalMutation.isPending ? undefined : closeRemovalDialog}
+        >
+            <DialogTitle sx={{ color: '#2A2B61', fontWeight: 700 }}>
+                Aktif hakemi kaldır
+            </DialogTitle>
+            <DialogContent>
+                <Stack spacing={2} sx={{ pt: 0.5 }}>
+                    {removalError && <Alert severity="error">{removalError}</Alert>}
+                    <Box>
+                        <Typography sx={{ color: '#2A2B61', fontWeight: 700 }}>
+                            {selectedAssignment?.academicianName}
+                        </Typography>
+                        <Typography color="text.secondary" sx={{ fontSize: 14, mt: 0.25 }}>
+                            {selectedAssignment?.academicianTitle?.trim()
+                                || 'Ünvan bilgisi bulunmuyor'}
+                        </Typography>
+                    </Box>
+                    <Typography color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                        Bu kişi projenin aktif hakemliğinden kaldırılacaktır.
+                        Atama kaydı geçmişte korunmaya devam edecektir.
+                    </Typography>
+                    <Alert severity="info" variant="outlined" sx={{ bgcolor: '#F7FAFC' }}>
+                        Son aktif hakem kaldırılırsa proje yeniden “Hakem bekliyor”
+                        durumuna döner.
+                    </Alert>
+                </Stack>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5 }}>
+                <Button
+                    disabled={removalMutation.isPending}
+                    onClick={closeRemovalDialog}
+                    sx={{
+                        bgcolor: '#F2F4F7',
+                        color: '#344054',
+                        '&:hover': { bgcolor: '#E4E7EC' },
+                        '&:focus-visible': {
+                            outline: '2px solid #2EA8D3',
+                            outlineOffset: 2,
+                        },
+                    }}
+                >
+                    Vazgeç
+                </Button>
+                <Button
+                    color="warning"
+                    disabled={!selectedAssignment || removalMutation.isPending}
+                    loading={removalMutation.isPending}
+                    onClick={() => {
+                        if (selectedAssignment) {
+                            removalMutation.mutate(selectedAssignment.assignmentId);
+                        }
+                    }}
+                    variant="contained"
+                    sx={{
+                        bgcolor: '#A95127',
+                        color: '#FFFFFF',
+                        '&:hover': { bgcolor: '#8B3D1D' },
+                        '&:focus-visible': {
+                            outline: '2px solid #2EA8D3',
+                            outlineOffset: 2,
+                        },
+                    }}
+                >
+                    Hakemi Kaldır
+                </Button>
+            </DialogActions>
+        </Dialog>
+        <Dialog
+            fullWidth
+            maxWidth="md"
+            open={historyOpen}
+            onClose={() => setHistoryOpen(false)}
+        >
+            <DialogTitle sx={{ borderBottom: '1px solid #E3EAF0', pb: 2 }}>
+                <Typography component="h2" sx={{ color: '#2A2B61', fontSize: 21, fontWeight: 700 }}>
+                    Hakem Atama Geçmişi
+                </Typography>
+                <Typography color="text.secondary" sx={{ fontSize: 14, mt: 0.5 }}>
+                    Bu projede sona ermiş hakem görevlendirmeleri gösterilir.
+                </Typography>
+            </DialogTitle>
+            <DialogContent
+                dividers
+                sx={{ bgcolor: '#F7FAFC', maxHeight: '60vh', overflowY: 'auto', py: 2.5 }}
+            >
+                {historyQuery.isLoading ? (
+                    <Stack spacing={1.5}>
+                        {[0, 1].map((item) => <Skeleton key={item} height={154} variant="rounded" />)}
+                    </Stack>
+                ) : historyQuery.isError ? (
+                    <Alert
+                        severity="error"
+                        action={(
+                            <Button
+                                color="inherit"
+                                size="small"
+                                onClick={() => void historyQuery.refetch()}
+                            >
+                                Tekrar Dene
+                            </Button>
+                        )}
+                    >
+                        {getApiErrorMessage(
+                            historyQuery.error,
+                            'Hakem atama geçmişi şu anda yüklenemedi.',
+                        )}
+                    </Alert>
+                ) : (historyQuery.data?.length ?? 0) === 0 ? (
+                    <Paper
+                        elevation={0}
+                        sx={{ border: '1px solid #D9E2EA', borderRadius: '10px', p: 2.5 }}
+                    >
+                        <Typography sx={{ color: '#2A2B61', fontWeight: 700 }}>
+                            Bu projeye ait sona ermiş hakem ataması bulunmuyor.
+                        </Typography>
+                    </Paper>
+                ) : (
+                    <Stack spacing={1.5}>
+                        {historyQuery.data?.map((assignment) => {
+                            const presentation = historyStatusPresentation[assignment.status];
+                            return (
+                                <Paper
+                                    key={assignment.assignmentId}
+                                    elevation={0}
+                                    sx={{
+                                        border: '1px solid #D9E2EA',
+                                        borderRadius: '10px',
+                                        bgcolor: '#FFFFFF',
+                                        p: 2,
+                                    }}
+                                >
+                                    <Stack spacing={1.5} sx={{ minWidth: 0 }}>
+                                        <Stack
+                                            direction={{ xs: 'column', sm: 'row' }}
+                                            spacing={1}
+                                            sx={{
+                                                alignItems: { sm: 'flex-start' },
+                                                justifyContent: 'space-between',
+                                            }}
+                                        >
+                                            <Box sx={{ minWidth: 0 }}>
+                                                <Typography sx={{
+                                                    color: '#2A2B61',
+                                                    fontSize: 16,
+                                                    fontWeight: 700,
+                                                    lineHeight: 1.4,
+                                                    overflowWrap: 'anywhere',
+                                                }}>
+                                                    {assignment.academicianName}
+                                                </Typography>
+                                                <Typography color="text.secondary" sx={{ fontSize: 14, mt: 0.25 }}>
+                                                    {assignment.academicianTitle?.trim() || missingValue}
+                                                </Typography>
+                                            </Box>
+                                            <Chip
+                                                label={presentation.label}
+                                                size="small"
+                                                sx={{
+                                                    alignSelf: { xs: 'flex-start', sm: 'center' },
+                                                    bgcolor: presentation.backgroundColor,
+                                                    color: presentation.color,
+                                                    fontWeight: 700,
+                                                }}
+                                            />
+                                        </Stack>
+                                        <Box sx={{
+                                            display: 'grid',
+                                            gap: 1.5,
+                                            gridTemplateColumns: {
+                                                xs: '1fr',
+                                                sm: 'repeat(3, minmax(0, 1fr))',
+                                            },
+                                        }}>
+                                            <Field
+                                                label="Atanma tarihi"
+                                                value={formatDateTime(assignment.assignedAt)}
+                                            />
+                                            <Field
+                                                label="Sona erme tarihi"
+                                                value={formatDateTime(assignment.endedAt)}
+                                            />
+                                            <Field
+                                                label="Atayan (ilk atama)"
+                                                value={assignment.assignedByName}
+                                            />
+                                        </Box>
+                                    </Stack>
+                                </Paper>
+                            );
+                        })}
+                    </Stack>
+                )}
+            </DialogContent>
+            <DialogActions sx={{ borderTop: '1px solid #E3EAF0', px: 3, py: 1.5 }}>
+                <Button
+                    onClick={() => setHistoryOpen(false)}
+                    sx={{
+                        bgcolor: '#F2F4F7',
+                        color: '#344054',
+                        '&:hover': { bgcolor: '#E4E7EC' },
+                        '&:focus-visible': {
+                            outline: '2px solid #2EA8D3',
+                            outlineOffset: 2,
+                        },
+                    }}
+                >
+                    Kapat
+                </Button>
+            </DialogActions>
+        </Dialog>
         <ProjectReviewerRecommendationsDialog
             open={recommendationsOpen}
             projectId={project.id}

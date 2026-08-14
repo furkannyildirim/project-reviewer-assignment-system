@@ -3,6 +3,7 @@ package com.sakaryateknokent.reviewerassignment.service;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
+import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ReviewerAssignmentRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
@@ -37,9 +38,12 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -379,6 +383,207 @@ class ProjectServiceTest {
                 any(), any());
     }
 
+    @Test
+    void listsRemovedAndCompletedHistoryNewestFirstAndKeepsRepeatedAcademicianPeriods() {
+        Instant newestEnd = Instant.parse("2026-08-14T12:00:00Z");
+        Instant tiedEnd = Instant.parse("2026-08-14T11:00:00Z");
+        ProjectReviewerAssignment newest = historicalAssignment(
+                50L, 11L, 21L, AssignmentStatus.REMOVED, newestEnd);
+        ProjectReviewerAssignment tiedHigherId = historicalAssignment(
+                49L, 11L, 22L, AssignmentStatus.COMPLETED, tiedEnd);
+        ProjectReviewerAssignment repeatedAcademician = historicalAssignment(
+                48L, 11L, 21L, AssignmentStatus.REMOVED, tiedEnd);
+        ProjectReviewerAssignment active = historicalAssignment(
+                51L, 11L, 23L, AssignmentStatus.ACTIVE, null);
+        when(projectRepository.existsById(11L)).thenReturn(true);
+        when(assignmentRepository.findHistoryByProjectIdWithPeople(
+                eq(11L), eq(Set.of(
+                        AssignmentStatus.REMOVED,
+                        AssignmentStatus.COMPLETED
+                )))).thenReturn(List.of(
+                newest, tiedHigherId, repeatedAcademician, active));
+
+        List<ProjectReviewerAssignmentHistoryResponse> response =
+                projectService.listReviewerAssignmentHistory(11L);
+
+        assertEquals(List.of(50L, 49L, 48L), response.stream()
+                .map(ProjectReviewerAssignmentHistoryResponse::assignmentId).toList());
+        assertEquals(List.of(
+                AssignmentStatus.REMOVED,
+                AssignmentStatus.COMPLETED,
+                AssignmentStatus.REMOVED
+        ), response.stream()
+                .map(ProjectReviewerAssignmentHistoryResponse::status).toList());
+        assertEquals(2L, response.stream()
+                .filter(item -> item.academicianId().equals(21L))
+                .count());
+        assertEquals(newestEnd, response.get(0).endedAt());
+        assertEquals(tiedEnd, response.get(1).endedAt());
+        verify(assignmentRepository).findHistoryByProjectIdWithPeople(
+                11L, Set.of(AssignmentStatus.REMOVED, AssignmentStatus.COMPLETED));
+        verify(assignmentRepository, never()).saveAndFlush(
+                any(ProjectReviewerAssignment.class));
+        verify(assignmentRepository, never()).delete(any(ProjectReviewerAssignment.class));
+        verify(projectRepository, never()).saveAndFlush(any(Project.class));
+    }
+
+    @Test
+    void returnsEmptyReviewerAssignmentHistory() {
+        when(projectRepository.existsById(11L)).thenReturn(true);
+        when(assignmentRepository.findHistoryByProjectIdWithPeople(
+                eq(11L), eq(Set.of(
+                        AssignmentStatus.REMOVED,
+                        AssignmentStatus.COMPLETED
+                )))).thenReturn(List.of());
+
+        assertEquals(List.of(), projectService.listReviewerAssignmentHistory(11L));
+    }
+
+    @Test
+    void rejectsReviewerAssignmentHistoryWhenProjectDoesNotExist() {
+        when(projectRepository.existsById(99L)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> projectService.listReviewerAssignmentHistory(99L));
+        verify(assignmentRepository, never()).findHistoryByProjectIdWithPeople(
+                anyLong(), anyCollection());
+    }
+
+    @Test
+    void removesOneOfTwoActiveReviewersAndKeepsProjectActiveWithoutDeletingHistory() {
+        Project project = project(11L);
+        project.setStatus(ProjectStatus.ACTIVE);
+        Instant assignedAt = Instant.parse("2026-08-14T09:00:00Z");
+        ProjectReviewerAssignment assignment = assignment(
+                31L, 11L, 21L, "Ayse", "Demir", null,
+                7L, "Ali", "Yilmaz", AssignmentStatus.ACTIVE, assignedAt);
+        User assignedBy = assignment.getAssignedBy();
+        when(projectRepository.findByIdForReviewerAssignment(11L))
+                .thenReturn(Optional.of(project));
+        when(assignmentRepository.findById(31L)).thenReturn(Optional.of(assignment));
+        when(assignmentRepository.saveAndFlush(assignment)).thenReturn(assignment);
+        when(assignmentRepository.countByProjectIdAndStatus(
+                11L, AssignmentStatus.ACTIVE)).thenReturn(1L);
+
+        Instant beforeRemoval = Instant.now();
+        projectService.removeReviewerAssignment(11L, 31L);
+        Instant afterRemoval = Instant.now();
+
+        assertEquals(ProjectStatus.ACTIVE, project.getStatus());
+        assertEquals(AssignmentStatus.REMOVED, assignment.getStatus());
+        assertNotNull(assignment.getEndedAt());
+        assertFalse(assignment.getEndedAt().isBefore(beforeRemoval));
+        assertFalse(assignment.getEndedAt().isAfter(afterRemoval));
+        assertEquals(assignedBy, assignment.getAssignedBy());
+        assertEquals(assignedAt, assignment.getAssignedAt());
+        verify(projectRepository).findByIdForReviewerAssignment(11L);
+        verify(assignmentRepository).saveAndFlush(assignment);
+        verify(assignmentRepository, never()).delete(any(ProjectReviewerAssignment.class));
+        verify(assignmentRepository, never()).deleteById(anyLong());
+    }
+
+    @Test
+    void removesOnlyActiveReviewerAndMovesProjectBackToAwaitingReviewer() {
+        Project project = project(11L);
+        project.setStatus(ProjectStatus.ACTIVE);
+        ProjectReviewerAssignment assignment = assignment(
+                31L, 11L, 21L, "Ayse", "Demir", null,
+                7L, "Ali", "Yilmaz", AssignmentStatus.ACTIVE, Instant.now());
+        when(projectRepository.findByIdForReviewerAssignment(11L))
+                .thenReturn(Optional.of(project));
+        when(assignmentRepository.findById(31L)).thenReturn(Optional.of(assignment));
+        when(assignmentRepository.saveAndFlush(assignment)).thenReturn(assignment);
+        when(assignmentRepository.countByProjectIdAndStatus(
+                11L, AssignmentStatus.ACTIVE)).thenReturn(0L);
+
+        projectService.removeReviewerAssignment(11L, 31L);
+
+        assertEquals(ProjectStatus.AWAITING_REVIEWER, project.getStatus());
+        assertEquals(AssignmentStatus.REMOVED, assignment.getStatus());
+    }
+
+    @Test
+    void rejectsRemovingAssignmentThatBelongsToAnotherProject() {
+        Project project = project(11L);
+        project.setStatus(ProjectStatus.ACTIVE);
+        ProjectReviewerAssignment assignment = assignment(
+                31L, 12L, 21L, "Ayse", "Demir", null,
+                7L, "Ali", "Yilmaz", AssignmentStatus.ACTIVE, Instant.now());
+        when(projectRepository.findByIdForReviewerAssignment(11L))
+                .thenReturn(Optional.of(project));
+        when(assignmentRepository.findById(31L)).thenReturn(Optional.of(assignment));
+
+        assertThrows(InvalidRequestException.class,
+                () -> projectService.removeReviewerAssignment(11L, 31L));
+        verify(assignmentRepository, never()).saveAndFlush(
+                any(ProjectReviewerAssignment.class));
+    }
+
+    @Test
+    void rejectsRemovingAssignmentThatIsAlreadyRemovedOrCompleted() {
+        Project project = project(11L);
+        project.setStatus(ProjectStatus.ACTIVE);
+        ProjectReviewerAssignment removed = assignment(
+                31L, 11L, 21L, "Ayse", "Demir", null,
+                7L, "Ali", "Yilmaz", AssignmentStatus.REMOVED, Instant.now());
+        ProjectReviewerAssignment completed = assignment(
+                32L, 11L, 22L, "Mehmet", "Kaya", null,
+                7L, "Ali", "Yilmaz", AssignmentStatus.COMPLETED, Instant.now());
+        when(projectRepository.findByIdForReviewerAssignment(11L))
+                .thenReturn(Optional.of(project));
+        when(assignmentRepository.findById(31L)).thenReturn(Optional.of(removed));
+        when(assignmentRepository.findById(32L)).thenReturn(Optional.of(completed));
+
+        assertThrows(DuplicateResourceException.class,
+                () -> projectService.removeReviewerAssignment(11L, 31L));
+        assertThrows(DuplicateResourceException.class,
+                () -> projectService.removeReviewerAssignment(11L, 32L));
+        verify(assignmentRepository, never()).saveAndFlush(
+                any(ProjectReviewerAssignment.class));
+    }
+
+    @Test
+    void rejectsRemovingReviewerFromCompletedOrCancelledProject() {
+        Project completedProject = project(11L);
+        completedProject.setStatus(ProjectStatus.COMPLETED);
+        Project cancelledProject = project(11L);
+        cancelledProject.setStatus(ProjectStatus.CANCELLED);
+        ProjectReviewerAssignment firstAssignment = assignment(
+                31L, 11L, 21L, "Ayse", "Demir", null,
+                7L, "Ali", "Yilmaz", AssignmentStatus.ACTIVE, Instant.now());
+        ProjectReviewerAssignment secondAssignment = assignment(
+                32L, 11L, 22L, "Mehmet", "Kaya", null,
+                7L, "Ali", "Yilmaz", AssignmentStatus.ACTIVE, Instant.now());
+        when(projectRepository.findByIdForReviewerAssignment(11L))
+                .thenReturn(Optional.of(completedProject), Optional.of(cancelledProject));
+        when(assignmentRepository.findById(31L)).thenReturn(Optional.of(firstAssignment));
+        when(assignmentRepository.findById(32L)).thenReturn(Optional.of(secondAssignment));
+
+        assertThrows(InvalidRequestException.class,
+                () -> projectService.removeReviewerAssignment(11L, 31L));
+        assertThrows(InvalidRequestException.class,
+                () -> projectService.removeReviewerAssignment(11L, 32L));
+        verify(assignmentRepository, never()).saveAndFlush(
+                any(ProjectReviewerAssignment.class));
+    }
+
+    @Test
+    void rejectsActiveAssignmentRemovalWhenProjectIsAwaitingReviewer() {
+        Project project = project(11L);
+        project.setStatus(ProjectStatus.AWAITING_REVIEWER);
+        ProjectReviewerAssignment assignment = assignment(
+                31L, 11L, 21L, "Ayse", "Demir", null,
+                7L, "Ali", "Yilmaz", AssignmentStatus.ACTIVE, Instant.now());
+        when(projectRepository.findByIdForReviewerAssignment(11L))
+                .thenReturn(Optional.of(project));
+        when(assignmentRepository.findById(31L)).thenReturn(Optional.of(assignment));
+
+        assertThrows(InvalidRequestException.class,
+                () -> projectService.removeReviewerAssignment(11L, 31L));
+        verify(assignmentRepository, never()).saveAndFlush(
+                any(ProjectReviewerAssignment.class));
+    }
+
     private CreateProjectRequest createRequest(LocalDate startDate, int duration, Set<String> keywords) {
         return new CreateProjectRequest(3L, " Proje ", " Yonetici ", startDate, duration,
                 "Kategori", "Sektor", null, null, null, null, null, keywords);
@@ -451,6 +656,30 @@ class ProjectServiceTest {
                 assignedById, assignedByFirstName, assignedByLastName));
         assignment.setStatus(status);
         assignment.setAssignedAt(assignedAt);
+        return assignment;
+    }
+
+    private ProjectReviewerAssignment historicalAssignment(
+            Long assignmentId,
+            Long projectId,
+            Long academicianId,
+            AssignmentStatus status,
+            Instant endedAt
+    ) {
+        ProjectReviewerAssignment assignment = assignment(
+                assignmentId,
+                projectId,
+                academicianId,
+                "Akademisyen",
+                academicianId.toString(),
+                "Prof. Dr.",
+                7L,
+                "Ali",
+                "Yilmaz",
+                status,
+                Instant.parse("2026-08-01T09:00:00Z")
+        );
+        assignment.setEndedAt(endedAt);
         return assignment;
     }
 

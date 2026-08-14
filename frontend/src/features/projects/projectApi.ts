@@ -9,6 +9,7 @@ import type {
     ProjectResponse,
     ProjectReviewerRecommendationsResponse,
     ProjectReviewerAssignment,
+    ProjectReviewerAssignmentHistory,
 } from './project.types';
 
 export async function getProjects(
@@ -50,6 +51,15 @@ export async function getActiveProjectReviewerAssignments(
     return response.data;
 }
 
+export async function getProjectReviewerAssignmentHistory(
+    id: number,
+): Promise<ProjectReviewerAssignmentHistory[]> {
+    const response = await httpClient.get<ProjectReviewerAssignmentHistory[]>(
+        `/projects/${id}/reviewer-assignments/history`,
+    );
+    return response.data;
+}
+
 export async function assignProjectReviewer(
     projectId: number,
     academicianId: number,
@@ -59,6 +69,15 @@ export async function assignProjectReviewer(
         { academicianId },
     );
     return response.data;
+}
+
+export async function removeProjectReviewerAssignment(
+    projectId: number,
+    assignmentId: number,
+): Promise<void> {
+    await httpClient.post(
+        `/projects/${projectId}/reviewer-assignments/${assignmentId}/remove`,
+    );
 }
 
 export async function downloadProjectDocument(
