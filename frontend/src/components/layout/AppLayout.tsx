@@ -80,6 +80,7 @@ export function AppLayout() {
         '/users',
         '/projects',
     ].includes(location.pathname)
+        || location.pathname.startsWith('/academicians/')
         || location.pathname.startsWith('/companies/')
         || location.pathname.startsWith('/projects/');
 
@@ -130,7 +131,8 @@ export function AppLayout() {
             <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                 <List sx={{ px: 1.5, py: 2 }}>
                     {visibleNavigationItems.map((item) => {
-                        const selected = location.pathname === item.path;
+                        const selected = location.pathname === item.path
+                            || location.pathname.startsWith(`${item.path}/`);
 
                         return (
                             <ListItemButton

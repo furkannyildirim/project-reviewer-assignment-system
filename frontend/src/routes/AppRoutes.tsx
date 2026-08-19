@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router';
 import { AppLayout } from '../components/layout/AppLayout';
 import { AcademiciansPage } from '../features/academicians/AcademiciansPage';
+import { AcademicianDetailPage } from '../features/academicians/AcademicianDetailPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { useAuth } from '../features/auth/useAuth';
 import { CompaniesPage } from '../features/companies/CompaniesPage';
@@ -45,6 +46,10 @@ export function AppRoutes() {
                     <Route
                         path="/academicians"
                         element={<AcademiciansPage />}
+                    />
+                    <Route
+                        path="/academicians/:academicianId"
+                        element={<AcademicianDetailPage />}
                     />
                     <Route path="/projects" element={<ProjectsPage />} />
                     <Route path="/projects/:projectId" element={<ProjectDetailPage />} />

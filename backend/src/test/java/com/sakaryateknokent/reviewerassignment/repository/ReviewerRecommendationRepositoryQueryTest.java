@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.lang.reflect.Method;
 import java.util.Collection;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,14 +37,43 @@ class ReviewerRecommendationRepositoryQueryTest {
     void workloadQueryUsesDistinctProjectCountsAndCurrentProjectInOneAggregation()
             throws Exception {
         Method method = ProjectReviewerAssignmentRepository.class.getMethod(
-                "findWorkloads", Collection.class, Long.class, AssignmentStatus.class);
+                "findWorkloads",
+                Collection.class,
+                Long.class,
+                AssignmentStatus.class,
+                AssignmentStatus.class);
         String normalized = normalize(method.getAnnotation(Query.class).value());
 
         assertTrue(normalized.contains("COUNT(DISTINCT CASE"));
-        assertTrue(normalized.contains("COUNT(DISTINCT assignment.project.id) AS totalProjectCount"));
+        assertTrue(normalized.contains(
+                "assignment.status IN (:activeStatus, :completedStatus)"));
         assertTrue(normalized.contains("assignment.project.id = :projectId"));
         assertTrue(normalized.contains("assignment.academician.id IN :academicianIds"));
         assertTrue(normalized.contains("GROUP BY assignment.academician.id"));
+    }
+
+    @Test
+    void projectSummaryQueryCountsDistinctActiveAndCompletedProjectsOnly()
+            throws Exception {
+        Method method = ProjectReviewerAssignmentRepository.class.getMethod(
+                "findProjectSummary",
+                Long.class,
+                AssignmentStatus.class,
+                AssignmentStatus.class);
+        String normalized = normalize(method.getAnnotation(Query.class).value());
+
+        assertTrue(normalized.contains(
+                "assignment.status = :activeStatus"));
+        assertTrue(normalized.contains(
+                "assignment.status = :completedStatus"));
+        assertTrue(normalized.contains(
+                "assignment.status IN (:activeStatus, :completedStatus)"));
+        assertTrue(normalized.contains("COUNT(DISTINCT CASE"));
+        assertTrue(normalized.contains(
+                "WHERE assignment.academician.id = :academicianId"));
+        assertTrue(normalized.contains(
+                "GROUP BY assignment.academician.id"));
+        assertTrue(method.getReturnType().equals(Optional.class));
     }
 
     private String normalize(String query) {

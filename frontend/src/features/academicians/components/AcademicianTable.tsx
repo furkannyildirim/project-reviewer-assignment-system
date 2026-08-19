@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import type { PageResponse } from '../../../types/api';
 import type { Academician } from '../academician.types';
 
@@ -35,6 +36,7 @@ type AcademicianTableProps = {
     onPageChange: (page: number) => void;
     onToggleAll: () => void;
     onToggleOne: (id: number) => void;
+    onView: (academician: Academician) => void;
     onEdit: (academician: Academician) => void;
     onDelete: (academician: Academician) => void;
 };
@@ -122,6 +124,7 @@ export function AcademicianTable({
     onPageChange,
     onToggleAll,
     onToggleOne,
+    onView,
     onEdit,
     onDelete,
 }: AcademicianTableProps) {
@@ -217,6 +220,21 @@ export function AcademicianTable({
                                             spacing={0.5}
                                             sx={{ justifyContent: 'flex-end' }}
                                         >
+                                            <Tooltip title="Görüntüle">
+                                                <IconButton
+                                                    aria-label="Akademisyeni görüntüle"
+                                                    onClick={() => onView(academician)}
+                                                    sx={{
+                                                        color: 'text.secondary',
+                                                        '&:hover': {
+                                                            bgcolor: 'rgba(46, 168, 211, 0.10)',
+                                                            color: '#176B8A',
+                                                        },
+                                                    }}
+                                                >
+                                                    <VisibilityOutlinedIcon />
+                                                </IconButton>
+                                            </Tooltip>
                                             <Tooltip title="Düzenle">
                                                 <span>
                                                     <IconButton

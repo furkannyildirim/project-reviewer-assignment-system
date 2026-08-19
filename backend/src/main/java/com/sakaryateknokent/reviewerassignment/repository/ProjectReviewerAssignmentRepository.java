@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface ProjectReviewerAssignmentRepository
         extends JpaRepository<ProjectReviewerAssignment, Long> {
@@ -87,7 +88,10 @@ public interface ProjectReviewerAssignmentRepository
                        WHEN assignment.status = :activeStatus
                        THEN assignment.project.id ELSE NULL END
                    ) AS activeProjectCount,
-                   COUNT(DISTINCT assignment.project.id) AS totalProjectCount,
+                   COUNT(DISTINCT CASE
+                       WHEN assignment.status IN (:activeStatus, :completedStatus)
+                       THEN assignment.project.id ELSE NULL END
+                   ) AS totalProjectCount,
                    COUNT(DISTINCT CASE
                        WHEN assignment.status = :activeStatus
                         AND assignment.project.id = :projectId
@@ -100,6 +104,32 @@ public interface ProjectReviewerAssignmentRepository
     List<AcademicianProjectWorkload> findWorkloads(
             @Param("academicianIds") Collection<Long> academicianIds,
             @Param("projectId") Long projectId,
-            @Param("activeStatus") AssignmentStatus activeStatus
+            @Param("activeStatus") AssignmentStatus activeStatus,
+            @Param("completedStatus") AssignmentStatus completedStatus
+    );
+
+    @Query("""
+            SELECT assignment.academician.id AS academicianId,
+                   COUNT(DISTINCT CASE
+                       WHEN assignment.status = :activeStatus
+                       THEN assignment.project.id ELSE NULL END
+                   ) AS activeProjectCount,
+                   COUNT(DISTINCT CASE
+                       WHEN assignment.status = :completedStatus
+                       THEN assignment.project.id ELSE NULL END
+                   ) AS completedProjectCount,
+                   COUNT(DISTINCT CASE
+                       WHEN assignment.status IN (:activeStatus, :completedStatus)
+                       THEN assignment.project.id ELSE NULL END
+                   ) AS totalProjectCount
+            FROM ProjectReviewerAssignment assignment
+            WHERE assignment.academician.id = :academicianId
+              AND assignment.status IN (:activeStatus, :completedStatus)
+            GROUP BY assignment.academician.id
+            """)
+    Optional<AcademicianProjectSummary> findProjectSummary(
+            @Param("academicianId") Long academicianId,
+            @Param("activeStatus") AssignmentStatus activeStatus,
+            @Param("completedStatus") AssignmentStatus completedStatus
     );
 }

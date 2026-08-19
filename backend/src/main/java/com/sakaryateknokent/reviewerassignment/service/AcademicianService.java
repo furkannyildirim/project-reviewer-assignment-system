@@ -2,14 +2,17 @@ package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianResponse;
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianIdentityWarningResponse;
+import com.sakaryateknokent.reviewerassignment.dto.AcademicianProjectSummaryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.entity.Academician;
+import com.sakaryateknokent.reviewerassignment.enums.AssignmentStatus;
 import com.sakaryateknokent.reviewerassignment.exception.DuplicateResourceException;
 import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.exception.ResourceNotFoundException;
 import com.sakaryateknokent.reviewerassignment.repository.AcademicianRepository;
+import com.sakaryateknokent.reviewerassignment.repository.ProjectReviewerAssignmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -42,6 +45,7 @@ public class AcademicianService {
     );
 
     private final AcademicianRepository academicianRepository;
+    private final ProjectReviewerAssignmentRepository assignmentRepository;
 
     public AcademicianResponse createAcademician(
             CreateAcademicianRequest request
@@ -195,6 +199,33 @@ public class AcademicianService {
     @Transactional(readOnly = true)
     public AcademicianResponse getAcademicianById(Long id) {
         return toResponse(findAcademicianById(id));
+    }
+
+    @Transactional(readOnly = true)
+    public AcademicianProjectSummaryResponse getProjectSummary(Long academicianId) {
+        if (!academicianRepository.existsById(academicianId)) {
+            throw new ResourceNotFoundException(
+                    "Akademisyen bulunamadı: " + academicianId
+            );
+        }
+
+        return assignmentRepository.findProjectSummary(
+                        academicianId,
+                        AssignmentStatus.ACTIVE,
+                        AssignmentStatus.COMPLETED
+                )
+                .map(summary -> new AcademicianProjectSummaryResponse(
+                        academicianId,
+                        summary.getActiveProjectCount(),
+                        summary.getCompletedProjectCount(),
+                        summary.getTotalProjectCount()
+                ))
+                .orElseGet(() -> new AcademicianProjectSummaryResponse(
+                        academicianId,
+                        0,
+                        0,
+                        0
+                ));
     }
 
     public AcademicianResponse updateAcademician(

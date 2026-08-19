@@ -9,6 +9,13 @@ export type Academician = {
     keywords: string[];
 };
 
+export type AcademicianProjectSummary = {
+    academicianId: number;
+    activeProjectCount: number;
+    completedProjectCount: number;
+    totalProjectCount: number;
+};
+
 export type AcademicianIdentityWarningResponse = {
     warning: boolean;
     message: string | null;

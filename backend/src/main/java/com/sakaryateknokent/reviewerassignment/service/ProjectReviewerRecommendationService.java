@@ -50,7 +50,10 @@ public class ProjectReviewerRecommendationService {
                 .map(candidate -> candidate.academician().getId())
                 .toList();
         Map<Long, AcademicianProjectWorkload> workloads = assignmentRepository.findWorkloads(
-                        academicianIds, projectId, AssignmentStatus.ACTIVE)
+                        academicianIds,
+                        projectId,
+                        AssignmentStatus.ACTIVE,
+                        AssignmentStatus.COMPLETED)
                 .stream()
                 .collect(Collectors.toMap(AcademicianProjectWorkload::getAcademicianId,
                         Function.identity()));

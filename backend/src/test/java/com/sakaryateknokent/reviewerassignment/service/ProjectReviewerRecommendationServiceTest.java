@@ -62,7 +62,10 @@ class ProjectReviewerRecommendationServiceTest {
                 workload(3L, 0, 0, 0),
                 workload(4L, 3, 7, 1));
         when(assignmentRepository.findWorkloads(
-                List.of(2L, 3L, 4L, 1L), 10L, AssignmentStatus.ACTIVE))
+                List.of(2L, 3L, 4L, 1L),
+                10L,
+                AssignmentStatus.ACTIVE,
+                AssignmentStatus.COMPLETED))
                 .thenReturn(workloads);
 
         ProjectReviewerRecommendationsResponse response =
@@ -78,7 +81,10 @@ class ProjectReviewerRecommendationServiceTest {
         verify(projectRepository).findForReviewerRecommendationsById(10L);
         verify(academicianRepository).findAllWithKeywords();
         verify(assignmentRepository).findWorkloads(
-                List.of(2L, 3L, 4L, 1L), 10L, AssignmentStatus.ACTIVE);
+                List.of(2L, 3L, 4L, 1L),
+                10L,
+                AssignmentStatus.ACTIVE,
+                AssignmentStatus.COMPLETED);
     }
 
     @Test
@@ -96,7 +102,8 @@ class ProjectReviewerRecommendationServiceTest {
 
         assertFalse(response.strongRecommendationAvailable());
         assertTrue(response.recommendations().isEmpty());
-        verify(assignmentRepository, never()).findWorkloads(any(), any(), any());
+        verify(assignmentRepository, never()).findWorkloads(
+                any(), any(), any(), any());
     }
 
     @Test
@@ -107,7 +114,8 @@ class ProjectReviewerRecommendationServiceTest {
         assertThrows(ResourceNotFoundException.class,
                 () -> service.getRecommendations(99L));
         verify(academicianRepository, never()).findAllWithKeywords();
-        verify(assignmentRepository, never()).findWorkloads(any(), any(), any());
+        verify(assignmentRepository, never()).findWorkloads(
+                any(), any(), any(), any());
     }
 
     @Test
@@ -120,7 +128,10 @@ class ProjectReviewerRecommendationServiceTest {
         when(matcher.match(project, academician)).thenReturn(match(2,
                 ReviewerRecommendationLevel.LOW, 0, 1, "Robotik"));
         when(assignmentRepository.findWorkloads(
-                List.of(1L), 10L, AssignmentStatus.ACTIVE)).thenReturn(List.of());
+                List.of(1L),
+                10L,
+                AssignmentStatus.ACTIVE,
+                AssignmentStatus.COMPLETED)).thenReturn(List.of());
 
         var recommendation = service.getRecommendations(10L)
                 .recommendations().getFirst();
