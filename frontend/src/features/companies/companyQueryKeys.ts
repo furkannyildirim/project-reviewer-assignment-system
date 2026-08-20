@@ -12,6 +12,14 @@ export const companyQueryKeys = {
         'detail',
         id,
     ] as const,
+    projectSummaries: () => [
+        ...companyQueryKeys.all,
+        'project-summary',
+    ] as const,
+    projectSummary: (id: number) => [
+        ...companyQueryKeys.projectSummaries(),
+        id,
+    ] as const,
     count: (companyType: string) => [
         ...companyQueryKeys.all,
         'count',

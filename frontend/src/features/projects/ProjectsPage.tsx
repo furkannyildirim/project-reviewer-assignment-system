@@ -1,22 +1,42 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Alert, Box, Button, Skeleton, Snackbar, Stack } from '@mui/material';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+    Alert,
+    Box,
+    Button,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    Skeleton,
+    Snackbar,
+    Stack,
+    Typography,
+} from '@mui/material';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import NoteAddOutlinedIcon from '@mui/icons-material/NoteAddOutlined';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ResultSummary } from '../../components/common/ResultSummary';
+import type { PageResponse } from '../../types/api';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
-import { getProjects } from './projectApi';
+import { academicianQueryKeys } from '../academicians/academicianQueryKeys';
+import { companyQueryKeys } from '../companies/companyQueryKeys';
+import { deleteProject, getProjects } from './projectApi';
 import { projectQueryKeys } from './projectQueryKeys';
+import type { ProjectListItem } from './project.types';
 import { ProjectTable } from './components/ProjectTable';
 import { ProjectUploadDialog } from './components/ProjectUploadDialog';
 
 export function ProjectsPage() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [page, setPage] = useState(0);
     const [size, setSize] = useState(10);
     const [isUploadDialogOpen, setUploadDialogOpen] = useState(false);
     const [creationSuccessOpen, setCreationSuccessOpen] = useState(false);
+    const [projectToDelete, setProjectToDelete] = useState<ProjectListItem | null>(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [deletionSuccessOpen, setDeletionSuccessOpen] = useState(false);
     const queryParams = { page, size };
     const projectsQuery = useQuery({
         queryKey: projectQueryKeys.list(queryParams),
@@ -27,6 +47,79 @@ export function ProjectsPage() {
     const showEmptyState = !projectsQuery.isLoading
         && !projectsQuery.isError
         && projects.length === 0;
+    const deleteMutation = useMutation({
+        mutationFn: deleteProject,
+        onMutate: async (projectId) => {
+            await queryClient.cancelQueries({
+                queryKey: projectQueryKeys.list(queryParams),
+            });
+            const previousList = queryClient.getQueryData<PageResponse<ProjectListItem>>(
+                projectQueryKeys.list(queryParams),
+            );
+            const wasLastItemOnPage = previousList?.content.length === 1;
+
+            queryClient.setQueryData<PageResponse<ProjectListItem>>(
+                projectQueryKeys.list(queryParams),
+                (currentList) => {
+                    if (!currentList || !currentList.content.some((project) => project.id === projectId)) {
+                        return currentList;
+                    }
+
+                    const totalElements = Math.max(currentList.totalElements - 1, 0);
+                    return {
+                        ...currentList,
+                        content: currentList.content.filter((project) => project.id !== projectId),
+                        totalElements,
+                        totalPages: Math.ceil(totalElements / currentList.size),
+                    };
+                },
+            );
+
+            return { previousList, wasLastItemOnPage };
+        },
+        onError: (error, _projectId, context) => {
+            queryClient.setQueryData(
+                projectQueryKeys.list(queryParams),
+                context?.previousList,
+            );
+            setDeleteError(getApiErrorMessage(
+                error,
+                'Proje silinemedi. Lütfen tekrar deneyin.',
+            ));
+        },
+        onSuccess: async (_response, projectId, context) => {
+            setProjectToDelete(null);
+            setDeleteError(null);
+            setDeletionSuccessOpen(true);
+
+            if (context?.wasLastItemOnPage && page > 0) {
+                setPage((currentPage) => currentPage - 1);
+            }
+
+            queryClient.removeQueries({ queryKey: projectQueryKeys.detail(projectId), exact: true });
+            queryClient.removeQueries({ queryKey: projectQueryKeys.reviewerRecommendations(projectId), exact: true });
+            queryClient.removeQueries({ queryKey: projectQueryKeys.activeReviewerAssignments(projectId), exact: true });
+            queryClient.removeQueries({ queryKey: projectQueryKeys.reviewerAssignmentHistory(projectId), exact: true });
+
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: projectQueryKeys.lists() }),
+                queryClient.invalidateQueries({
+                    queryKey: companyQueryKeys.projectSummaries(),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: academicianQueryKeys.all,
+                }),
+            ]);
+        },
+    });
+
+    function handleDeleteConfirm() {
+        if (!projectToDelete || deleteMutation.isPending) {
+            return;
+        }
+
+        deleteMutation.mutate(projectToDelete.id);
+    }
 
     return (
         <Stack spacing={3}>
@@ -119,6 +212,11 @@ export function ProjectsPage() {
                         setPage(0);
                     }}
                     onView={(project) => navigate(`/projects/${project.id}`)}
+                    onDelete={(project) => {
+                        setDeleteError(null);
+                        setProjectToDelete(project);
+                    }}
+                    isDeleting={deleteMutation.isPending}
                 />
             )}
             <ProjectUploadDialog
@@ -133,6 +231,64 @@ export function ProjectsPage() {
             >
                 <Alert severity="success" variant="filled" onClose={() => setCreationSuccessOpen(false)}>
                     Proje başarıyla oluşturuldu.
+                </Alert>
+            </Snackbar>
+            <Dialog
+                open={Boolean(projectToDelete)}
+                onClose={deleteMutation.isPending ? undefined : () => {
+                    if (!deleteMutation.isPending) {
+                        setProjectToDelete(null);
+                        setDeleteError(null);
+                    }
+                }}
+                fullWidth
+                maxWidth="xs"
+            >
+                <DialogTitle>Projeyi sil</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={2}>
+                        {deleteError && <Alert severity="error">{deleteError}</Alert>}
+                        <Typography color="text.secondary">
+                            {projectToDelete
+                                ? `“${projectToDelete.name}” projesi, proje anahtar kelimeleri, varsa hakem atama geçmişi ve saklanan kaynak belge kalıcı olarak kaldırılacaktır. Bu işlem geri alınamaz.`
+                                : ''}
+                        </Typography>
+                    </Stack>
+                </DialogContent>
+                <DialogActions>
+                    <Button
+                        disabled={deleteMutation.isPending}
+                        onClick={() => {
+                            if (!deleteMutation.isPending) {
+                                setProjectToDelete(null);
+                                setDeleteError(null);
+                            }
+                        }}
+                        sx={{
+                            color: '#526273',
+                            '&:hover': { bgcolor: '#F2F4F7', color: '#344054' },
+                        }}
+                    >
+                        Vazgeç
+                    </Button>
+                    <Button
+                        color="error"
+                        disabled={deleteMutation.isPending}
+                        loading={deleteMutation.isPending}
+                        onClick={handleDeleteConfirm}
+                        variant="contained"
+                    >
+                        Projeyi Sil
+                    </Button>
+                </DialogActions>
+            </Dialog>
+            <Snackbar
+                autoHideDuration={4000}
+                onClose={() => setDeletionSuccessOpen(false)}
+                open={deletionSuccessOpen}
+            >
+                <Alert severity="success" variant="filled" onClose={() => setDeletionSuccessOpen(false)}>
+                    Proje başarıyla silindi.
                 </Alert>
             </Snackbar>
         </Stack>

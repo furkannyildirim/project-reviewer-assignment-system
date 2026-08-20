@@ -4,6 +4,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined';
+import WorkOutlineOutlinedIcon from '@mui/icons-material/WorkOutlineOutlined';
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import {
     Alert,
@@ -13,6 +14,7 @@ import {
     CircularProgress,
     Divider,
     Paper,
+    Skeleton,
     Stack,
     Typography,
 } from '@mui/material';
@@ -21,7 +23,7 @@ import type { ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useAuth } from '../auth/useAuth';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
-import { getCompanyById } from './companyApi';
+import { getCompanyById, getCompanyProjectSummary } from './companyApi';
 import { companyQueryKeys } from './companyQueryKeys';
 import type { CompanyContact, CompanyContactMethod, CompanyType } from './company.types';
 
@@ -171,6 +173,79 @@ function Contacts({ contacts }: { contacts: CompanyContact[] }) {
     );
 }
 
+function ProjectSummaryCard({
+    isLoading,
+    isError,
+    summary,
+    onRetry,
+}: {
+    isLoading: boolean;
+    isError: boolean;
+    summary: {
+        totalProjectCount: number;
+        awaitingReviewerProjectCount: number;
+        activeProjectCount: number;
+        completedProjectCount: number;
+        draftProjectCount: number;
+        cancelledProjectCount: number;
+    } | undefined;
+    onRetry: () => void;
+}) {
+    const metrics = [
+        ['Toplam proje', summary?.totalProjectCount ?? 0],
+        ['Hakem bekleyen', summary?.awaitingReviewerProjectCount ?? 0],
+        ['Aktif', summary?.activeProjectCount ?? 0],
+        ['Tamamlanan', summary?.completedProjectCount ?? 0],
+    ];
+
+    return (
+        <DetailCard title="Proje özeti" icon={<WorkOutlineOutlinedIcon />}>
+            {isLoading ? (
+                <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' } }}>
+                    {[0, 1, 2, 3].map((item) => (
+                        <Skeleton key={item} height={82} variant="rounded" />
+                    ))}
+                </Box>
+            ) : isError ? (
+                <Alert
+                    severity="error"
+                    action={(
+                        <Button color="inherit" size="small" onClick={onRetry}>
+                            Tekrar Dene
+                        </Button>
+                    )}
+                >
+                    Proje özeti şu anda yüklenemedi.
+                </Alert>
+            ) : (
+                <>
+                    <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' } }}>
+                        {metrics.map(([label, value]) => (
+                            <Box
+                                key={label}
+                                sx={{
+                                    bgcolor: '#F7FAFC',
+                                    border: '1px solid #E3EAF0',
+                                    borderRadius: '10px',
+                                    minWidth: 0,
+                                    p: 1.5,
+                                }}
+                            >
+                                <Typography sx={{ color: '#2A2B61', fontSize: 24, fontWeight: 700, lineHeight: 1.2 }}>
+                                    {value}
+                                </Typography>
+                                <Typography sx={{ color: '#0A1026', fontSize: 14, fontWeight: 700, mt: 0.5 }}>
+                                    {label}
+                                </Typography>
+                            </Box>
+                        ))}
+                    </Box>
+                </>
+            )}
+        </DetailCard>
+    );
+}
+
 export function CompanyDetailPage() {
     const { companyId } = useParams();
     const navigate = useNavigate();
@@ -180,6 +255,13 @@ export function CompanyDetailPage() {
     const companyQuery = useQuery({
         queryKey: companyQueryKeys.detail(isValidCompanyId ? parsedCompanyId : 0),
         queryFn: () => getCompanyById(parsedCompanyId),
+        enabled: isValidCompanyId,
+    });
+    const projectSummaryQuery = useQuery({
+        queryKey: companyQueryKeys.projectSummary(
+            isValidCompanyId ? parsedCompanyId : 0,
+        ),
+        queryFn: () => getCompanyProjectSummary(parsedCompanyId),
         enabled: isValidCompanyId,
     });
     const company = companyQuery.data;
@@ -256,6 +338,14 @@ export function CompanyDetailPage() {
                 </DetailCard>
                 <DetailCard title="Şirket iletişimi" icon={<PhoneOutlinedIcon />}><ContactMethods methods={company.contactMethods} /></DetailCard>
                 <DetailCard title="Yetkili kişiler" icon={<BusinessOutlinedIcon />}><Contacts contacts={company.contacts} /></DetailCard>
+                <Box sx={{ gridColumn: { md: '1 / -1' } }}>
+                    <ProjectSummaryCard
+                        isLoading={projectSummaryQuery.isLoading}
+                        isError={projectSummaryQuery.isError}
+                        summary={projectSummaryQuery.data}
+                        onRetry={() => void projectSummaryQuery.refetch()}
+                    />
+                </Box>
             </Box>
         </Stack>
     );

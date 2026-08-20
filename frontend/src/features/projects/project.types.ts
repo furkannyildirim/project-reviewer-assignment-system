@@ -176,7 +176,7 @@ export type ProjectReviewerRecommendationsResponse = {
     recommendations: ReviewerRecommendation[];
 };
 
-export type ProjectReviewerAssignmentStatus = 'ACTIVE' | 'COMPLETED' | 'REMOVED';
+export type ProjectReviewerAssignmentStatus = 'ACTIVE' | 'COMPLETED' | 'REMOVED' | 'CANCELLED';
 
 export type ProjectReviewerAssignment = {
     assignmentId: number;
@@ -189,7 +189,7 @@ export type ProjectReviewerAssignment = {
     assignedByName: string;
 };
 
-export type ProjectReviewerAssignmentHistoryStatus = 'REMOVED' | 'COMPLETED';
+export type ProjectReviewerAssignmentHistoryStatus = 'REMOVED' | 'COMPLETED' | 'CANCELLED';
 
 export type ProjectReviewerAssignmentHistory = {
     assignmentId: number;

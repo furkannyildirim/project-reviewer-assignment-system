@@ -17,6 +17,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -134,6 +135,15 @@ class ProjectFileStorageServiceTest {
         service.delete(stored.storageKey());
 
         assertFalse(Files.exists(storageRoot.resolve(stored.storageKey())));
+    }
+
+    @Test
+    void deletingAlreadyMissingPermanentFileIsIdempotent() {
+        ProjectFileStorageService service = service(4096);
+
+        assertDoesNotThrow(() -> service.deleteProjectFile(
+                "projects/00000000-0000-0000-0000-000000000011.pdf"
+        ));
     }
 
     @Test

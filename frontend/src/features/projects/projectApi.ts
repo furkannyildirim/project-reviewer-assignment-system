@@ -80,8 +80,8 @@ export async function removeProjectReviewerAssignment(
     );
 }
 
-export async function completeProject(id: number): Promise<void> {
-    await httpClient.post(`/projects/${id}/complete`);
+export async function deleteProject(id: number): Promise<void> {
+    await httpClient.delete(`/projects/${id}`);
 }
 
 export async function downloadProjectDocument(

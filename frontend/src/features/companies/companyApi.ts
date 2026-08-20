@@ -9,6 +9,7 @@ import type {
     CompanyListItem,
     CompanyNameWarningResponse,
     CompanyPageParams,
+    CompanyProjectSummary,
     CompanyType,
     CreateCompanyRequest,
     UpdateCompanyRequest,
@@ -87,6 +88,16 @@ export async function getExternalCompanyNameWarning(
 
 export async function getCompanyById(id: number): Promise<CompanyDetail> {
     const response = await httpClient.get<CompanyDetail>(`/companies/${id}`);
+
+    return response.data;
+}
+
+export async function getCompanyProjectSummary(
+    id: number,
+): Promise<CompanyProjectSummary> {
+    const response = await httpClient.get<CompanyProjectSummary>(
+        `/companies/${id}/project-summary`,
+    );
 
     return response.data;
 }

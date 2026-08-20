@@ -25,12 +25,15 @@ import com.sakaryateknokent.reviewerassignment.repository.ProjectRepository;
 import com.sakaryateknokent.reviewerassignment.repository.ProjectReviewerAssignmentRepository;
 import com.sakaryateknokent.reviewerassignment.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -45,11 +48,13 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class ProjectService {
 
     private static final Set<AssignmentStatus> ASSIGNMENT_HISTORY_STATUSES = Set.of(
             AssignmentStatus.REMOVED,
-            AssignmentStatus.COMPLETED
+            AssignmentStatus.COMPLETED,
+            AssignmentStatus.CANCELLED
     );
 
     private final ProjectRepository projectRepository;
@@ -57,6 +62,7 @@ public class ProjectService {
     private final UserRepository userRepository;
     private final ProjectReviewerAssignmentRepository assignmentRepository;
     private final AcademicianRepository academicianRepository;
+    private final ProjectFileStorageService fileStorageService;
 
     public ProjectResponse createProject(
             CreateProjectRequest request,
@@ -249,30 +255,58 @@ public class ProjectService {
         }
     }
 
-    public void completeProject(Long projectId) {
+    public void deleteProject(Long projectId) {
         Project project = projectRepository.findByIdForReviewerAssignment(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Proje bulunamadi"));
 
-        if (project.getStatus() != ProjectStatus.ACTIVE) {
-            throw new DuplicateResourceException("Yalnizca aktif projeler tamamlanabilir");
-        }
-
-        List<ProjectReviewerAssignment> activeAssignments =
-                assignmentRepository.findByProjectIdAndStatusForCompletion(
-                        projectId, AssignmentStatus.ACTIVE);
-        if (activeAssignments.isEmpty()) {
+        if (project.getStatus() == ProjectStatus.COMPLETED) {
             throw new DuplicateResourceException(
-                    "Aktif hakemi olmayan proje tamamlanamaz"
+                    "Tamamlanmis projeler kalici olarak silinemez"
             );
         }
 
-        Instant completedAt = Instant.now();
-        activeAssignments.forEach(assignment -> {
-            assignment.setStatus(AssignmentStatus.COMPLETED);
-            assignment.setEndedAt(completedAt);
-        });
-        assignmentRepository.saveAllAndFlush(activeAssignments);
-        project.setStatus(ProjectStatus.COMPLETED);
+        String permanentStorageKey = project.getStorageKey();
+        assignmentRepository.deleteAllByProjectId(projectId);
+        projectRepository.delete(project);
+
+        if (permanentStorageKey != null) {
+            registerProjectFileDeletionAfterCommit(
+                    projectId,
+                    permanentStorageKey
+            );
+        }
+    }
+
+    private void registerProjectFileDeletionAfterCommit(
+            Long projectId,
+            String permanentStorageKey
+    ) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            throw new IllegalStateException(
+                    "Proje dosyasi temizligi icin transaction gerekli"
+            );
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        if (status != STATUS_COMMITTED) {
+                            return;
+                        }
+                        try {
+                            fileStorageService.deleteProjectFile(
+                                    permanentStorageKey
+                            );
+                        } catch (RuntimeException exception) {
+                            log.warn(
+                                    "Committed project file cleanup failed for projectId={}",
+                                    projectId
+                            );
+                        }
+                    }
+                }
+        );
     }
 
     private Project findProjectDetail(Long id) {

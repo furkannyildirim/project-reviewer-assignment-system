@@ -19,6 +19,7 @@ import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException
 import com.sakaryateknokent.reviewerassignment.repository.CompanyContactMethodRepository;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyContactRepository;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyRepository;
+import com.sakaryateknokent.reviewerassignment.repository.ProjectRepository;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;
@@ -54,10 +55,13 @@ class CompanyServiceTest {
             mock(CompanyContactRepository.class);
     private final CompanyContactMethodRepository contactMethodRepository =
             mock(CompanyContactMethodRepository.class);
+    private final ProjectRepository projectRepository =
+            mock(ProjectRepository.class);
     private final CompanyService companyService = new CompanyService(
             companyRepository,
             companyContactRepository,
-            contactMethodRepository
+            contactMethodRepository,
+            projectRepository
     );
     private final Validator validator =
             Validation.buildDefaultValidatorFactory().getValidator();

@@ -16,6 +16,7 @@ import {
     IconButton,
 } from '@mui/material';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import type { PageResponse } from '../../../types/api';
 import type { ProjectListItem, ProjectStatus } from '../project.types';
 
@@ -27,6 +28,8 @@ type ProjectTableProps = {
     onPageChange: (page: number) => void;
     onSizeChange: (size: number) => void;
     onView: (project: ProjectListItem) => void;
+    onDelete: (project: ProjectListItem) => void;
+    isDeleting: boolean;
 };
 
 const statusPresentation: Record<ProjectStatus, { label: string; sx: object }> = {
@@ -108,6 +111,8 @@ export function ProjectTable({
     onPageChange,
     onSizeChange,
     onView,
+    onDelete,
+    isDeleting,
 }: ProjectTableProps) {
     const projects = data?.content ?? [];
     const totalElements = data?.totalElements ?? 0;
@@ -143,6 +148,7 @@ export function ProjectTable({
                         {isLoading && projects.length === 0 ? <LoadingRows /> : projects.map((project) => {
                             const status = statusPresentation[project.status];
                             const hasClassification = project.category || project.sector;
+                            const canDelete = project.status !== 'COMPLETED';
                             return (
                                 <TableRow hover key={project.id}>
                                     <TableCell sx={{ maxWidth: 230 }}>
@@ -198,6 +204,27 @@ export function ProjectTable({
                                                 <VisibilityOutlinedIcon fontSize="small" />
                                             </IconButton>
                                         </Tooltip>
+                                        {canDelete && (
+                                            <Tooltip title="Projeyi Sil">
+                                                <span>
+                                                    <IconButton
+                                                        aria-label={`${project.name} projesini sil`}
+                                                        disabled={isDeleting}
+                                                        onClick={() => onDelete(project)}
+                                                        size="small"
+                                                        sx={{
+                                                            color: '#526273',
+                                                            '&:hover': {
+                                                                bgcolor: 'rgba(180, 35, 24, 0.08)',
+                                                                color: '#B42318',
+                                                            },
+                                                        }}
+                                                    >
+                                                        <DeleteOutlineOutlinedIcon fontSize="small" />
+                                                    </IconButton>
+                                                </span>
+                                            </Tooltip>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             );

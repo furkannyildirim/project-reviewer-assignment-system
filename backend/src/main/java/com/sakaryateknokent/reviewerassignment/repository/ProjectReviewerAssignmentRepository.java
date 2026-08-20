@@ -3,6 +3,7 @@ package com.sakaryateknokent.reviewerassignment.repository;
 import com.sakaryateknokent.reviewerassignment.entity.ProjectReviewerAssignment;
 import com.sakaryateknokent.reviewerassignment.enums.AssignmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -22,6 +23,11 @@ public interface ProjectReviewerAssignmentRepository
     );
 
     boolean existsByProjectIdAndStatus(Long projectId, AssignmentStatus status);
+
+    @Modifying
+    @Query("DELETE FROM ProjectReviewerAssignment assignment "
+            + "WHERE assignment.project.id = :projectId")
+    int deleteAllByProjectId(@Param("projectId") Long projectId);
 
     @Query("""
             SELECT assignment
@@ -49,17 +55,6 @@ public interface ProjectReviewerAssignmentRepository
     List<ProjectReviewerAssignment> findHistoryByProjectIdWithPeople(
             @Param("projectId") Long projectId,
             @Param("statuses") Collection<AssignmentStatus> statuses
-    );
-
-    @Query("""
-            SELECT assignment
-            FROM ProjectReviewerAssignment assignment
-            WHERE assignment.project.id = :projectId
-              AND assignment.status = :status
-            """)
-    List<ProjectReviewerAssignment> findByProjectIdAndStatusForCompletion(
-            @Param("projectId") Long projectId,
-            @Param("status") AssignmentStatus status
     );
 
     long countByAcademicianIdAndStatus(Long academicianId, AssignmentStatus status);

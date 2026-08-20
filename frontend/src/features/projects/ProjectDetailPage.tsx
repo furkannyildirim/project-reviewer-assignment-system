@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import EngineeringOutlinedIcon from '@mui/icons-material/EngineeringOutlined';
@@ -30,7 +29,6 @@ import { useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
 import {
-    completeProject,
     downloadProjectDocument,
     getActiveProjectReviewerAssignments,
     getProjectById,
@@ -82,6 +80,11 @@ const historyStatusPresentation: Record<ProjectReviewerAssignmentHistoryStatus, 
         label: 'Tamamlandı',
         backgroundColor: '#EAF7FB',
         color: '#176B8A',
+    },
+    CANCELLED: {
+        label: 'İptal edildi',
+        backgroundColor: '#FDECEC',
+        color: '#B42318',
     },
 };
 
@@ -164,12 +167,9 @@ export function ProjectDetailPage() {
     const [downloadErrorOpen, setDownloadErrorOpen] = useState(false);
     const [assignmentSuccessOpen, setAssignmentSuccessOpen] = useState(false);
     const [removalSuccessOpen, setRemovalSuccessOpen] = useState(false);
-    const [completionSuccessOpen, setCompletionSuccessOpen] = useState(false);
     const [selectedAssignment, setSelectedAssignment] =
         useState<ProjectReviewerAssignment | null>(null);
     const [removalError, setRemovalError] = useState<string | null>(null);
-    const [completionOpen, setCompletionOpen] = useState(false);
-    const [completionError, setCompletionError] = useState<string | null>(null);
     const [recommendationsOpen, setRecommendationsOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const { projectId } = useParams();
@@ -224,37 +224,6 @@ export function ProjectDetailPage() {
             ));
         },
     });
-    const completionMutation = useMutation({
-        mutationFn: () => completeProject(id),
-        onSuccess: async () => {
-            setCompletionOpen(false);
-            setCompletionError(null);
-            setCompletionSuccessOpen(true);
-            await Promise.all([
-                queryClient.invalidateQueries({
-                    queryKey: projectQueryKeys.detail(id),
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: projectQueryKeys.lists(),
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: projectQueryKeys.activeReviewerAssignments(id),
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: projectQueryKeys.reviewerAssignmentHistory(id),
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: projectQueryKeys.reviewerRecommendations(id),
-                }),
-            ]);
-        },
-        onError: (error) => {
-            setCompletionError(getApiErrorMessage(
-                error,
-                'Proje tamamlanamadı. Lütfen tekrar deneyin.',
-            ));
-        },
-    });
     const project = query.data as ProjectResponse | undefined;
     const notFound = !validId || (axios.isAxiosError(query.error) && query.error.response?.status === 404);
 
@@ -294,20 +263,6 @@ export function ProjectDetailPage() {
         removalMutation.reset();
     }
 
-    function openCompletionDialog() {
-        if (completionMutation.isPending) return;
-        setCompletionError(null);
-        completionMutation.reset();
-        setCompletionOpen(true);
-    }
-
-    function closeCompletionDialog() {
-        if (completionMutation.isPending) return;
-        setCompletionOpen(false);
-        setCompletionError(null);
-        completionMutation.reset();
-    }
-
     if (query.isLoading) return <LoadingState />;
     if (notFound || query.isError) {
         return <Stack spacing={2.5} sx={{ maxWidth: 760, mx: 'auto', pt: { xs: 2, sm: 3 } }}>
@@ -334,9 +289,6 @@ export function ProjectDetailPage() {
     const showRecommendationAction = assignmentEligibleStatus
         && assignmentsQuery.isSuccess
         && !assignmentLimitReached;
-    const showCompletionAction = project.status === 'ACTIVE'
-        && assignmentsQuery.isSuccess
-        && activeAssignments.length > 0;
     const emptyReviewerMessage = project.status === 'ACTIVE'
         ? 'Aktif hakem bulunmuyor'
         : project.status === 'COMPLETED' || project.status === 'CANCELLED'
@@ -363,21 +315,6 @@ export function ProjectDetailPage() {
                     spacing={1}
                     sx={{ alignSelf: { xs: 'stretch', sm: 'center' } }}
                 >
-                    {showCompletionAction && (
-                        <Button
-                            disabled={completionMutation.isPending}
-                            onClick={openCompletionDialog}
-                            startIcon={<CheckCircleOutlineIcon />}
-                            variant="contained"
-                            sx={{
-                                ...backButtonSx,
-                                bgcolor: '#23475E',
-                                '&:hover': { bgcolor: '#1B384A' },
-                            }}
-                        >
-                            Projeyi Tamamla
-                        </Button>
-                    )}
                     <Button variant="contained" startIcon={<ArrowBackOutlinedIcon />} onClick={() => navigate('/projects')} sx={backButtonSx}>Projelere Dön</Button>
                 </Stack>
             </Stack>
@@ -612,84 +549,6 @@ export function ProjectDetailPage() {
                 Hakem aktif görevden kaldırıldı.
             </Alert>
         </Snackbar>
-        <Snackbar
-            autoHideDuration={4000}
-            open={completionSuccessOpen}
-            onClose={() => setCompletionSuccessOpen(false)}
-        >
-            <Alert
-                severity="success"
-                variant="filled"
-                onClose={() => setCompletionSuccessOpen(false)}
-            >
-                Proje başarıyla tamamlandı.
-            </Alert>
-        </Snackbar>
-        <Dialog
-            fullWidth
-            maxWidth="sm"
-            open={completionOpen}
-            onClose={completionMutation.isPending ? undefined : closeCompletionDialog}
-        >
-            <DialogTitle sx={{ color: '#2A2B61', fontWeight: 700 }}>
-                Projeyi tamamla
-            </DialogTitle>
-            <DialogContent>
-                <Stack spacing={2} sx={{ pt: 0.5 }}>
-                    {completionError && <Alert severity="error">{completionError}</Alert>}
-                    <Box>
-                        <Typography sx={{ color: '#2A2B61', fontWeight: 700 }}>
-                            {project.name}
-                        </Typography>
-                        <Typography color="text.secondary" sx={{ fontSize: 14, mt: 0.25 }}>
-                            {activeAssignments.length} aktif hakem görevlendirmesi bulunuyor.
-                        </Typography>
-                    </Box>
-                    <Typography color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                        Proje tamamlandı durumuna geçirilecek ve mevcut aktif hakem
-                        görevlendirmeleri tamamlanacaktır. Atama kayıtları silinmeden
-                        geçmişte saklanmaya devam edecektir.
-                    </Typography>
-                    <Alert severity="warning" variant="outlined" sx={{ bgcolor: '#FFFAEB' }}>
-                        Bu sürümde tamamlanan proje yeniden açılamaz.
-                    </Alert>
-                </Stack>
-            </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2.5 }}>
-                <Button
-                    disabled={completionMutation.isPending}
-                    onClick={closeCompletionDialog}
-                    sx={{
-                        bgcolor: '#F2F4F7',
-                        color: '#344054',
-                        '&:hover': { bgcolor: '#E4E7EC' },
-                        '&:focus-visible': {
-                            outline: '2px solid #2EA8D3',
-                            outlineOffset: 2,
-                        },
-                    }}
-                >
-                    Vazgeç
-                </Button>
-                <Button
-                    disabled={completionMutation.isPending}
-                    loading={completionMutation.isPending}
-                    onClick={() => completionMutation.mutate()}
-                    variant="contained"
-                    sx={{
-                        bgcolor: '#23475E',
-                        color: '#FFFFFF',
-                        '&:hover': { bgcolor: '#1B384A' },
-                        '&:focus-visible': {
-                            outline: '2px solid #2EA8D3',
-                            outlineOffset: 2,
-                        },
-                    }}
-                >
-                    Projeyi Tamamla
-                </Button>
-            </DialogActions>
-        </Dialog>
         <Dialog
             fullWidth
             maxWidth="xs"
