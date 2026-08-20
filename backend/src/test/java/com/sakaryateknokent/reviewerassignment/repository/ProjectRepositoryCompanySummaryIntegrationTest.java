@@ -35,16 +35,14 @@ class ProjectRepositoryCompanySummaryIntegrationTest {
     }
 
     @Test
-    void aggregatesEveryStatusForOnlyTheRequestedCompany() {
+    void aggregatesProjectStatusesForOnlyTheRequestedCompany() {
         User user = persistUser();
         Company selectedCompany = persistCompany("Selected");
         Company otherCompany = persistCompany("Other");
 
-        persistProject(selectedCompany, user, ProjectStatus.DRAFT);
         persistProject(selectedCompany, user, ProjectStatus.AWAITING_REVIEWER);
         persistProject(selectedCompany, user, ProjectStatus.ACTIVE);
         persistProject(selectedCompany, user, ProjectStatus.COMPLETED);
-        persistProject(selectedCompany, user, ProjectStatus.CANCELLED);
         persistProject(selectedCompany, user, ProjectStatus.ACTIVE);
         persistProject(otherCompany, user, ProjectStatus.COMPLETED);
         entityManager.flush();
@@ -52,21 +50,17 @@ class ProjectRepositoryCompanySummaryIntegrationTest {
         CompanyProjectSummary summary = projectRepository
                 .findCompanyProjectSummary(
                         selectedCompany.getId(),
-                        ProjectStatus.DRAFT,
                         ProjectStatus.AWAITING_REVIEWER,
                         ProjectStatus.ACTIVE,
-                        ProjectStatus.COMPLETED,
-                        ProjectStatus.CANCELLED
+                        ProjectStatus.COMPLETED
                 )
                 .orElseThrow();
 
         assertEquals(selectedCompany.getId(), summary.getCompanyId());
-        assertEquals(6L, summary.getTotalProjectCount());
-        assertEquals(1L, summary.getDraftProjectCount());
+        assertEquals(4L, summary.getTotalProjectCount());
         assertEquals(1L, summary.getAwaitingReviewerProjectCount());
         assertEquals(2L, summary.getActiveProjectCount());
         assertEquals(1L, summary.getCompletedProjectCount());
-        assertEquals(1L, summary.getCancelledProjectCount());
     }
 
     private User persistUser() {

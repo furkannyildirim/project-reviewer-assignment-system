@@ -69,7 +69,7 @@ public class Project {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    private ProjectStatus status = ProjectStatus.DRAFT;
+    private ProjectStatus status;
 
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(

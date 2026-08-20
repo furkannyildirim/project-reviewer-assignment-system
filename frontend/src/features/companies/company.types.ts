@@ -54,11 +54,9 @@ export type CompanyDetail = {
 export type CompanyProjectSummary = {
     companyId: number;
     totalProjectCount: number;
-    draftProjectCount: number;
     awaitingReviewerProjectCount: number;
     activeProjectCount: number;
     completedProjectCount: number;
-    cancelledProjectCount: number;
 };
 
 export type Company = CompanyListItem;

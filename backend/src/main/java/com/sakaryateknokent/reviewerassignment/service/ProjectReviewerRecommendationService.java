@@ -5,7 +5,9 @@ import com.sakaryateknokent.reviewerassignment.dto.ReviewerRecommendationRespons
 import com.sakaryateknokent.reviewerassignment.entity.Academician;
 import com.sakaryateknokent.reviewerassignment.entity.Project;
 import com.sakaryateknokent.reviewerassignment.enums.AssignmentStatus;
+import com.sakaryateknokent.reviewerassignment.enums.ProjectStatus;
 import com.sakaryateknokent.reviewerassignment.enums.ReviewerRecommendationLevel;
+import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.exception.ResourceNotFoundException;
 import com.sakaryateknokent.reviewerassignment.repository.AcademicianProjectWorkload;
 import com.sakaryateknokent.reviewerassignment.repository.AcademicianRepository;
@@ -34,6 +36,12 @@ public class ProjectReviewerRecommendationService {
     public ProjectReviewerRecommendationsResponse getRecommendations(Long projectId) {
         Project project = projectRepository.findForReviewerRecommendationsById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Proje bulunamadi"));
+        if (project.getStatus() != ProjectStatus.AWAITING_REVIEWER
+                && project.getStatus() != ProjectStatus.ACTIVE) {
+            throw new InvalidRequestException(
+                    "Yalnizca hakem bekleyen veya aktif projelere hakem onerisi alinabilir"
+            );
+        }
 
         List<Candidate> matchedCandidates = academicianRepository.findAllWithKeywords()
                 .stream()

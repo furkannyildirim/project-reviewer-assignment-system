@@ -4,7 +4,9 @@ import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerRecommendation
 import com.sakaryateknokent.reviewerassignment.entity.Academician;
 import com.sakaryateknokent.reviewerassignment.entity.Project;
 import com.sakaryateknokent.reviewerassignment.enums.AssignmentStatus;
+import com.sakaryateknokent.reviewerassignment.enums.ProjectStatus;
 import com.sakaryateknokent.reviewerassignment.enums.ReviewerRecommendationLevel;
+import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.exception.ResourceNotFoundException;
 import com.sakaryateknokent.reviewerassignment.repository.AcademicianProjectWorkload;
 import com.sakaryateknokent.reviewerassignment.repository.AcademicianRepository;
@@ -107,6 +109,32 @@ class ProjectReviewerRecommendationServiceTest {
     }
 
     @Test
+    void allowsActiveProjectRecommendations() {
+        Project project = project(10L, ProjectStatus.ACTIVE);
+        when(projectRepository.findForReviewerRecommendationsById(10L))
+                .thenReturn(Optional.of(project));
+        when(academicianRepository.findAllWithKeywords()).thenReturn(List.of());
+
+        ProjectReviewerRecommendationsResponse response = service.getRecommendations(10L);
+
+        assertTrue(response.recommendations().isEmpty());
+        verify(academicianRepository).findAllWithKeywords();
+    }
+
+    @Test
+    void rejectsCompletedProject() {
+        when(projectRepository.findForReviewerRecommendationsById(10L))
+                .thenReturn(Optional.of(project(10L, ProjectStatus.COMPLETED)));
+
+        assertThrows(InvalidRequestException.class,
+                () -> service.getRecommendations(10L));
+
+        verify(academicianRepository, never()).findAllWithKeywords();
+        verify(assignmentRepository, never()).findWorkloads(
+                any(), any(), any(), any());
+    }
+
+    @Test
     void returnsNotFoundWithoutLoadingAcademiciansWhenProjectDoesNotExist() {
         when(projectRepository.findForReviewerRecommendationsById(99L))
                 .thenReturn(Optional.empty());
@@ -141,8 +169,13 @@ class ProjectReviewerRecommendationServiceTest {
     }
 
     private Project project(Long id) {
+        return project(id, ProjectStatus.AWAITING_REVIEWER);
+    }
+
+    private Project project(Long id, ProjectStatus status) {
         Project project = new Project();
         project.setId(id);
+        project.setStatus(status);
         project.setKeywords(Set.of("Robotik"));
         return project;
     }

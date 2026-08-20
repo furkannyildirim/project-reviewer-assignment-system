@@ -30,18 +30,16 @@ class CompanyProjectSummaryControllerTest {
     @Test
     void projectSummaryReturnsOnlySafeCountFields() throws Exception {
         when(companyService.getProjectSummary(7L)).thenReturn(
-                new CompanyProjectSummaryResponse(7L, 9, 1, 2, 3, 2, 1)
+                new CompanyProjectSummaryResponse(7L, 9, 2, 3, 2)
         );
 
         mockMvc().perform(get("/api/companies/7/project-summary"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.companyId").value(7))
                 .andExpect(jsonPath("$.totalProjectCount").value(9))
-                .andExpect(jsonPath("$.draftProjectCount").value(1))
                 .andExpect(jsonPath("$.awaitingReviewerProjectCount").value(2))
                 .andExpect(jsonPath("$.activeProjectCount").value(3))
                 .andExpect(jsonPath("$.completedProjectCount").value(2))
-                .andExpect(jsonPath("$.cancelledProjectCount").value(1))
                 .andExpect(jsonPath("$.name").doesNotExist())
                 .andExpect(jsonPath("$.projects").doesNotExist());
     }

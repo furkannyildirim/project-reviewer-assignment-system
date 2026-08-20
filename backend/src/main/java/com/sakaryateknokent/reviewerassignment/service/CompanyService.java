@@ -260,23 +260,19 @@ public class CompanyService {
 
         return projectRepository.findCompanyProjectSummary(
                         companyId,
-                        ProjectStatus.DRAFT,
                         ProjectStatus.AWAITING_REVIEWER,
                         ProjectStatus.ACTIVE,
-                        ProjectStatus.COMPLETED,
-                        ProjectStatus.CANCELLED
+                        ProjectStatus.COMPLETED
                 )
                 .map(summary -> new CompanyProjectSummaryResponse(
                         companyId,
                         summary.getTotalProjectCount(),
-                        summary.getDraftProjectCount(),
                         summary.getAwaitingReviewerProjectCount(),
                         summary.getActiveProjectCount(),
-                        summary.getCompletedProjectCount(),
-                        summary.getCancelledProjectCount()
+                        summary.getCompletedProjectCount()
                 ))
                 .orElseGet(() -> new CompanyProjectSummaryResponse(
-                        companyId, 0, 0, 0, 0, 0, 0
+                        companyId, 0, 0, 0, 0
                 ));
     }
 

@@ -186,8 +186,6 @@ function ProjectSummaryCard({
         awaitingReviewerProjectCount: number;
         activeProjectCount: number;
         completedProjectCount: number;
-        draftProjectCount: number;
-        cancelledProjectCount: number;
     } | undefined;
     onRetry: () => void;
 }) {

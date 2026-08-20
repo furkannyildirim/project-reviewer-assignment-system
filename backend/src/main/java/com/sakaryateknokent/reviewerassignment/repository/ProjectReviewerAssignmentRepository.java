@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +24,21 @@ public interface ProjectReviewerAssignmentRepository
     );
 
     boolean existsByProjectIdAndStatus(Long projectId, AssignmentStatus status);
+
+    @Modifying
+    @Query("""
+            UPDATE ProjectReviewerAssignment assignment
+            SET assignment.status = :completedStatus,
+                assignment.endedAt = :endedAt
+            WHERE assignment.project.id = :projectId
+              AND assignment.status = :activeStatus
+            """)
+    int completeActiveAssignments(
+            @Param("projectId") Long projectId,
+            @Param("activeStatus") AssignmentStatus activeStatus,
+            @Param("completedStatus") AssignmentStatus completedStatus,
+            @Param("endedAt") Instant endedAt
+    );
 
     @Modifying
     @Query("DELETE FROM ProjectReviewerAssignment assignment "

@@ -62,11 +62,9 @@ const backButtonSx = {
     },
 };
 const statusLabels: Record<ProjectStatus, string> = {
-    DRAFT: 'Taslak',
     AWAITING_REVIEWER: 'Hakem bekliyor',
     ACTIVE: 'Aktif',
     COMPLETED: 'Tamamlandı',
-    CANCELLED: 'İptal edildi',
 };
 const historyStatusPresentation: Record<ProjectReviewerAssignmentHistoryStatus, {
     label: string;
@@ -82,11 +80,6 @@ const historyStatusPresentation: Record<ProjectReviewerAssignmentHistoryStatus, 
         label: 'Tamamlandı',
         backgroundColor: '#EAF7FB',
         color: '#176B8A',
-    },
-    CANCELLED: {
-        label: 'İptal edildi',
-        backgroundColor: '#FDECEC',
-        color: '#B42318',
     },
 };
 
@@ -299,11 +292,9 @@ export function ProjectDetailPage() {
         && !assignmentLimitReached;
     const emptyReviewerMessage = project.status === 'ACTIVE'
         ? 'Aktif hakem bulunmuyor'
-        : project.status === 'COMPLETED' || project.status === 'CANCELLED'
+        : project.status === 'COMPLETED'
             ? 'Aktif hakem görevlendirmesi bulunmuyor.'
-            : project.status === 'DRAFT'
-                ? 'Atanmadı'
-                : 'Henüz hakem atanmadı';
+            : 'Henüz hakem atanmadı';
     return <Stack spacing={2.5} sx={{ maxWidth: 1280, mx: 'auto', pb: 3, pt: { xs: 2.5, sm: 3 } }}>
         <Paper elevation={0} sx={{ border: '1px solid #D9E2EA', borderRadius: '13px', bgcolor: '#FFFFFF', p: { xs: 2, sm: 3 } }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>

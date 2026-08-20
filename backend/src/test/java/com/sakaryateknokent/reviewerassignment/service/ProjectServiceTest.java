@@ -343,8 +343,7 @@ class ProjectServiceTest {
         when(assignmentRepository.findHistoryByProjectIdWithPeople(
                 eq(11L), eq(Set.of(
                         AssignmentStatus.REMOVED,
-                        AssignmentStatus.COMPLETED,
-                        AssignmentStatus.CANCELLED
+                        AssignmentStatus.COMPLETED
                 )))).thenReturn(List.of(
                 newest, tiedHigherId, repeatedAcademician, active));
 
@@ -367,8 +366,7 @@ class ProjectServiceTest {
         verify(assignmentRepository).findHistoryByProjectIdWithPeople(
                 11L, Set.of(
                         AssignmentStatus.REMOVED,
-                        AssignmentStatus.COMPLETED,
-                        AssignmentStatus.CANCELLED
+                        AssignmentStatus.COMPLETED
                 ));
         verify(assignmentRepository, never()).saveAndFlush(
                 any(ProjectReviewerAssignment.class));
@@ -382,8 +380,7 @@ class ProjectServiceTest {
         when(assignmentRepository.findHistoryByProjectIdWithPeople(
                 eq(11L), eq(Set.of(
                         AssignmentStatus.REMOVED,
-                        AssignmentStatus.COMPLETED,
-                        AssignmentStatus.CANCELLED
+                        AssignmentStatus.COMPLETED
                 )))).thenReturn(List.of());
 
         assertEquals(List.of(), projectService.listReviewerAssignmentHistory(11L));
@@ -493,26 +490,18 @@ class ProjectServiceTest {
     }
 
     @Test
-    void rejectsRemovingReviewerFromCompletedOrCancelledProject() {
+    void rejectsRemovingReviewerFromCompletedProject() {
         Project completedProject = project(11L);
         completedProject.setStatus(ProjectStatus.COMPLETED);
-        Project cancelledProject = project(11L);
-        cancelledProject.setStatus(ProjectStatus.CANCELLED);
-        ProjectReviewerAssignment firstAssignment = assignment(
+        ProjectReviewerAssignment assignment = assignment(
                 31L, 11L, 21L, "Ayse", "Demir", null,
                 7L, "Ali", "Yilmaz", AssignmentStatus.ACTIVE, Instant.now());
-        ProjectReviewerAssignment secondAssignment = assignment(
-                32L, 11L, 22L, "Mehmet", "Kaya", null,
-                7L, "Ali", "Yilmaz", AssignmentStatus.ACTIVE, Instant.now());
         when(projectRepository.findByIdForReviewerAssignment(11L))
-                .thenReturn(Optional.of(completedProject), Optional.of(cancelledProject));
-        when(assignmentRepository.findById(31L)).thenReturn(Optional.of(firstAssignment));
-        when(assignmentRepository.findById(32L)).thenReturn(Optional.of(secondAssignment));
+                .thenReturn(Optional.of(completedProject));
+        when(assignmentRepository.findById(31L)).thenReturn(Optional.of(assignment));
 
         assertThrows(InvalidRequestException.class,
                 () -> projectService.removeReviewerAssignment(11L, 31L));
-        assertThrows(InvalidRequestException.class,
-                () -> projectService.removeReviewerAssignment(11L, 32L));
         verify(assignmentRepository, never()).saveAndFlush(
                 any(ProjectReviewerAssignment.class));
     }
@@ -575,7 +564,7 @@ class ProjectServiceTest {
         project.setCompany(company(1L));
         project.setCreatedBy(user(2L, "Eski", "Kullanici"));
         project.setName("Eski Proje");
-        project.setStatus(ProjectStatus.DRAFT);
+        project.setStatus(ProjectStatus.AWAITING_REVIEWER);
         return project;
     }
 

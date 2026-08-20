@@ -6,13 +6,9 @@ public interface CompanyProjectSummary {
 
     long getTotalProjectCount();
 
-    long getDraftProjectCount();
-
     long getAwaitingReviewerProjectCount();
 
     long getActiveProjectCount();
 
     long getCompletedProjectCount();
-
-    long getCancelledProjectCount();
 }

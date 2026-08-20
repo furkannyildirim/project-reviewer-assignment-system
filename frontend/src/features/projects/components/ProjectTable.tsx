@@ -33,14 +33,12 @@ type ProjectTableProps = {
 };
 
 const statusPresentation: Record<ProjectStatus, { label: string; sx: object }> = {
-    DRAFT: { label: 'Taslak', sx: { bgcolor: '#F2F4F7', color: '#475467' } },
     AWAITING_REVIEWER: {
         label: 'Hakem bekliyor',
         sx: { bgcolor: '#FFF4D6', color: '#9A6700' },
     },
     ACTIVE: { label: 'Aktif', sx: { bgcolor: '#EAF7FB', color: '#187A9C' } },
     COMPLETED: { label: 'Tamamlandı', sx: { bgcolor: '#EAF7EF', color: '#237A47' } },
-    CANCELLED: { label: 'İptal edildi', sx: { bgcolor: '#FDECEC', color: '#B42318' } },
 };
 
 function formatDate(value: string | null): string {
@@ -67,7 +65,7 @@ function activeReviewerLabel(project: ProjectListItem): string {
         return 'Aktif hakem bulunmuyor';
     }
 
-    if (project.status === 'COMPLETED' || project.status === 'CANCELLED') {
+    if (project.status === 'COMPLETED') {
         return 'Aktif hakem yok';
     }
 

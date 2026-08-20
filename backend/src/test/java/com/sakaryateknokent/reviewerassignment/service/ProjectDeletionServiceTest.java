@@ -54,11 +54,6 @@ class ProjectDeletionServiceTest {
     }
 
     @Test
-    void deletesDraftProject() {
-        assertStatusDeleted(ProjectStatus.DRAFT);
-    }
-
-    @Test
     void deletesAwaitingReviewerProject() {
         assertStatusDeleted(ProjectStatus.AWAITING_REVIEWER);
     }
@@ -66,11 +61,6 @@ class ProjectDeletionServiceTest {
     @Test
     void deletesActiveProject() {
         assertStatusDeleted(ProjectStatus.ACTIVE);
-    }
-
-    @Test
-    void deletesCancelledProject() {
-        assertStatusDeleted(ProjectStatus.CANCELLED);
     }
 
     @Test

@@ -54,7 +54,7 @@ class CompanyProjectSummarySecurityTest {
     @Test
     void projectSummaryAllowsUserAndAdminButRejectsAnonymous() throws Exception {
         when(companyService.getProjectSummary(7L)).thenReturn(
-                new CompanyProjectSummaryResponse(7L, 0, 0, 0, 0, 0, 0)
+                new CompanyProjectSummaryResponse(7L, 0, 0, 0, 0)
         );
         String path = "/api/companies/7/project-summary";
 

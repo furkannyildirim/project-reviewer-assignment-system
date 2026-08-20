@@ -1,11 +1,9 @@
 export type ProjectCompanyType = 'TGB' | 'EXTERNAL';
 
 export type ProjectStatus =
-    | 'DRAFT'
     | 'AWAITING_REVIEWER'
     | 'ACTIVE'
-    | 'COMPLETED'
-    | 'CANCELLED';
+    | 'COMPLETED';
 
 export type ProjectListItem = {
     id: number;
@@ -176,7 +174,7 @@ export type ProjectReviewerRecommendationsResponse = {
     recommendations: ReviewerRecommendation[];
 };
 
-export type ProjectReviewerAssignmentStatus = 'ACTIVE' | 'COMPLETED' | 'REMOVED' | 'CANCELLED';
+export type ProjectReviewerAssignmentStatus = 'ACTIVE' | 'COMPLETED' | 'REMOVED';
 
 export type ProjectReviewerAssignment = {
     assignmentId: number;
@@ -189,7 +187,7 @@ export type ProjectReviewerAssignment = {
     assignedByName: string;
 };
 
-export type ProjectReviewerAssignmentHistoryStatus = 'REMOVED' | 'COMPLETED' | 'CANCELLED';
+export type ProjectReviewerAssignmentHistoryStatus = 'REMOVED' | 'COMPLETED';
 
 export type ProjectReviewerAssignmentHistory = {
     assignmentId: number;

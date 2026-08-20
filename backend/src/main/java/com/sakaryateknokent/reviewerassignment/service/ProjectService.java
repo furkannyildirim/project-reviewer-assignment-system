@@ -52,8 +52,7 @@ public class ProjectService {
 
     private static final Set<AssignmentStatus> ASSIGNMENT_HISTORY_STATUSES = Set.of(
             AssignmentStatus.REMOVED,
-            AssignmentStatus.COMPLETED,
-            AssignmentStatus.CANCELLED
+            AssignmentStatus.COMPLETED
     );
 
     private final ProjectRepository projectRepository;

@@ -95,7 +95,7 @@ class ProjectControllerTest {
         Page<ProjectListResponse> page = new PageImpl<>(List.of(
                 new ProjectListResponse(1L, "Proje", 2L, "Sirket", CompanyType.TGB,
                         "Kategori", "Sektor", LocalDate.now(), LocalDate.now(),
-                        ProjectStatus.DRAFT, 0, null)), pageable, 1);
+                        ProjectStatus.AWAITING_REVIEWER, 0, null)), pageable, 1);
         when(projectService.listProjects(pageable)).thenReturn(page);
 
         ResponseEntity<Page<ProjectListResponse>> response = projectController.listProjects(pageable);
@@ -354,7 +354,8 @@ class ProjectControllerTest {
         return new ProjectResponse(id, 2L, "Sirket", CompanyType.TGB, 3L,
                 "Kullanici Adi", "Proje", null, LocalDate.of(2026, 1, 1), 3,
                 LocalDate.of(2026, 4, 1), null, null, null, null, null, null, null,
-                Set.of(), ProjectStatus.DRAFT, null, null, null, null, null, null);
+                Set.of(), ProjectStatus.AWAITING_REVIEWER,
+                null, null, null, null, null, null);
     }
 
     private ProjectReviewerAssignmentResponse assignmentResponse() {
