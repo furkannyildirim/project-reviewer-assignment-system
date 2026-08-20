@@ -5,7 +5,6 @@ import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ReviewerAssignmentRequest;
-import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.entity.Academician;
 import com.sakaryateknokent.reviewerassignment.entity.Company;
 import com.sakaryateknokent.reviewerassignment.entity.Project;
@@ -58,19 +57,14 @@ class ProjectServiceTest {
             org.mockito.Mockito.mock(ProjectReviewerAssignmentRepository.class);
     private final AcademicianRepository academicianRepository =
             org.mockito.Mockito.mock(AcademicianRepository.class);
-    private final ProjectFileStorageService fileStorageService =
-            org.mockito.Mockito.mock(ProjectFileStorageService.class);
     private final ProjectService projectService = new ProjectService(
             projectRepository, companyRepository, userRepository, assignmentRepository,
-            academicianRepository, fileStorageService);
+            academicianRepository);
 
     @Test
-    void createsFromUploadWithAwaitingReviewerStatusVerifiedMetadataAndNormalizedKeywords() {
+    void createsFromUploadWithAwaitingReviewerStatusAndNormalizedKeywords() {
         Company company = company(3L);
         User user = user(7L, "Ayse", "Yilmaz");
-        StoredProjectFile storedFile = new StoredProjectFile(UUID.randomUUID(),
-                "projects/11111111-1111-1111-1111-111111111111.pdf",
-                "onayli-kaynak.pdf", "application/pdf", 2048);
         when(projectRepository.saveAndFlush(any(Project.class))).thenAnswer(i -> {
             Project project = i.getArgument(0);
             project.setId(15L);
@@ -82,58 +76,13 @@ class ProjectServiceTest {
                         " Onayli Proje ", null, LocalDate.of(2026, 1, 31), 1,
                         null, null, null, null, null, null, null,
                         new LinkedHashSet<>(Set.of(" AI ", "ai", " ", "Robotik "))),
-                company, user, storedFile);
+                company, user);
 
         Project saved = savedProject();
         assertEquals(ProjectStatus.AWAITING_REVIEWER, saved.getStatus());
         assertEquals(LocalDate.of(2026, 2, 28), saved.getEndDate());
         assertEquals(Set.of("AI", "Robotik"), saved.getKeywords());
-        assertEquals(storedFile.fileId(), saved.getSourceFileId());
-        assertEquals(storedFile.originalFileName(), saved.getOriginalFileName());
-        assertEquals(storedFile.storageKey(), saved.getStorageKey());
-        assertEquals(storedFile.contentType(), saved.getContentType());
-        assertEquals(storedFile.fileSize(), saved.getFileSize());
         assertEquals(ProjectStatus.AWAITING_REVIEWER, response.status());
-    }
-
-    @Test
-    void updatesProjectAndRecalculatesEndDate() {
-        Project project = project(11L);
-        when(projectRepository.findDetailById(11L)).thenReturn(Optional.of(project));
-        when(companyRepository.findById(3L)).thenReturn(Optional.of(company(3L)));
-        when(assignmentRepository.existsByProjectIdAndStatus(11L, AssignmentStatus.ACTIVE)).thenReturn(false);
-        when(projectRepository.saveAndFlush(project)).thenReturn(project);
-
-        ProjectResponse response = projectService.updateProject(11L,
-                updateRequest(LocalDate.of(2026, 4, 15), 4, Set.of("yeni")),
-                "user@example.com", false);
-
-        assertEquals("Guncel Proje", response.name());
-        assertEquals(LocalDate.of(2026, 8, 15), response.endDate());
-    }
-
-    @Test
-    void preventsUserFromUpdatingProjectWithActiveAssignment() {
-        when(projectRepository.findDetailById(11L)).thenReturn(Optional.of(project(11L)));
-        when(assignmentRepository.existsByProjectIdAndStatus(11L, AssignmentStatus.ACTIVE)).thenReturn(true);
-
-        assertThrows(IllegalStateException.class, () -> projectService.updateProject(11L,
-                updateRequest(LocalDate.now(), 2, Set.of()), "user@example.com", false));
-        verify(projectRepository, never()).saveAndFlush(any(Project.class));
-    }
-
-    @Test
-    void allowsAdminToUpdateProjectWithActiveAssignment() {
-        Project project = project(11L);
-        when(projectRepository.findDetailById(11L)).thenReturn(Optional.of(project));
-        when(companyRepository.findById(3L)).thenReturn(Optional.of(company(3L)));
-        when(projectRepository.saveAndFlush(project)).thenReturn(project);
-
-        ProjectResponse response = projectService.updateProject(11L,
-                updateRequest(LocalDate.of(2026, 5, 1), 2, Set.of()), "admin@example.com", true);
-
-        assertEquals(LocalDate.of(2026, 7, 1), response.endDate());
-        verify(assignmentRepository, never()).existsByProjectIdAndStatus(11L, AssignmentStatus.ACTIVE);
     }
 
     @Test
@@ -521,11 +470,6 @@ class ProjectServiceTest {
                 () -> projectService.removeReviewerAssignment(11L, 31L));
         verify(assignmentRepository, never()).saveAndFlush(
                 any(ProjectReviewerAssignment.class));
-    }
-
-    private UpdateProjectRequest updateRequest(LocalDate startDate, int duration, Set<String> keywords) {
-        return new UpdateProjectRequest(3L, " Guncel Proje ", " Yonetici ", startDate, duration,
-                "Kategori", "Sektor", null, null, null, null, null, keywords);
     }
 
     private Company company(Long id) {

@@ -250,7 +250,7 @@ export function ProjectsPage() {
                         {deleteError && <Alert severity="error">{deleteError}</Alert>}
                         <Typography color="text.secondary">
                             {projectToDelete
-                                ? `“${projectToDelete.name}” projesi, proje anahtar kelimeleri, varsa hakem atama geçmişi ve saklanan kaynak belge kalıcı olarak kaldırılacaktır. Bu işlem geri alınamaz.`
+                                ? `“${projectToDelete.name}” projesi, proje anahtar kelimeleri ve varsa hakem atama geçmişi kalıcı olarak kaldırılacaktır. Bu işlem geri alınamaz.`
                                 : ''}
                         </Typography>
                     </Stack>

@@ -10,10 +10,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
@@ -23,20 +21,17 @@ import java.util.zip.ZipInputStream;
 public class ProjectFileStorageService {
 
     private static final String TEMPORARY_AREA = "temporary";
-    private static final String PROJECTS_AREA = "projects";
     private static final String PDF_CONTENT_TYPE = "application/pdf";
     private static final String DOCX_CONTENT_TYPE =
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
     private final Path root;
     private final Path temporaryRoot;
-    private final Path projectsRoot;
     private final long maxSize;
 
     public ProjectFileStorageService(ProjectFileStorageProperties properties) {
         this.root = properties.path().toAbsolutePath().normalize();
         this.temporaryRoot = root.resolve(TEMPORARY_AREA);
-        this.projectsRoot = root.resolve(PROJECTS_AREA);
         this.maxSize = properties.maxSize().toBytes();
         createStorageDirectories();
     }
@@ -63,74 +58,14 @@ public class ProjectFileStorageService {
                 contentType, bytes.length);
     }
 
-    public StoredProjectFile moveTemporaryToProjects(StoredProjectFile temporaryFile) {
-        Path source = resolveStorageKey(temporaryFile.storageKey());
-        if (!source.startsWith(temporaryRoot) || !Files.isRegularFile(source)) {
-            throw new ResourceNotFoundException("Gecici proje dosyasi bulunamadi");
-        }
-        String extension = extensionOf(temporaryFile.storageKey());
-        String permanentKey = PROJECTS_AREA + "/" + temporaryFile.fileId()
-                + "." + extension;
-        Path target = resolveStorageKey(permanentKey);
-        try {
-            try {
-                Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException exception) {
-                Files.move(source, target);
-            }
-        } catch (IOException exception) {
-            throw new UncheckedIOException("Proje dosyasi tasinamadi", exception);
-        }
-        return new StoredProjectFile(temporaryFile.fileId(), permanentKey,
-                temporaryFile.originalFileName(), temporaryFile.contentType(),
-                temporaryFile.fileSize());
-    }
-
-    public StoredProjectFile copyTemporaryToProjects(StoredProjectFile temporaryFile) {
-        Path source = resolveStorageKey(temporaryFile.storageKey());
-        if (!source.startsWith(temporaryRoot) || !Files.isRegularFile(source)) {
-            throw new ResourceNotFoundException("Gecici proje dosyasi bulunamadi");
-        }
-        UUID fileId = UUID.randomUUID();
-        String permanentKey = PROJECTS_AREA + "/" + fileId + "."
-                + extensionOf(temporaryFile.storageKey());
-        Path target = resolveStorageKey(permanentKey);
-        try {
-            Files.copy(source, target);
-        } catch (IOException exception) {
-            deleteQuietly(target);
-            throw new UncheckedIOException("Proje dosyasi kopyalanamadi", exception);
-        }
-        return new StoredProjectFile(fileId, permanentKey,
-                temporaryFile.originalFileName(), temporaryFile.contentType(),
-                temporaryFile.fileSize());
-    }
-
     public void deleteTemporary(String storageKey) {
         deleteFromArea(storageKey, temporaryRoot);
-    }
-
-    public void deleteProjectFile(String storageKey) {
-        deleteFromArea(storageKey, projectsRoot);
-    }
-
-    public InputStream load(String storageKey) {
-        Path file = resolveStorageKey(storageKey);
-        return openFile(file);
     }
 
     public InputStream loadTemporary(String storageKey) {
         Path file = resolveStorageKey(storageKey);
         if (!file.startsWith(temporaryRoot)) {
             throw new InvalidRequestException("Gecici dosya anahtari gecersiz");
-        }
-        return openFile(file);
-    }
-
-    public InputStream loadProjectFile(String storageKey) {
-        Path file = resolveStorageKey(storageKey);
-        if (!file.startsWith(projectsRoot)) {
-            throw new InvalidRequestException("Proje dosyasi anahtari gecersiz");
         }
         return openFile(file);
     }
@@ -143,17 +78,6 @@ public class ProjectFileStorageService {
             return Files.newInputStream(file);
         } catch (IOException exception) {
             throw new UncheckedIOException("Proje dosyasi okunamadi", exception);
-        }
-    }
-
-    public void delete(String storageKey) {
-        Path file = resolveStorageKey(storageKey);
-        try {
-            if (!Files.deleteIfExists(file)) {
-                throw new ResourceNotFoundException("Proje dosyasi bulunamadi");
-            }
-        } catch (IOException exception) {
-            throw new UncheckedIOException("Proje dosyasi silinemedi", exception);
         }
     }
 
@@ -172,7 +96,6 @@ public class ProjectFileStorageService {
     private void createStorageDirectories() {
         try {
             Files.createDirectories(temporaryRoot);
-            Files.createDirectories(projectsRoot);
         } catch (IOException exception) {
             throw new UncheckedIOException("Proje dosya klasorleri olusturulamadi", exception);
         }
@@ -273,11 +196,11 @@ public class ProjectFileStorageService {
 
     private Path resolveStorageKey(String storageKey) {
         if (storageKey == null || !storageKey.matches(
-                "^(temporary|projects)/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\.(pdf|docx)$")) {
+                "^temporary/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\.(pdf|docx)$")) {
             throw new InvalidRequestException("Dosya anahtari gecersiz");
         }
         Path resolved = root.resolve(storageKey).normalize();
-        if (!resolved.startsWith(temporaryRoot) && !resolved.startsWith(projectsRoot)) {
+        if (!resolved.startsWith(temporaryRoot)) {
             throw new InvalidRequestException("Dosya anahtari gecersiz");
         }
         return resolved;

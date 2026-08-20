@@ -7,7 +7,6 @@ import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ReviewerAssignmentRequest;
-import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
 import com.sakaryateknokent.reviewerassignment.enums.ProjectStatus;
 import com.sakaryateknokent.reviewerassignment.enums.AssignmentStatus;
@@ -41,11 +40,11 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -115,25 +114,12 @@ class ProjectControllerTest {
     }
 
     @Test
-    void updateProjectPassesFalseForUserWithoutTrustingRequest() {
-        UpdateProjectRequest request = updateRequest();
-        when(projectService.updateProject(eq(5L), eq(request), eq("user@example.com"), eq(false)))
-                .thenReturn(projectResponse(5L));
-
-        projectController.updateProject(5L, request, authentication("user@example.com", "ROLE_USER"));
-
-        verify(projectService).updateProject(5L, request, "user@example.com", false);
-    }
-
-    @Test
-    void updateProjectPassesTrueForRoleAdminAuthority() {
-        UpdateProjectRequest request = updateRequest();
-        when(projectService.updateProject(eq(5L), eq(request), eq("admin@example.com"), eq(true)))
-                .thenReturn(projectResponse(5L));
-
-        projectController.updateProject(5L, request, authentication("admin@example.com", "ROLE_ADMIN"));
-
-        verify(projectService).updateProject(5L, request, "admin@example.com", true);
+    void returnsMethodNotAllowedForUnsupportedMethodOnMappedProjectUri() throws Exception {
+        securedMockMvc.perform(put("/api/projects/5")
+                        .with(user("user@example.com").roles("USER")))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.status").value(405))
+                .andExpect(jsonPath("$.error").value("Method Not Allowed"));
     }
 
     @Test
@@ -339,11 +325,6 @@ class ProjectControllerTest {
                 .andExpect(jsonPath("$.fieldErrors.academicianId").exists());
     }
 
-    private UpdateProjectRequest updateRequest() {
-        return new UpdateProjectRequest(2L, "Proje", null, LocalDate.of(2026, 1, 1),
-                3, null, null, null, null, null, null, null, Set.of());
-    }
-
     private CreateProjectFromUploadRequest createFromUploadRequest() {
         return new CreateProjectFromUploadRequest(UUID.randomUUID(), 2L, "Proje", null,
                 LocalDate.of(2026, 1, 1), 3, null, null, null, null, null,
@@ -355,7 +336,7 @@ class ProjectControllerTest {
                 "Kullanici Adi", "Proje", null, LocalDate.of(2026, 1, 1), 3,
                 LocalDate.of(2026, 4, 1), null, null, null, null, null, null, null,
                 Set.of(), ProjectStatus.AWAITING_REVIEWER,
-                null, null, null, null, null, null);
+                null, null);
     }
 
     private ProjectReviewerAssignmentResponse assignmentResponse() {

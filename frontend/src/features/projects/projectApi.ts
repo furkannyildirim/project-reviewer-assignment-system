@@ -84,32 +84,6 @@ export async function deleteProject(id: number): Promise<void> {
     await httpClient.delete(`/projects/${id}`);
 }
 
-export async function downloadProjectDocument(
-    id: number,
-): Promise<{ blob: Blob; fileName: string | null }> {
-    const response = await httpClient.get<Blob>(`/projects/${id}/document`, {
-        responseType: 'blob',
-    });
-    const contentDisposition = response.headers['content-disposition'];
-    let fileName: string | null = null;
-
-    if (typeof contentDisposition === 'string') {
-        const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-        const quotedMatch = contentDisposition.match(/filename="([^"]+)"/i);
-        const headerValue = encodedMatch?.[1] ?? quotedMatch?.[1];
-        if (headerValue) {
-            try {
-                fileName = decodeURIComponent(headerValue);
-            } catch {
-                fileName = headerValue;
-            }
-            fileName = fileName.split(/[\\/]/).pop()?.replace(/[\u0000-\u001F\u007F]/g, '') || null;
-        }
-    }
-
-    return { blob: response.data, fileName };
-}
-
 export async function previewProjectDocument(
     uploadId: string,
 ): Promise<ProjectDocumentPreviewResponse> {

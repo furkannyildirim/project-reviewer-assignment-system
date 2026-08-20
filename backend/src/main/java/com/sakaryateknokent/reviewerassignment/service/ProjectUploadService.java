@@ -80,7 +80,7 @@ public class ProjectUploadService {
             return toInfo(projectUploadRepository.saveAndFlush(upload));
         } catch (RuntimeException exception) {
             try {
-                fileStorageService.delete(storedFile.storageKey());
+                fileStorageService.deleteTemporary(storedFile.storageKey());
             } catch (RuntimeException ignored) {
                 // Preserve the database error; cleanup is best effort.
             }

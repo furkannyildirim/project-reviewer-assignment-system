@@ -52,7 +52,6 @@ class ProjectUploadCleanupServiceTest {
         assertEquals(25, pageable.getValue().getPageSize());
         verify(fileStorageService).deleteTemporary(upload.storageKey());
         verify(uploadService).deleteExpiredUpload(uploadId);
-        verify(fileStorageService, never()).deleteProjectFile(any());
     }
 
     @Test

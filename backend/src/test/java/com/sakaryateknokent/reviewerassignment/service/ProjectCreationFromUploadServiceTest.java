@@ -10,7 +10,6 @@ import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException
 import com.sakaryateknokent.reviewerassignment.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -45,75 +44,38 @@ class ProjectCreationFromUploadServiceTest {
     }
 
     @Test
-    void createsFromVerifiedUploadAndCleansTemporaryFileAfterCommit() {
+    void createsFromVerifiedUploadWithoutPermanentCopyAndCleansTemporaryFileAfterCommit() {
         UUID uploadId = UUID.randomUUID();
         CreateProjectFromUploadRequest request = request(uploadId);
         UsableProjectUpload upload = upload(uploadId);
-        StoredProjectFile permanent = permanentFile();
+        Company company = company();
+        User user = user();
         ProjectResponse expected = response();
         when(uploadService.getUsableUploadForCreation(uploadId, "user@example.com"))
                 .thenReturn(upload);
-        when(projectService.findCompanyForProject(5L)).thenReturn(company());
-        when(projectService.findUserForProject("user@example.com")).thenReturn(user());
-        when(storageService.copyTemporaryToProjects(any())).thenReturn(permanent);
-        when(projectService.createProjectFromUpload(any(), any(), any(), any()))
+        when(projectService.findCompanyForProject(5L)).thenReturn(company);
+        when(projectService.findUserForProject("user@example.com")).thenReturn(user);
+        when(projectService.createProjectFromUpload(any(), any(), any()))
                 .thenReturn(expected);
         TransactionSynchronizationManager.initSynchronization();
 
         ProjectResponse result = creationService.create(request, "user@example.com");
 
         assertEquals(expected, result);
-        ArgumentCaptor<StoredProjectFile> temporary = ArgumentCaptor.forClass(StoredProjectFile.class);
-        verify(storageService).copyTemporaryToProjects(temporary.capture());
-        assertEquals(upload.storageKey(), temporary.getValue().storageKey());
-        assertEquals(upload.originalFileName(), temporary.getValue().originalFileName());
-        assertEquals(upload.contentType(), temporary.getValue().contentType());
-        assertEquals(upload.fileSize(), temporary.getValue().fileSize());
+        verify(projectService).createProjectFromUpload(request, company, user);
         verify(uploadService).markConsumed(uploadId, "user@example.com");
         verify(storageService, never()).deleteTemporary(any());
 
         complete(TransactionSynchronization.STATUS_COMMITTED);
 
         verify(storageService).deleteTemporary(upload.storageKey());
-        verify(storageService, never()).deleteProjectFile(permanent.storageKey());
     }
 
     @Test
-    void doesNotCopyFileWhenCompanyDoesNotExist() {
-        UUID uploadId = UUID.randomUUID();
-        when(uploadService.getUsableUploadForCreation(uploadId, "user@example.com"))
-                .thenReturn(upload(uploadId));
-        when(projectService.findCompanyForProject(5L))
-                .thenThrow(new ResourceNotFoundException("Sirket bulunamadi"));
-
-        assertThrows(ResourceNotFoundException.class,
-                () -> creationService.create(request(uploadId), "user@example.com"));
-
-        verify(storageService, never()).copyTemporaryToProjects(any());
-        verify(uploadService, never()).markConsumed(any(), any());
-    }
-
-    @Test
-    void doesNotSaveProjectOrConsumeTokenWhenCopyFails() {
+    void preservesTemporaryUploadAfterProjectCreationRollback() {
         UUID uploadId = UUID.randomUUID();
         prepareVerifiedInput(uploadId);
-        when(storageService.copyTemporaryToProjects(any()))
-                .thenThrow(new IllegalStateException("storage unavailable"));
-
-        assertThrows(IllegalStateException.class,
-                () -> creationService.create(request(uploadId), "user@example.com"));
-
-        verify(projectService, never()).createProjectFromUpload(any(), any(), any(), any());
-        verify(uploadService, never()).markConsumed(any(), any());
-    }
-
-    @Test
-    void removesPermanentCopyAfterProjectSaveFailureAndKeepsTemporaryFile() {
-        UUID uploadId = UUID.randomUUID();
-        StoredProjectFile permanent = permanentFile();
-        prepareVerifiedInput(uploadId);
-        when(storageService.copyTemporaryToProjects(any())).thenReturn(permanent);
-        when(projectService.createProjectFromUpload(any(), any(), any(), any()))
+        when(projectService.createProjectFromUpload(any(), any(), any()))
                 .thenThrow(new IllegalStateException("database failure"));
         TransactionSynchronizationManager.initSynchronization();
 
@@ -121,18 +83,15 @@ class ProjectCreationFromUploadServiceTest {
                 () -> creationService.create(request(uploadId), "user@example.com"));
         complete(TransactionSynchronization.STATUS_ROLLED_BACK);
 
-        verify(storageService).deleteProjectFile(permanent.storageKey());
         verify(storageService, never()).deleteTemporary(any());
         verify(uploadService, never()).markConsumed(any(), any());
     }
 
     @Test
-    void removesPermanentCopyWhenConsumingUploadFails() {
+    void preservesTemporaryUploadWhenConsumingUploadFails() {
         UUID uploadId = UUID.randomUUID();
-        StoredProjectFile permanent = permanentFile();
         prepareVerifiedInput(uploadId);
-        when(storageService.copyTemporaryToProjects(any())).thenReturn(permanent);
-        when(projectService.createProjectFromUpload(any(), any(), any(), any()))
+        when(projectService.createProjectFromUpload(any(), any(), any()))
                 .thenReturn(response());
         doThrow(new InvalidRequestException("Gecici yukleme kullanilamiyor"))
                 .when(uploadService).markConsumed(uploadId, "user@example.com");
@@ -142,12 +101,26 @@ class ProjectCreationFromUploadServiceTest {
                 () -> creationService.create(request(uploadId), "user@example.com"));
         complete(TransactionSynchronization.STATUS_ROLLED_BACK);
 
-        verify(storageService).deleteProjectFile(permanent.storageKey());
         verify(storageService, never()).deleteTemporary(any());
     }
 
     @Test
-    void rejectsUnusableOrOtherUsersUploadBeforeStorageChanges() {
+    void doesNotCreateProjectWhenCompanyDoesNotExist() {
+        UUID uploadId = UUID.randomUUID();
+        when(uploadService.getUsableUploadForCreation(uploadId, "user@example.com"))
+                .thenReturn(upload(uploadId));
+        when(projectService.findCompanyForProject(5L))
+                .thenThrow(new ResourceNotFoundException("Sirket bulunamadi"));
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> creationService.create(request(uploadId), "user@example.com"));
+
+        verify(projectService, never()).createProjectFromUpload(any(), any(), any());
+        verify(uploadService, never()).markConsumed(any(), any());
+    }
+
+    @Test
+    void rejectsUnusableOrOtherUsersUploadBeforeProjectChanges() {
         UUID uploadId = UUID.randomUUID();
         when(uploadService.getUsableUploadForCreation(uploadId, "other@example.com"))
                 .thenThrow(new InvalidRequestException("Gecici yukleme kullanilamiyor"));
@@ -155,7 +128,7 @@ class ProjectCreationFromUploadServiceTest {
         assertThrows(InvalidRequestException.class,
                 () -> creationService.create(request(uploadId), "other@example.com"));
 
-        verify(storageService, never()).copyTemporaryToProjects(any());
+        verify(projectService, never()).createProjectFromUpload(any(), any(), any());
     }
 
     private void prepareVerifiedInput(UUID uploadId) {
@@ -184,12 +157,6 @@ class ProjectCreationFromUploadServiceTest {
                 Instant.parse("2026-08-14T10:00:00Z"));
     }
 
-    private StoredProjectFile permanentFile() {
-        return new StoredProjectFile(UUID.randomUUID(),
-                "projects/22222222-2222-2222-2222-222222222222.pdf",
-                "kaynak.pdf", "application/pdf", 1024);
-    }
-
     private Company company() {
         Company company = new Company();
         company.setId(5L);
@@ -212,7 +179,6 @@ class ProjectCreationFromUploadServiceTest {
                 LocalDate.of(2026, 2, 1), 6, LocalDate.of(2026, 8, 1),
                 "Ar-Ge", "Yazilim", "Ozet", "Nitelik", "Yenilik", "Yapay Zeka",
                 "Detay", Set.of("AI"), ProjectStatus.AWAITING_REVIEWER,
-                UUID.randomUUID(), "kaynak.pdf", "application/pdf", 1024L,
                 Instant.now(), Instant.now());
     }
 }

@@ -6,7 +6,6 @@ import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHist
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ReviewerAssignmentRequest;
-import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.service.ProjectService;
 import com.sakaryateknokent.reviewerassignment.service.ProjectCreationFromUploadService;
 import jakarta.validation.Valid;
@@ -21,7 +20,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,8 +30,6 @@ import java.util.List;
 @RequestMapping("/api/projects")
 @RequiredArgsConstructor
 public class ProjectController {
-
-    private static final String ADMIN_AUTHORITY = "ROLE_ADMIN";
 
     private final ProjectService projectService;
     private final ProjectCreationFromUploadService projectCreationFromUploadService;
@@ -106,15 +102,4 @@ public class ProjectController {
         return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/{projectId}")
-    public ResponseEntity<ProjectResponse> updateProject(
-            @PathVariable Long projectId,
-            @Valid @RequestBody UpdateProjectRequest request,
-            Authentication authentication
-    ) {
-        boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(authority -> ADMIN_AUTHORITY.equals(authority.getAuthority()));
-        return ResponseEntity.ok(projectService.updateProject(
-                projectId, request, authentication.getName(), isAdmin));
-    }
 }

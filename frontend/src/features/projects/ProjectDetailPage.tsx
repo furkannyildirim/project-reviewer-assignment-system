@@ -3,7 +3,6 @@ import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
-import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import EngineeringOutlinedIcon from '@mui/icons-material/EngineeringOutlined';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import PersonRemoveOutlinedIcon from '@mui/icons-material/PersonRemoveOutlined';
@@ -13,7 +12,6 @@ import {
     Box,
     Button,
     Chip,
-    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
@@ -31,7 +29,6 @@ import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
 import { academicianQueryKeys } from '../academicians/academicianQueryKeys';
 import { companyQueryKeys } from '../companies/companyQueryKeys';
 import {
-    downloadProjectDocument,
     getActiveProjectReviewerAssignments,
     getProjectById,
     getProjectReviewerAssignmentHistory,
@@ -108,25 +105,6 @@ function display(value: string | null | undefined) {
     return value?.trim() || missingValue;
 }
 
-function fileTypeLabel(contentType: string | null) {
-    if (contentType === 'application/pdf') return 'PDF';
-    if (contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'DOCX';
-    return 'Dosya';
-}
-
-function formatFileSize(bytes: number | null) {
-    if (bytes === null || !Number.isFinite(bytes) || bytes < 0) return missingValue;
-    if (bytes < 1024) return `${bytes.toLocaleString('tr-TR')} B`;
-    const units = ['KB', 'MB'];
-    let value = bytes / 1024;
-    let unitIndex = 0;
-    while (value >= 1024 && unitIndex < units.length - 1) {
-        value /= 1024;
-        unitIndex += 1;
-    }
-    return `${value.toLocaleString('tr-TR', { maximumFractionDigits: 1 })} ${units[unitIndex]}`;
-}
-
 function DetailCard({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
     return (
         <Paper elevation={0} sx={{ border: '1px solid #D9E2EA', borderRadius: '12px', bgcolor: '#FFFFFF', p: { xs: 2, sm: 2.5 } }}>
@@ -158,8 +136,6 @@ function LoadingState() {
 export function ProjectDetailPage() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const [isDownloading, setIsDownloading] = useState(false);
-    const [downloadErrorOpen, setDownloadErrorOpen] = useState(false);
     const [assignmentSuccessOpen, setAssignmentSuccessOpen] = useState(false);
     const [removalSuccessOpen, setRemovalSuccessOpen] = useState(false);
     const [selectedAssignment, setSelectedAssignment] =
@@ -228,28 +204,6 @@ export function ProjectDetailPage() {
     const project = query.data as ProjectResponse | undefined;
     const notFound = !validId || (axios.isAxiosError(query.error) && query.error.response?.status === 404);
 
-    async function handleDocumentDownload() {
-        if (!project || isDownloading) return;
-        setIsDownloading(true);
-        setDownloadErrorOpen(false);
-        let objectUrl: string | null = null;
-        try {
-            const download = await downloadProjectDocument(project.id);
-            objectUrl = URL.createObjectURL(download.blob);
-            const anchor = document.createElement('a');
-            anchor.href = objectUrl;
-            anchor.download = download.fileName || project.originalFileName || 'proje-belgesi';
-            document.body.appendChild(anchor);
-            anchor.click();
-            anchor.remove();
-        } catch {
-            setDownloadErrorOpen(true);
-        } finally {
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
-            setIsDownloading(false);
-        }
-    }
-
     function selectAssignmentForRemoval(assignment: ProjectReviewerAssignment) {
         if (removalMutation.isPending) return;
         setSelectedAssignment(assignment);
@@ -277,12 +231,6 @@ export function ProjectDetailPage() {
     if (!project) return null;
 
     const companyPath = project.companyType === 'TGB' ? 'tgb' : 'external';
-    const hasDownloadableDocument = Boolean(
-        project.sourceFileId
-        && project.originalFileName
-        && project.contentType
-        && project.fileSize !== null,
-    );
     const activeAssignments = assignmentsQuery.data ?? [];
     const assignmentLimitReached = activeAssignments.length >= 2;
     const assignmentEligibleStatus = project.status === 'AWAITING_REVIEWER'
@@ -504,24 +452,7 @@ export function ProjectDetailPage() {
             <Box sx={{ gridColumn: { md: '1 / -1' } }}><DetailCard title="Anahtar kelimeler" icon={<DescriptionOutlinedIcon />}>
                 {project.keywords.length ? <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>{project.keywords.map((keyword) => <Chip key={keyword} label={keyword} size="small" sx={{ bgcolor: '#F2F7FA', color: '#526273' }} />)}</Stack> : <Typography color="text.secondary">{missingValue}</Typography>}
             </DetailCard></Box>
-            {(project.originalFileName || project.contentType || project.fileSize !== null) && <Box sx={{ gridColumn: { md: '1 / -1' } }}><DetailCard title="Kaynak belge" icon={<DescriptionOutlinedIcon />}>
-                <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' } }}><Field label="Dosya adı" value={project.originalFileName} /><Field label="Tür" value={project.contentType ? fileTypeLabel(project.contentType) : null} /><Field label="Boyut" value={formatFileSize(project.fileSize)} /></Box>
-                {hasDownloadableDocument && <Button
-                    variant="contained"
-                    disabled={isDownloading}
-                    onClick={() => void handleDocumentDownload()}
-                    startIcon={isDownloading ? <CircularProgress color="inherit" size={18} /> : <DownloadOutlinedIcon />}
-                    sx={{ ...backButtonSx, alignSelf: 'flex-start', mt: 2 }}
-                >
-                    {isDownloading ? 'İndiriliyor…' : 'Belgeyi İndir'}
-                </Button>}
-            </DetailCard></Box>}
         </Box>
-        <Snackbar autoHideDuration={4000} open={downloadErrorOpen} onClose={() => setDownloadErrorOpen(false)}>
-            <Alert severity="error" variant="filled" onClose={() => setDownloadErrorOpen(false)}>
-                Belge indirilemedi. Lütfen tekrar deneyin.
-            </Alert>
-        </Snackbar>
         <Snackbar
             autoHideDuration={4000}
             open={assignmentSuccessOpen}

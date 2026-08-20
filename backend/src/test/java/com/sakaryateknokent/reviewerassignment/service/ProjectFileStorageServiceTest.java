@@ -9,7 +9,6 @@ import org.springframework.util.unit.DataSize;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -76,7 +75,7 @@ class ProjectFileStorageServiceTest {
     }
 
     @Test
-    void cleansTraversalFilenameWithoutEscapingStorageArea() {
+    void cleansTraversalFilenameWithoutEscapingTemporaryArea() {
         ProjectFileStorageService service = service(4096);
 
         StoredProjectFile stored = service.storeTemporary("../outside\\proposal.pdf",
@@ -84,70 +83,45 @@ class ProjectFileStorageServiceTest {
 
         assertEquals("proposal.pdf", stored.originalFileName());
         assertTrue(storageRoot.resolve(stored.storageKey()).normalize()
-                .startsWith(storageRoot));
+                .startsWith(storageRoot.resolve("temporary")));
         assertFalse(Files.exists(storageRoot.getParent().resolve("proposal.pdf")));
     }
 
     @Test
-    void movesTemporaryFileToProjectsAndLoadsByStorageKey() throws Exception {
+    void loadsTemporaryFileByStorageKey() throws Exception {
         ProjectFileStorageService service = service(4096);
         StoredProjectFile temporary = service.storeTemporary("proposal.pdf",
                 new ByteArrayInputStream(pdfBytes()));
 
-        StoredProjectFile permanent = service.moveTemporaryToProjects(temporary);
-
-        assertTrue(permanent.storageKey().startsWith("projects/"));
-        assertFalse(Files.exists(storageRoot.resolve(temporary.storageKey())));
-        try (InputStream loaded = service.load(permanent.storageKey())) {
+        try (var loaded = service.loadTemporary(temporary.storageKey())) {
             assertArrayEquals(pdfBytes(), loaded.readAllBytes());
         }
     }
 
     @Test
-    void projectFileLoaderAcceptsOnlyPermanentProjectsArea() throws Exception {
+    void rejectsInvalidOrNonTemporaryStorageKeys() {
         ProjectFileStorageService service = service(4096);
-        StoredProjectFile temporary = service.storeTemporary("proposal.pdf",
-                new ByteArrayInputStream(pdfBytes()));
 
         assertThrows(InvalidRequestException.class,
-                () -> service.loadProjectFile(temporary.storageKey()));
-
-        StoredProjectFile permanent = service.moveTemporaryToProjects(temporary);
-        try (InputStream loaded = service.loadProjectFile(permanent.storageKey())) {
-            assertArrayEquals(pdfBytes(), loaded.readAllBytes());
-        }
+                () -> service.loadTemporary("../secrets.pdf"));
+        assertThrows(InvalidRequestException.class,
+                () -> service.deleteTemporary("projects/00000000-0000-0000-0000-000000000011.pdf"));
     }
 
     @Test
-    void rejectsInvalidStorageKeyAndTraversal() {
-        ProjectFileStorageService service = service(4096);
-
-        assertThrows(InvalidRequestException.class, () -> service.load("../secrets.pdf"));
-        assertThrows(InvalidRequestException.class, () -> service.delete("projects/not-a-uuid.pdf"));
-    }
-
-    @Test
-    void deletesStoredFile() {
+    void deletesTemporaryFileIdempotently() {
         ProjectFileStorageService service = service(4096);
         StoredProjectFile stored = service.storeTemporary("proposal.pdf",
                 new ByteArrayInputStream(pdfBytes()));
 
-        service.delete(stored.storageKey());
+        service.deleteTemporary(stored.storageKey());
 
         assertFalse(Files.exists(storageRoot.resolve(stored.storageKey())));
+        assertDoesNotThrow(() -> service.deleteTemporary(stored.storageKey()));
     }
 
     @Test
-    void deletingAlreadyMissingPermanentFileIsIdempotent() {
-        ProjectFileStorageService service = service(4096);
-
-        assertDoesNotThrow(() -> service.deleteProjectFile(
-                "projects/00000000-0000-0000-0000-000000000011.pdf"
-        ));
-    }
-
-    @Test
-    void leavesNoFileAfterFailedValidation() throws Exception {
+    void leavesNoTemporaryFileAfterFailedValidation() throws Exception {
         ProjectFileStorageService service = service(4096);
 
         assertThrows(InvalidRequestException.class, () -> service.storeTemporary(

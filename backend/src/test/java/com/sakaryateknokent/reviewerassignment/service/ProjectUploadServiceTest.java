@@ -77,7 +77,7 @@ class ProjectUploadServiceTest {
         assertThrows(IllegalStateException.class, () -> uploadService.createTemporaryUpload(
                 "project.pdf", new ByteArrayInputStream(new byte[]{1}), "owner@example.com"));
 
-        verify(storageService).delete("temporary/file.pdf");
+        verify(storageService).deleteTemporary("temporary/file.pdf");
     }
 
     @Test

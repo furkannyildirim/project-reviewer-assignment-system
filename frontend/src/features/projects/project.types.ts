@@ -147,10 +147,6 @@ export type ProjectResponse = {
     projectDetail: string | null;
     keywords: string[];
     status: ProjectStatus;
-    sourceFileId: string | null;
-    originalFileName: string | null;
-    contentType: string | null;
-    fileSize: number | null;
     createdAt: string;
     updatedAt: string;
 };

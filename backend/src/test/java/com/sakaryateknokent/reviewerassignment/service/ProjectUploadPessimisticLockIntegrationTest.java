@@ -19,6 +19,8 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -30,16 +32,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @EnabledIfEnvironmentVariable(named = "DB_URL", matches = ".+")
@@ -53,6 +51,7 @@ class ProjectUploadPessimisticLockIntegrationTest {
     private final ProjectRepository projectRepository;
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
+    private final TransactionTemplate transactionTemplate;
 
     @MockitoBean
     private ProjectFileStorageService fileStorageService;
@@ -68,13 +67,15 @@ class ProjectUploadPessimisticLockIntegrationTest {
             ProjectUploadRepository uploadRepository,
             ProjectRepository projectRepository,
             CompanyRepository companyRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            PlatformTransactionManager transactionManager
     ) {
         this.creationService = creationService;
         this.uploadRepository = uploadRepository;
         this.projectRepository = projectRepository;
         this.companyRepository = companyRepository;
         this.userRepository = userRepository;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @AfterEach
@@ -109,36 +110,37 @@ class ProjectUploadPessimisticLockIntegrationTest {
         String temporaryKey = "temporary/" + UUID.randomUUID() + ".pdf";
         uploadRepository.saveAndFlush(upload(uploadId, user, temporaryKey));
 
-        CountDownLatch firstCopyStarted = new CountDownLatch(1);
-        CountDownLatch releaseFirstCopy = new CountDownLatch(1);
+        CountDownLatch creationLockAcquired = new CountDownLatch(1);
+        CountDownLatch releaseCreationLock = new CountDownLatch(1);
+        CountDownLatch firstRequestStarted = new CountDownLatch(1);
         CountDownLatch secondRequestStarted = new CountDownLatch(1);
-        CountDownLatch secondCopyStarted = new CountDownLatch(1);
-        AtomicInteger copyCount = new AtomicInteger();
-        StoredProjectFile permanentFile = new StoredProjectFile(
-                UUID.randomUUID(), "projects/" + UUID.randomUUID() + ".pdf",
-                "project.pdf", "application/pdf", 10);
-        when(fileStorageService.copyTemporaryToProjects(any())).thenAnswer(invocation -> {
-            if (copyCount.incrementAndGet() == 1) {
-                firstCopyStarted.countDown();
-                assertTrue(releaseFirstCopy.await(10, TimeUnit.SECONDS));
-            } else {
-                secondCopyStarted.countDown();
-            }
-            return permanentFile;
-        });
 
         CreateProjectFromUploadRequest request = request(uploadId, companyId, projectName);
-        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-            Future<Attempt> first = executor.submit(() -> attemptCreate(request, email));
-            assertTrue(firstCopyStarted.await(10, TimeUnit.SECONDS));
+        try (ExecutorService executor = Executors.newFixedThreadPool(3)) {
+            Future<?> lockHolder = executor.submit(() -> transactionTemplate.executeWithoutResult(
+                    status -> {
+                        uploadRepository.findForProjectCreation(uploadId, email).orElseThrow();
+                        creationLockAcquired.countDown();
+                        await(releaseCreationLock);
+                    }
+            ));
+            assertTrue(creationLockAcquired.await(10, TimeUnit.SECONDS));
+
+            Future<Attempt> first = executor.submit(() -> {
+                firstRequestStarted.countDown();
+                return attemptCreate(request, email);
+            });
+            assertTrue(firstRequestStarted.await(10, TimeUnit.SECONDS));
             Future<Attempt> second = executor.submit(() -> {
                 secondRequestStarted.countDown();
                 return attemptCreate(request, email);
             });
             assertTrue(secondRequestStarted.await(10, TimeUnit.SECONDS));
 
-            assertFalse(secondCopyStarted.await(500, TimeUnit.MILLISECONDS));
-            releaseFirstCopy.countDown();
+            assertFalse(first.isDone());
+            assertFalse(second.isDone());
+            releaseCreationLock.countDown();
+            lockHolder.get(10, TimeUnit.SECONDS);
 
             List<Attempt> attempts = List.of(
                     first.get(10, TimeUnit.SECONDS),
@@ -152,17 +154,15 @@ class ProjectUploadPessimisticLockIntegrationTest {
                     .orElseThrow();
             assertInstanceOf(InvalidRequestException.class, failure);
         } finally {
-            releaseFirstCopy.countDown();
+            releaseCreationLock.countDown();
         }
 
-        assertEquals(1, copyCount.get());
         assertEquals(1, projectRepository.findAll().stream()
                 .filter(project -> projectName.equals(project.getName()))
                 .count());
         ProjectUpload consumedUpload = uploadRepository.findById(uploadId).orElseThrow();
         assertEquals(ProjectUploadStatus.CONSUMED, consumedUpload.getStatus());
         verify(fileStorageService).deleteTemporary(temporaryKey);
-        verify(fileStorageService, never()).deleteProjectFile(any());
     }
 
     private Attempt attemptCreate(CreateProjectFromUploadRequest request, String email) {
@@ -170,6 +170,17 @@ class ProjectUploadPessimisticLockIntegrationTest {
             return new Attempt(creationService.create(request, email), null);
         } catch (Throwable throwable) {
             return new Attempt(null, throwable);
+        }
+    }
+
+    private void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new AssertionError("Timed out waiting to release upload lock");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while holding upload lock", exception);
         }
     }
 

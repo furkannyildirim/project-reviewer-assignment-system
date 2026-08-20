@@ -6,7 +6,6 @@ import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHist
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ReviewerAssignmentRequest;
-import com.sakaryateknokent.reviewerassignment.dto.UpdateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.entity.Academician;
 import com.sakaryateknokent.reviewerassignment.entity.Company;
 import com.sakaryateknokent.reviewerassignment.entity.Project;
@@ -31,8 +30,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -60,24 +57,17 @@ public class ProjectService {
     private final UserRepository userRepository;
     private final ProjectReviewerAssignmentRepository assignmentRepository;
     private final AcademicianRepository academicianRepository;
-    private final ProjectFileStorageService fileStorageService;
 
     ProjectResponse createProjectFromUpload(
             CreateProjectFromUploadRequest request,
             Company company,
-            User createdBy,
-            StoredProjectFile storedFile
+            User createdBy
     ) {
         Project project = new Project();
         project.setCompany(company);
         project.setCreatedBy(createdBy);
         project.setStatus(ProjectStatus.AWAITING_REVIEWER);
         apply(project, request);
-        project.setSourceFileId(storedFile.fileId());
-        project.setOriginalFileName(storedFile.originalFileName());
-        project.setStorageKey(storedFile.storageKey());
-        project.setContentType(storedFile.contentType());
-        project.setFileSize(storedFile.fileSize());
         return toResponse(projectRepository.saveAndFlush(project));
     }
 
@@ -107,25 +97,6 @@ public class ProjectService {
                 projectPage.getPageable(),
                 projectPage.getTotalElements()
         );
-    }
-
-    public ProjectResponse updateProject(
-            Long id,
-            UpdateProjectRequest request,
-            String currentUserEmail,
-            boolean isAdmin
-    ) {
-        Project project = findProjectDetail(id);
-        if (!isAdmin && assignmentRepository.existsByProjectIdAndStatus(
-                project.getId(), AssignmentStatus.ACTIVE)) {
-            throw new IllegalStateException(
-                    "Aktif hakem atamasi olan proje sadece yonetici tarafindan guncellenebilir"
-            );
-        }
-
-        project.setCompany(findCompany(request.companyId()));
-        apply(project, request);
-        return toResponse(projectRepository.saveAndFlush(project));
     }
 
     public ProjectReviewerAssignmentResponse assignReviewer(
@@ -246,48 +217,8 @@ public class ProjectService {
             );
         }
 
-        String permanentStorageKey = project.getStorageKey();
         assignmentRepository.deleteAllByProjectId(projectId);
         projectRepository.delete(project);
-
-        if (permanentStorageKey != null) {
-            registerProjectFileDeletionAfterCommit(
-                    projectId,
-                    permanentStorageKey
-            );
-        }
-    }
-
-    private void registerProjectFileDeletionAfterCommit(
-            Long projectId,
-            String permanentStorageKey
-    ) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            throw new IllegalStateException(
-                    "Proje dosyasi temizligi icin transaction gerekli"
-            );
-        }
-
-        TransactionSynchronizationManager.registerSynchronization(
-                new TransactionSynchronization() {
-                    @Override
-                    public void afterCompletion(int status) {
-                        if (status != STATUS_COMMITTED) {
-                            return;
-                        }
-                        try {
-                            fileStorageService.deleteProjectFile(
-                                    permanentStorageKey
-                            );
-                        } catch (RuntimeException exception) {
-                            log.warn(
-                                    "Committed project file cleanup failed for projectId={}",
-                                    projectId
-                            );
-                        }
-                    }
-                }
-        );
     }
 
     private Project findProjectDetail(Long id) {
@@ -298,22 +229,6 @@ public class ProjectService {
     private Company findCompany(Long companyId) {
         return companyRepository.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException("Sirket bulunamadi"));
-    }
-
-    private void apply(Project project, UpdateProjectRequest request) {
-        project.setName(request.name().trim());
-        project.setProjectManager(normalizeOptionalText(request.projectManager()));
-        project.setStartDate(request.startDate());
-        project.setDurationMonths(request.durationMonths());
-        project.setEndDate(request.startDate().plusMonths(request.durationMonths()));
-        project.setCategory(normalizeOptionalText(request.category()));
-        project.setSector(normalizeOptionalText(request.sector()));
-        project.setSummary(normalizeOptionalText(request.summary()));
-        project.setResearchAndDevelopmentNature(normalizeOptionalText(request.researchAndDevelopmentNature()));
-        project.setInnovativeAspect(normalizeOptionalText(request.innovativeAspect()));
-        project.setMainTechnologyArea(normalizeOptionalText(request.mainTechnologyArea()));
-        project.setProjectDetail(normalizeOptionalText(request.projectDetail()));
-        replaceKeywords(project, request.keywords());
     }
 
     private void apply(Project project, CreateProjectFromUploadRequest request) {
@@ -386,8 +301,7 @@ public class ProjectService {
                 project.getSector(), project.getSummary(), project.getResearchAndDevelopmentNature(),
                 project.getInnovativeAspect(), project.getMainTechnologyArea(),
                 project.getProjectDetail(), Set.copyOf(project.getKeywords()), project.getStatus(),
-                project.getSourceFileId(), project.getOriginalFileName(), project.getContentType(),
-                project.getFileSize(), project.getCreatedAt(), project.getUpdatedAt());
+                project.getCreatedAt(), project.getUpdatedAt());
     }
 
     private ProjectListResponse toListResponse(Project project, long activeReviewerCount) {

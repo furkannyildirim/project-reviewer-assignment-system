@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -80,6 +81,19 @@ public class GlobalExceptionHandler {
         return buildResponse(
                 HttpStatus.UNSUPPORTED_MEDIA_TYPE,
                 "İstek gövdesi application/json formatında gönderilmelidir",
+                request.getRequestURI(),
+                Map.of()
+        );
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnsupportedHttpMethod(
+            HttpRequestMethodNotSupportedException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                "Bu HTTP metodu bu endpoint icin desteklenmiyor",
                 request.getRequestURI(),
                 Map.of()
         );

@@ -10,7 +10,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.UUID;
 
 @Entity
 @Table(name = "projects")
@@ -78,21 +77,6 @@ public class Project {
     )
     @Column(name = "keyword", nullable = false, length = 255)
     private Set<String> keywords = new LinkedHashSet<>();
-
-    @Column(name = "source_file_id")
-    private UUID sourceFileId;
-
-    @Column(name = "original_file_name", length = 255)
-    private String originalFileName;
-
-    @Column(name = "storage_key", length = 500)
-    private String storageKey;
-
-    @Column(name = "content_type", length = 255)
-    private String contentType;
-
-    @Column(name = "file_size")
-    private Long fileSize;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
