@@ -1,7 +1,6 @@
 package com.sakaryateknokent.reviewerassignment.controller;
 
 import com.sakaryateknokent.reviewerassignment.config.SecurityConfig;
-import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
@@ -76,20 +75,6 @@ class ProjectControllerTest {
 
     @Autowired
     private MockMvc securedMockMvc;
-
-    @Test
-    void createProjectPassesAuthenticatedUserNameAndReturnsCreated() {
-        CreateProjectRequest request = createRequest();
-        when(projectService.createProject(request, "user@example.com"))
-                .thenReturn(projectResponse(1L));
-
-        ResponseEntity<ProjectResponse> response = projectController.createProject(
-                request, authentication("user@example.com", "ROLE_USER"));
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertEquals(1L, response.getBody().id());
-        verify(projectService).createProject(request, "user@example.com");
-    }
 
     @Test
     void createProjectFromUploadPassesOnlyRequestAndAuthenticationName() {
@@ -327,20 +312,6 @@ class ProjectControllerTest {
     }
 
     @Test
-    void rejectsInvalidCreateRequestWithExistingFieldErrorFormat() throws Exception {
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(projectController)
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
-
-        mockMvc.perform(post("/api/projects")
-                        .contentType("application/json")
-                        .content("{}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors.companyId").exists())
-                .andExpect(jsonPath("$.fieldErrors.name").exists());
-    }
-
-    @Test
     void rejectsInvalidFromUploadRequestWithExistingFieldErrorFormat() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(projectController)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -366,11 +337,6 @@ class ProjectControllerTest {
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.academicianId").exists());
-    }
-
-    private CreateProjectRequest createRequest() {
-        return new CreateProjectRequest(2L, "Proje", null, LocalDate.of(2026, 1, 1),
-                3, null, null, null, null, null, null, null, Set.of());
     }
 
     private UpdateProjectRequest updateRequest() {

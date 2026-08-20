@@ -1,6 +1,5 @@
 package com.sakaryateknokent.reviewerassignment.controller;
 
-import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
@@ -38,16 +37,6 @@ public class ProjectController {
 
     private final ProjectService projectService;
     private final ProjectCreationFromUploadService projectCreationFromUploadService;
-
-    @PostMapping
-    public ResponseEntity<ProjectResponse> createProject(
-            @Valid @RequestBody CreateProjectRequest request,
-            Authentication authentication
-    ) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(
-                projectService.createProject(request, authentication.getName())
-        );
-    }
 
     @PostMapping("/from-upload")
     public ResponseEntity<ProjectResponse> createProjectFromUpload(

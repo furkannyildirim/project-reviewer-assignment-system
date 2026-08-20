@@ -15,6 +15,8 @@ import {
 } from '@mui/material';
 import { useState } from 'react';
 import { getApiErrorMessage } from '../../../utils/getApiErrorMessage';
+import { academicianQueryKeys } from '../../academicians/academicianQueryKeys';
+import { companyQueryKeys } from '../../companies/companyQueryKeys';
 import {
     assignProjectReviewer,
     getActiveProjectReviewerAssignments,
@@ -186,7 +188,7 @@ export function ProjectReviewerRecommendationsDialog({
             projectId,
             academicianId,
         ),
-        onSuccess: async () => {
+        onSuccess: async (_assignment, academicianId) => {
             await Promise.all([
                 queryClient.invalidateQueries({
                     queryKey: projectQueryKeys.activeReviewerAssignments(projectId),
@@ -199,6 +201,12 @@ export function ProjectReviewerRecommendationsDialog({
                 }),
                 queryClient.invalidateQueries({
                     queryKey: projectQueryKeys.lists(),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: companyQueryKeys.projectSummaries(),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: academicianQueryKeys.projectSummary(academicianId),
                 }),
             ]);
             setSelectedRecommendation(null);

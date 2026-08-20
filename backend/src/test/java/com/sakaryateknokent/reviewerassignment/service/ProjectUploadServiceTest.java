@@ -94,6 +94,22 @@ class ProjectUploadServiceTest {
     }
 
     @Test
+    void projectCreationUsesDedicatedLockedLookup() {
+        UUID uploadId = UUID.randomUUID();
+        ProjectUpload upload = upload(uploadId, "owner@example.com", ProjectUploadStatus.PENDING,
+                NOW.plusSeconds(1));
+        when(uploadRepository.findForProjectCreation(uploadId, "owner@example.com"))
+                .thenReturn(Optional.of(upload));
+
+        UsableProjectUpload usable = uploadService.getUsableUploadForCreation(
+                uploadId, "owner@example.com");
+
+        assertEquals(uploadId, usable.uploadId());
+        verify(uploadRepository).findForProjectCreation(uploadId, "owner@example.com");
+        verify(uploadRepository, never()).findByIdAndUploadedByEmail(any(), any());
+    }
+
+    @Test
     void hidesOtherUsersUploadBehindGenericUnusableError() {
         UUID uploadId = UUID.randomUUID();
         when(uploadRepository.findByIdAndUploadedByEmail(uploadId, "other@example.com"))

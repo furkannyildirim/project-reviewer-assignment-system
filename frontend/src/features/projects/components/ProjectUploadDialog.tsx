@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import { getApiErrorMessage } from '../../../utils/getApiErrorMessage';
 import type { ApiErrorResponse } from '../../../types/api';
+import { companyQueryKeys } from '../../companies/companyQueryKeys';
 import {
     createProjectFromUpload,
     previewProjectDocument,
@@ -136,8 +137,13 @@ export function ProjectUploadDialog({ open, onClose, onCreated }: ProjectUploadD
     const isPreparingPreview = previewMutation.isPending;
     const createMutation = useMutation({
         mutationFn: createProjectFromUpload,
-        onSuccess: async () => {
-            await queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
+        onSuccess: async (_project, request) => {
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: projectQueryKeys.all }),
+                queryClient.invalidateQueries({
+                    queryKey: companyQueryKeys.projectSummary(request.companyId),
+                }),
+            ]);
             resetState();
             onClose();
             onCreated();

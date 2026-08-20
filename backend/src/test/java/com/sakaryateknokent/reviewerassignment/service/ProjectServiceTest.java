@@ -1,6 +1,5 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
-import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
@@ -64,63 +63,6 @@ class ProjectServiceTest {
     private final ProjectService projectService = new ProjectService(
             projectRepository, companyRepository, userRepository, assignmentRepository,
             academicianRepository, fileStorageService);
-
-    @Test
-    void createsProjectUsingAuthenticatedUserAndDraftStatus() {
-        Company company = company(3L);
-        User user = user(7L, "Ayse", "Yilmaz");
-        when(companyRepository.findById(3L)).thenReturn(Optional.of(company));
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
-        when(projectRepository.saveAndFlush(any(Project.class))).thenAnswer(invocation -> {
-            Project project = invocation.getArgument(0);
-            project.setId(9L);
-            return project;
-        });
-
-        ProjectResponse response = projectService.createProject(createRequest(
-                LocalDate.of(2026, 1, 10), 6, Set.of("ai")), "user@example.com");
-
-        assertEquals(9L, response.id());
-        assertEquals(7L, response.createdById());
-        assertEquals("Ayse Yilmaz", response.createdByName());
-        Project saved = savedProject();
-        assertEquals(user, saved.getCreatedBy());
-        assertEquals(ProjectStatus.DRAFT, saved.getStatus());
-    }
-
-    @Test
-    void calculatesEndDateFromStartDateAndDuration() {
-        when(companyRepository.findById(3L)).thenReturn(Optional.of(company(3L)));
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user(7L, "Ayse", "Yilmaz")));
-        when(projectRepository.saveAndFlush(any(Project.class))).thenAnswer(i -> i.getArgument(0));
-
-        ProjectResponse response = projectService.createProject(createRequest(
-                LocalDate.of(2026, 1, 31), 1, Set.of()), "user@example.com");
-
-        assertEquals(LocalDate.of(2026, 2, 28), response.endDate());
-    }
-
-    @Test
-    void rejectsCreateWhenCompanyDoesNotExist() {
-        when(companyRepository.findById(3L)).thenReturn(Optional.empty());
-
-        assertThrows(ResourceNotFoundException.class, () -> projectService.createProject(
-                createRequest(LocalDate.now(), 1, Set.of()), "user@example.com"));
-        verify(projectRepository, never()).saveAndFlush(any(Project.class));
-    }
-
-    @Test
-    void normalizesKeywordsByTrimmingRemovingBlankAndIgnoringCaseDuplicates() {
-        when(companyRepository.findById(3L)).thenReturn(Optional.of(company(3L)));
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user(7L, "Ayse", "Yilmaz")));
-        when(projectRepository.saveAndFlush(any(Project.class))).thenAnswer(i -> i.getArgument(0));
-
-        ProjectResponse response = projectService.createProject(createRequest(
-                LocalDate.now(), 3, new LinkedHashSet<>(Set.of(" AI ", "ai", " ", "Robotik "))),
-                "user@example.com");
-
-        assertEquals(Set.of("AI", "Robotik"), response.keywords());
-    }
 
     @Test
     void createsFromUploadWithAwaitingReviewerStatusVerifiedMetadataAndNormalizedKeywords() {
@@ -590,11 +532,6 @@ class ProjectServiceTest {
                 () -> projectService.removeReviewerAssignment(11L, 31L));
         verify(assignmentRepository, never()).saveAndFlush(
                 any(ProjectReviewerAssignment.class));
-    }
-
-    private CreateProjectRequest createRequest(LocalDate startDate, int duration, Set<String> keywords) {
-        return new CreateProjectRequest(3L, " Proje ", " Yonetici ", startDate, duration,
-                "Kategori", "Sektor", null, null, null, null, null, keywords);
     }
 
     private UpdateProjectRequest updateRequest(LocalDate startDate, int duration, Set<String> keywords) {

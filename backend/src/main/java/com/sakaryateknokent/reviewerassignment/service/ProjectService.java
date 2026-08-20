@@ -1,6 +1,5 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
-import com.sakaryateknokent.reviewerassignment.dto.CreateProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
@@ -63,23 +62,6 @@ public class ProjectService {
     private final ProjectReviewerAssignmentRepository assignmentRepository;
     private final AcademicianRepository academicianRepository;
     private final ProjectFileStorageService fileStorageService;
-
-    public ProjectResponse createProject(
-            CreateProjectRequest request,
-            String currentUserEmail
-    ) {
-        Company company = findCompany(request.companyId());
-        User createdBy = userRepository.findByEmail(currentUserEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanici bulunamadi"));
-
-        Project project = new Project();
-        project.setCompany(company);
-        project.setCreatedBy(createdBy);
-        project.setStatus(ProjectStatus.DRAFT);
-        apply(project, request);
-
-        return toResponse(projectRepository.saveAndFlush(project));
-    }
 
     ProjectResponse createProjectFromUpload(
             CreateProjectFromUploadRequest request,
@@ -317,22 +299,6 @@ public class ProjectService {
     private Company findCompany(Long companyId) {
         return companyRepository.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException("Sirket bulunamadi"));
-    }
-
-    private void apply(Project project, CreateProjectRequest request) {
-        project.setName(request.name().trim());
-        project.setProjectManager(normalizeOptionalText(request.projectManager()));
-        project.setStartDate(request.startDate());
-        project.setDurationMonths(request.durationMonths());
-        project.setEndDate(request.startDate().plusMonths(request.durationMonths()));
-        project.setCategory(normalizeOptionalText(request.category()));
-        project.setSector(normalizeOptionalText(request.sector()));
-        project.setSummary(normalizeOptionalText(request.summary()));
-        project.setResearchAndDevelopmentNature(normalizeOptionalText(request.researchAndDevelopmentNature()));
-        project.setInnovativeAspect(normalizeOptionalText(request.innovativeAspect()));
-        project.setMainTechnologyArea(normalizeOptionalText(request.mainTechnologyArea()));
-        project.setProjectDetail(normalizeOptionalText(request.projectDetail()));
-        replaceKeywords(project, request.keywords());
     }
 
     private void apply(Project project, UpdateProjectRequest request) {

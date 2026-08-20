@@ -100,7 +100,9 @@ public class ProjectUploadService {
             UUID uploadId,
             String currentUserEmail
     ) {
-        ProjectUpload upload = findUsableUpload(uploadId, currentUserEmail);
+        ProjectUpload upload = validateUsableUpload(projectUploadRepository
+                .findForProjectCreation(uploadId, currentUserEmail)
+                .orElseThrow(() -> new InvalidRequestException(UNUSABLE_UPLOAD_MESSAGE)));
         return new UsableProjectUpload(upload.getId(), upload.getStorageKey(),
                 upload.getOriginalFileName(), upload.getContentType(),
                 upload.getFileSize(), upload.getExpiresAt());
@@ -153,6 +155,10 @@ public class ProjectUploadService {
         ProjectUpload upload = projectUploadRepository
                 .findByIdAndUploadedByEmail(uploadId, currentUserEmail)
                 .orElseThrow(() -> new InvalidRequestException(UNUSABLE_UPLOAD_MESSAGE));
+        return validateUsableUpload(upload);
+    }
+
+    private ProjectUpload validateUsableUpload(ProjectUpload upload) {
         if (!ProjectUploadStatus.PENDING.equals(upload.getStatus())
                 || !upload.getExpiresAt().isAfter(clock.instant())) {
             throw new InvalidRequestException(UNUSABLE_UPLOAD_MESSAGE);

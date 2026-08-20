@@ -2,8 +2,10 @@ package com.sakaryateknokent.reviewerassignment.repository;
 
 import com.sakaryateknokent.reviewerassignment.entity.ProjectUpload;
 import com.sakaryateknokent.reviewerassignment.enums.ProjectUploadStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +18,18 @@ import java.util.UUID;
 public interface ProjectUploadRepository extends JpaRepository<ProjectUpload, UUID> {
 
     Optional<ProjectUpload> findByIdAndUploadedByEmail(UUID id, String email);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT upload
+            FROM ProjectUpload upload
+            WHERE upload.id = :uploadId
+              AND upload.uploadedBy.email = :email
+            """)
+    Optional<ProjectUpload> findForProjectCreation(
+            @Param("uploadId") UUID uploadId,
+            @Param("email") String email
+    );
 
     List<ProjectUpload> findByStatusAndExpiresAtBefore(
             ProjectUploadStatus status,

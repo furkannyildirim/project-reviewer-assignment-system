@@ -28,6 +28,8 @@ import axios from 'axios';
 import { useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
+import { academicianQueryKeys } from '../academicians/academicianQueryKeys';
+import { companyQueryKeys } from '../companies/companyQueryKeys';
 import {
     downloadProjectDocument,
     getActiveProjectReviewerAssignments,
@@ -191,11 +193,11 @@ export function ProjectDetailPage() {
         enabled: validId && historyOpen,
     });
     const removalMutation = useMutation({
-        mutationFn: (assignmentId: number) => removeProjectReviewerAssignment(
+        mutationFn: ({ assignmentId }: { assignmentId: number; academicianId: number }) => removeProjectReviewerAssignment(
             id,
             assignmentId,
         ),
-        onSuccess: async () => {
+        onSuccess: async (_response, { academicianId }) => {
             setSelectedAssignment(null);
             setRemovalError(null);
             setRemovalSuccessOpen(true);
@@ -214,6 +216,12 @@ export function ProjectDetailPage() {
                 }),
                 queryClient.invalidateQueries({
                     queryKey: projectQueryKeys.lists(),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: companyQueryKeys.projectSummaries(),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: academicianQueryKeys.projectSummary(academicianId),
                 }),
             ]);
         },
@@ -602,7 +610,10 @@ export function ProjectDetailPage() {
                     loading={removalMutation.isPending}
                     onClick={() => {
                         if (selectedAssignment) {
-                            removalMutation.mutate(selectedAssignment.assignmentId);
+                            removalMutation.mutate({
+                                assignmentId: selectedAssignment.assignmentId,
+                                academicianId: selectedAssignment.academicianId,
+                            });
                         }
                     }}
                     variant="contained"
