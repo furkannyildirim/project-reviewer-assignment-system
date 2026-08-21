@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
+import com.sakaryateknokent.reviewerassignment.dto.CreateManualProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
@@ -71,6 +72,21 @@ public class ProjectService {
         return toResponse(projectRepository.saveAndFlush(project));
     }
 
+    public ProjectResponse createManualProject(
+            CreateManualProjectRequest request,
+        String currentUserEmail
+    ) {
+        Company company = findCompany(request.companyId());
+        User createdBy = findUserForProject(currentUserEmail);
+
+        Project project = new Project();
+        project.setCompany(company);
+        project.setCreatedBy(createdBy);
+        project.setStatus(ProjectStatus.AWAITING_REVIEWER);
+        applyManual(project, request);
+        return toResponse(projectRepository.saveAndFlush(project));
+    }
+
     Company findCompanyForProject(Long companyId) {
         return findCompany(companyId);
     }
@@ -86,8 +102,11 @@ public class ProjectService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ProjectListResponse> listProjects(Pageable pageable) {
-        Page<Project> projectPage = projectRepository.findAll(pageable);
+    public Page<ProjectListResponse> listProjects(Pageable pageable, String search) {
+        String normalizedSearch = normalizeOptionalText(search);
+        Page<Project> projectPage = normalizedSearch == null
+                ? projectRepository.findAll(pageable)
+                : projectRepository.searchByProjectOrCompanyName(normalizedSearch, pageable);
         Map<Long, Long> activeCounts = activeCounts(projectPage.getContent());
         return new PageImpl<>(
                 projectPage.getContent().stream()
@@ -232,6 +251,22 @@ public class ProjectService {
     }
 
     private void apply(Project project, CreateProjectFromUploadRequest request) {
+        project.setName(request.name().trim());
+        project.setProjectManager(normalizeOptionalText(request.projectManager()));
+        project.setStartDate(request.startDate());
+        project.setDurationMonths(request.durationMonths());
+        project.setEndDate(request.startDate().plusMonths(request.durationMonths()));
+        project.setCategory(normalizeOptionalText(request.category()));
+        project.setSector(normalizeOptionalText(request.sector()));
+        project.setSummary(normalizeOptionalText(request.summary()));
+        project.setResearchAndDevelopmentNature(normalizeOptionalText(request.researchAndDevelopmentNature()));
+        project.setInnovativeAspect(normalizeOptionalText(request.innovativeAspect()));
+        project.setMainTechnologyArea(normalizeOptionalText(request.mainTechnologyArea()));
+        project.setProjectDetail(normalizeOptionalText(request.projectDetail()));
+        replaceKeywords(project, request.keywords());
+    }
+
+    private void applyManual(Project project, CreateManualProjectRequest request) {
         project.setName(request.name().trim());
         project.setProjectManager(normalizeOptionalText(request.projectManager()));
         project.setStartDate(request.startDate());

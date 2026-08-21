@@ -23,6 +23,7 @@ export type ProjectListItem = {
 export type ProjectPageParams = {
     page: number;
     size: number;
+    search?: string;
 };
 
 export type ProjectUploadResponse = {
@@ -124,6 +125,22 @@ export type CreateProjectFromUploadRequest = {
     mainTechnologyArea: string | null;
     projectDetail: string | null;
     keywords: string[];
+};
+
+export type CreateManualProjectRequest = {
+    companyId: number;
+    name: string;
+    startDate: string;
+    durationMonths: number;
+    projectManager?: string;
+    category?: string;
+    sector?: string;
+    summary?: string;
+    researchAndDevelopmentNature?: string;
+    innovativeAspect?: string;
+    mainTechnologyArea?: string;
+    projectDetail?: string;
+    keywords?: string[];
 };
 
 export type ProjectResponse = {

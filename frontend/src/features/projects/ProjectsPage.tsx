@@ -7,37 +7,46 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
+    InputAdornment,
+    MenuItem,
     Skeleton,
     Snackbar,
     Stack,
+    TextField,
     Typography,
 } from '@mui/material';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import NoteAddOutlinedIcon from '@mui/icons-material/NoteAddOutlined';
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ResultSummary } from '../../components/common/ResultSummary';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import type { PageResponse } from '../../types/api';
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage';
 import { academicianQueryKeys } from '../academicians/academicianQueryKeys';
 import { companyQueryKeys } from '../companies/companyQueryKeys';
 import { deleteProject, getProjects } from './projectApi';
 import { projectQueryKeys } from './projectQueryKeys';
-import type { ProjectListItem } from './project.types';
+import { projectPageSizes, type ProjectListItem } from './project.types';
 import { ProjectTable } from './components/ProjectTable';
 import { ProjectUploadDialog } from './components/ProjectUploadDialog';
+import { ManualProjectDialog } from './components/ManualProjectDialog';
 
 export function ProjectsPage() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const [search, setSearch] = useState('');
     const [page, setPage] = useState(0);
     const [size, setSize] = useState(10);
     const [isUploadDialogOpen, setUploadDialogOpen] = useState(false);
+    const [isManualDialogOpen, setManualDialogOpen] = useState(false);
     const [creationSuccessOpen, setCreationSuccessOpen] = useState(false);
     const [projectToDelete, setProjectToDelete] = useState<ProjectListItem | null>(null);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [deletionSuccessOpen, setDeletionSuccessOpen] = useState(false);
-    const queryParams = { page, size };
+    const debouncedSearch = useDebouncedValue(search.trim(), 400);
+    const queryParams = { page, size, search: debouncedSearch || undefined };
     const projectsQuery = useQuery({
         queryKey: projectQueryKeys.list(queryParams),
         queryFn: () => getProjects(queryParams),
@@ -121,6 +130,16 @@ export function ProjectsPage() {
         deleteMutation.mutate(projectToDelete.id);
     }
 
+    function handleSearchChange(value: string) {
+        setSearch(value);
+        setPage(0);
+    }
+
+    function handleSizeChange(nextSize: number) {
+        setSize(nextSize);
+        setPage(0);
+    }
+
     return (
         <Stack spacing={3}>
             <Box
@@ -159,6 +178,19 @@ export function ProjectsPage() {
                         <Button
                             onClick={() => setUploadDialogOpen(true)}
                             startIcon={<NoteAddOutlinedIcon />}
+                            variant="outlined"
+                            sx={{
+                                borderColor: '#2A2B61',
+                                color: '#2A2B61',
+                                minHeight: 40,
+                                '&:hover': { bgcolor: '#F2F4F7', borderColor: '#202153' },
+                            }}
+                        >
+                            PDF'den Yükle
+                        </Button>
+                        <Button
+                            onClick={() => setManualDialogOpen(true)}
+                            startIcon={<NoteAddOutlinedIcon />}
                             variant="contained"
                             sx={{
                                 bgcolor: '#2A2B61',
@@ -174,19 +206,73 @@ export function ProjectsPage() {
                         >
                             Yeni Proje
                         </Button>
-                        {projectsQuery.isLoading && !projectsQuery.data ? (
-                            <Skeleton height={40} variant="rounded" width={110} />
-                        ) : (
-                            <ResultSummary
-                                filteredCount={projectsQuery.data?.totalElements ?? 0}
-                                totalCount={projectsQuery.data?.totalElements ?? 0}
-                                hasActiveFilter={false}
-                                entityLabel="proje"
-                            />
-                        )}
                     </Stack>
                 </Stack>
             </Box>
+
+            <Stack
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={2}
+                sx={{
+                    alignItems: { xs: 'stretch', md: 'center' },
+                    '& .MuiInputLabel-root.Mui-focused': { color: '#2A2B61' },
+                    '& .MuiOutlinedInput-root': {
+                        bgcolor: '#FFFFFF',
+                        borderRadius: '10px',
+                        minHeight: 44,
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#D9E2EA' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#B8C7D4' },
+                        '&.Mui-focused': { boxShadow: '0 0 0 3px rgba(42, 43, 97, 0.09)' },
+                        '&.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#2A2B61' },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#2A2B61',
+                            borderWidth: 1,
+                        },
+                    },
+                }}
+            >
+                <TextField
+                    label="Arama"
+                    onChange={(event) => handleSearchChange(event.target.value)}
+                    placeholder="Proje ara..."
+                    slotProps={{
+                        input: {
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchOutlinedIcon sx={{ color: '#728196', fontSize: 20 }} />
+                                </InputAdornment>
+                            ),
+                        },
+                    }}
+                    sx={{ flexGrow: 1 }}
+                    value={search}
+                />
+                <TextField
+                    select
+                    label="Satır sayısı"
+                    onChange={(event) => handleSizeChange(Number(event.target.value))}
+                    sx={{ minWidth: { xs: '100%', md: 160 } }}
+                    value={size}
+                >
+                    {projectPageSizes.map((pageSize) => (
+                        <MenuItem key={pageSize} value={pageSize}>
+                            {pageSize}
+                        </MenuItem>
+                    ))}
+                </TextField>
+                {projectsQuery.isLoading && !projectsQuery.data ? (
+                    <Skeleton height={48} variant="rounded" width={120} />
+                ) : (
+                    <Box sx={{ '& > div': { fontSize: 16, justifyContent: 'center', minHeight: 46, minWidth: 132, px: 2.5 } }}>
+                        <ResultSummary
+                            filteredCount={projectsQuery.data?.totalElements ?? 0}
+                            totalCount={projectsQuery.data?.totalElements ?? 0}
+                            hasActiveFilter={false}
+                            entityLabel="proje"
+                        />
+                    </Box>
+                )}
+            </Stack>
 
             {projectsQuery.isError ? (
                 <Alert
@@ -207,10 +293,6 @@ export function ProjectsPage() {
                     page={page}
                     size={size}
                     onPageChange={setPage}
-                    onSizeChange={(nextSize) => {
-                        setSize(nextSize);
-                        setPage(0);
-                    }}
                     onView={(project) => navigate(`/projects/${project.id}`)}
                     onDelete={(project) => {
                         setDeleteError(null);
@@ -222,6 +304,11 @@ export function ProjectsPage() {
             <ProjectUploadDialog
                 open={isUploadDialogOpen}
                 onClose={() => setUploadDialogOpen(false)}
+                onCreated={() => setCreationSuccessOpen(true)}
+            />
+            <ManualProjectDialog
+                open={isManualDialogOpen}
+                onClose={() => setManualDialogOpen(false)}
                 onCreated={() => setCreationSuccessOpen(true)}
             />
             <Snackbar

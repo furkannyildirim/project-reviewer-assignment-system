@@ -26,7 +26,6 @@ type ProjectTableProps = {
     size: number;
     isLoading: boolean;
     onPageChange: (page: number) => void;
-    onSizeChange: (size: number) => void;
     onView: (project: ProjectListItem) => void;
     onDelete: (project: ProjectListItem) => void;
     isDeleting: boolean;
@@ -107,7 +106,6 @@ export function ProjectTable({
     size,
     isLoading,
     onPageChange,
-    onSizeChange,
     onView,
     onDelete,
     isDeleting,
@@ -236,18 +234,15 @@ export function ProjectTable({
                     count={totalElements}
                     page={safePage}
                     rowsPerPage={size}
-                    rowsPerPageOptions={[10, 15, 20, 25]}
-                    labelRowsPerPage="Satır sayısı:"
+                    rowsPerPageOptions={[]}
                     labelDisplayedRows={({ from, to, count }) => `${from}-${to} / ${count}`}
                     onPageChange={(_, nextPage) => onPageChange(nextPage)}
-                    onRowsPerPageChange={(event) => onSizeChange(Number(event.target.value))}
                     sx={{
                         '& .MuiTablePagination-toolbar': {
-                            flexWrap: 'wrap',
-                            gap: 0.5,
                             justifyContent: 'flex-end',
                             px: { xs: 1, sm: 2 },
                         },
+                        '& .MuiTablePagination-spacer': { display: 'none' },
                     }}
                 />
             </Box>

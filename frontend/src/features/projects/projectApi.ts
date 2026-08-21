@@ -6,6 +6,7 @@ import type {
     ProjectDocumentPreviewResponse,
     ProjectUploadResponse,
     CreateProjectFromUploadRequest,
+    CreateManualProjectRequest,
     ProjectResponse,
     ProjectReviewerRecommendationsResponse,
     ProjectReviewerAssignment,
@@ -113,6 +114,17 @@ export async function createProjectFromUpload(
 ): Promise<ProjectResponse> {
     const response = await httpClient.post<ProjectResponse>(
         '/projects/from-upload',
+        request,
+    );
+
+    return response.data;
+}
+
+export async function createManualProject(
+    request: CreateManualProjectRequest,
+): Promise<ProjectResponse> {
+    const response = await httpClient.post<ProjectResponse>(
+        '/projects/manual',
         request,
     );
 

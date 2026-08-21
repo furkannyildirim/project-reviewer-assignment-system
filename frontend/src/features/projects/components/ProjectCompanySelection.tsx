@@ -23,6 +23,8 @@ type ProjectCompanySelectionProps = {
     onSelect: (companyId: number | null) => void;
     error?: string;
     disabled: boolean;
+    unselectedLabel?: string;
+    variant?: 'action' | 'autocomplete';
 };
 
 function typeLabel(type: CompanyType) {
@@ -47,13 +49,16 @@ export function ProjectCompanySelection({
     onSelect,
     error,
     disabled,
+    unselectedLabel = 'Farklı şirket seç',
+    variant = 'action',
 }: ProjectCompanySelectionProps) {
     const [searchOpen, setSearchOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [selectedCompanySnapshot, setSelectedCompanySnapshot] =
         useState<CompanyListItem | null>(null);
     const debouncedSearch = useDebouncedValue(search.trim(), 400);
-    const queryEnabled = searchOpen && debouncedSearch.length > 0;
+    const queryEnabled = (variant === 'autocomplete' || searchOpen)
+        && debouncedSearch.length > 0;
     const queryTgb = useQuery({
         queryKey: ['project-company-selection', 'TGB', debouncedSearch],
         queryFn: () => getCompanies({ companyType: 'TGB', search: debouncedSearch, page: 0, size: 10 }),
@@ -108,13 +113,15 @@ export function ProjectCompanySelection({
     function selectCompany(company: CompanyListItem | null) {
         onSelect(company?.id ?? null);
         setSelectedCompanySnapshot(company);
-        setSearch('');
+        setSearch(variant === 'autocomplete' ? company?.name ?? '' : '');
         setSearchOpen(false);
     }
 
+    const showAutocomplete = variant === 'autocomplete' || searchOpen;
+
     return (
         <Stack spacing={1.25}>
-            {selectedCompany && (
+            {variant === 'action' && selectedCompany && (
                 <Paper elevation={0} sx={{ bgcolor: '#F2F9FC', border: '1px solid #BFE5F0', borderRadius: '8px', p: 1.25 }}>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
                         <Box>
@@ -130,7 +137,7 @@ export function ProjectCompanySelection({
                     </Stack>
                 </Paper>
             )}
-            {!selectedCompany && initialCandidates.length > 0 && !searchOpen && (
+            {variant === 'action' && !selectedCompany && initialCandidates.length > 0 && !searchOpen && (
                 <Stack spacing={0.75}>
                     <Typography color="text.secondary" variant="body2">
                         {match.status === 'AMBIGUOUS' ? 'Bir şirket seçin' : 'Eşleşen şirket'}
@@ -164,17 +171,17 @@ export function ProjectCompanySelection({
                     ))}
                 </Stack>
             )}
-            {!selectedCompany && !searchOpen && (
+            {variant === 'action' && !selectedCompany && !searchOpen && (
                 <Button
                     disabled={disabled}
                     onClick={openSearch}
                     startIcon={<SearchOutlinedIcon />}
                     sx={{ alignSelf: 'flex-start', color: '#2A2B61' }}
                 >
-                    Farklı şirket seç
+                    {unselectedLabel}
                 </Button>
             )}
-            {searchOpen && (
+            {showAutocomplete && (
                 <Autocomplete
                     disabled={disabled}
                     filterOptions={(values) => values}
@@ -216,10 +223,10 @@ export function ProjectCompanySelection({
                             </Stack>
                         </li>
                     )}
-                    value={searchOpen ? null : selectedCompany}
+                    value={variant === 'autocomplete' ? selectedCompany : searchOpen ? null : selectedCompany}
                 />
             )}
-            {searchOpen && (
+            {variant === 'action' && searchOpen && (
                 <Button disabled={disabled} onClick={cancelSearch} size="small" sx={{ alignSelf: 'flex-start', color: '#526273' }}>
                     İptal
                 </Button>

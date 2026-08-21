@@ -34,6 +34,18 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     @EntityGraph(attributePaths = "company")
     Page<Project> findAll(Pageable pageable);
 
+    @EntityGraph(attributePaths = "company")
+    @Query("""
+            SELECT project
+            FROM Project project
+            WHERE LOWER(project.name) LIKE LOWER(CONCAT('%', :search, '%'))
+               OR LOWER(project.company.name) LIKE LOWER(CONCAT('%', :search, '%'))
+            """)
+    Page<Project> searchByProjectOrCompanyName(
+            @Param("search") String search,
+            Pageable pageable
+    );
+
     long countByCompanyId(Long companyId);
 
     @Query("""

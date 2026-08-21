@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.service;
 
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
+import com.sakaryateknokent.reviewerassignment.dto.CreateManualProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
@@ -83,6 +84,92 @@ class ProjectServiceTest {
         assertEquals(LocalDate.of(2026, 2, 28), saved.getEndDate());
         assertEquals(Set.of("AI", "Robotik"), saved.getKeywords());
         assertEquals(ProjectStatus.AWAITING_REVIEWER, response.status());
+    }
+
+    @Test
+    void searchesProjectsByProjectOrCompanyNameWhenSearchIsPresent() {
+        Project project = project(11L);
+        org.springframework.data.domain.PageRequest pageable =
+                org.springframework.data.domain.PageRequest.of(0, 10);
+        when(projectRepository.searchByProjectOrCompanyName("teknokent", pageable))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(project), pageable, 1));
+
+        var response = projectService.listProjects(pageable, "  teknokent  ");
+
+        assertEquals(1, response.getTotalElements());
+        verify(projectRepository).searchByProjectOrCompanyName("teknokent", pageable);
+        verify(projectRepository, never()).findAll(pageable);
+    }
+
+    @Test
+    void listsProjectsWithExistingFindAllBehaviorWhenSearchIsBlank() {
+        org.springframework.data.domain.PageRequest pageable =
+                org.springframework.data.domain.PageRequest.of(0, 10);
+        when(projectRepository.findAll(pageable))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
+
+        projectService.listProjects(pageable, "   ");
+
+        verify(projectRepository).findAll(pageable);
+        verify(projectRepository, never()).searchByProjectOrCompanyName(any(), any());
+    }
+
+    @Test
+    void createsManualProjectWithAuthenticatedUserCalculatedPastEndDateAndNormalizedKeywords() {
+        Company company = company(3L);
+        User user = user(7L, "Ayse", "Yilmaz");
+        when(companyRepository.findById(3L)).thenReturn(Optional.of(company));
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(projectRepository.saveAndFlush(any(Project.class))).thenAnswer(invocation -> {
+            Project project = invocation.getArgument(0);
+            project.setId(15L);
+            return project;
+        });
+
+        ProjectResponse response = projectService.createManualProject(
+                new CreateManualProjectRequest(
+                        3L, " Manuel Proje ", "  ", LocalDate.of(2020, 1, 31), 1,
+                        " Yapay Zeka ", null, " Ozet ", null, null,
+                        " Yazilim ", null,
+                        new LinkedHashSet<>(List.of(" AI ", "ai", " ", "Robotik "))
+                ),
+                "user@example.com"
+        );
+
+        Project saved = savedProject();
+        assertEquals(company, saved.getCompany());
+        assertEquals(user, saved.getCreatedBy());
+        assertEquals("Manuel Proje", saved.getName());
+        assertEquals(null, saved.getProjectManager());
+        assertEquals(LocalDate.of(2020, 1, 31), saved.getStartDate());
+        assertEquals(1, saved.getDurationMonths());
+        assertEquals(LocalDate.of(2020, 2, 29), saved.getEndDate());
+        assertEquals(ProjectStatus.AWAITING_REVIEWER, saved.getStatus());
+        assertEquals(Set.of("AI", "Robotik"), saved.getKeywords());
+        assertEquals("Yapay Zeka", saved.getCategory());
+        assertEquals("Ozet", saved.getSummary());
+        assertEquals("Yazilim", saved.getMainTechnologyArea());
+        assertEquals(7L, response.createdById());
+        assertEquals(ProjectStatus.AWAITING_REVIEWER, response.status());
+        assertEquals(LocalDate.of(2020, 2, 29), response.endDate());
+    }
+
+    @Test
+    void rejectsManualProjectWhenCompanyDoesNotExist() {
+        when(companyRepository.findById(99L)).thenReturn(Optional.empty());
+        CreateManualProjectRequest request = new CreateManualProjectRequest(
+                99L, "Manuel Proje", null, LocalDate.of(2026, 1, 1), 3,
+                null, null, null, null, null, null, null, Set.of()
+        );
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> projectService.createManualProject(request, "user@example.com")
+        );
+
+        assertEquals("Sirket bulunamadi", exception.getMessage());
+        verify(userRepository, never()).findByEmail(any());
+        verify(projectRepository, never()).saveAndFlush(any(Project.class));
     }
 
     @Test

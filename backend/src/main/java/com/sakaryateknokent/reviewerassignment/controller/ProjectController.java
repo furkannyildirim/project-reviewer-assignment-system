@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.controller;
 
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
+import com.sakaryateknokent.reviewerassignment.dto.CreateManualProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentResponse;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -44,13 +46,24 @@ public class ProjectController {
         );
     }
 
+    @PostMapping("/manual")
+    public ResponseEntity<ProjectResponse> createManualProject(
+            @Valid @RequestBody CreateManualProjectRequest request,
+            Authentication authentication
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                projectService.createManualProject(request, authentication.getName())
+        );
+    }
+
     @GetMapping
     public ResponseEntity<Page<ProjectListResponse>> listProjects(
             @PageableDefault(size = 10, sort = "createdAt",
                     direction = org.springframework.data.domain.Sort.Direction.DESC)
-            Pageable pageable
+            Pageable pageable,
+            @RequestParam(required = false) String search
     ) {
-        return ResponseEntity.ok(projectService.listProjects(pageable));
+        return ResponseEntity.ok(projectService.listProjects(pageable, search));
     }
 
     @GetMapping("/{projectId}")

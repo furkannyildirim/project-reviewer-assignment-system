@@ -2,6 +2,7 @@ package com.sakaryateknokent.reviewerassignment.controller;
 
 import com.sakaryateknokent.reviewerassignment.config.SecurityConfig;
 import com.sakaryateknokent.reviewerassignment.dto.CreateProjectFromUploadRequest;
+import com.sakaryateknokent.reviewerassignment.dto.CreateManualProjectRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ProjectReviewerAssignmentHistoryResponse;
@@ -35,11 +36,14 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDate;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -89,18 +93,86 @@ class ProjectControllerTest {
     }
 
     @Test
+    void manualProjectCreationAllowsUserAndAdminButRejectsAnonymous() throws Exception {
+        when(projectService.createManualProject(
+                any(CreateManualProjectRequest.class), eq("user@example.com")))
+                .thenReturn(projectResponse(2L));
+        when(projectService.createManualProject(
+                any(CreateManualProjectRequest.class), eq("admin@example.com")))
+                .thenReturn(projectResponse(3L));
+        String requestBody = """
+                {
+                  "companyId": 2,
+                  "name": "Manuel Proje",
+                  "startDate": "2026-01-01",
+                  "durationMonths": 3,
+                  "keywords": ["AI"]
+                }
+                """;
+
+        securedMockMvc.perform(post("/api/projects/manual")
+                        .with(user("user@example.com").roles("USER"))
+                        .contentType("application/json")
+                        .content(requestBody))
+                .andExpect(status().isCreated());
+        securedMockMvc.perform(post("/api/projects/manual")
+                        .with(user("admin@example.com").roles("ADMIN"))
+                        .contentType("application/json")
+                        .content(requestBody))
+                .andExpect(status().isCreated());
+        securedMockMvc.perform(post("/api/projects/manual")
+                        .contentType("application/json")
+                        .content(requestBody))
+                .andExpect(status().isUnauthorized());
+
+        verify(projectService).createManualProject(
+                any(CreateManualProjectRequest.class), eq("user@example.com"));
+        verify(projectService).createManualProject(
+                any(CreateManualProjectRequest.class), eq("admin@example.com"));
+    }
+
+    @Test
+    void manualProjectRequestContainsOnlyClientManagedCreationFields() {
+        List<String> fields = Arrays.stream(CreateManualProjectRequest.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName)
+                .toList();
+
+        assertEquals(List.of(
+                "companyId", "name", "projectManager", "startDate", "durationMonths",
+                "category", "sector", "summary", "researchAndDevelopmentNature",
+                "innovativeAspect", "mainTechnologyArea", "projectDetail", "keywords"
+        ), fields);
+    }
+
+    @Test
     void listProjectsReturnsPageFromService() {
         PageRequest pageable = PageRequest.of(0, 10);
         Page<ProjectListResponse> page = new PageImpl<>(List.of(
                 new ProjectListResponse(1L, "Proje", 2L, "Sirket", CompanyType.TGB,
                         "Kategori", "Sektor", LocalDate.now(), LocalDate.now(),
                         ProjectStatus.AWAITING_REVIEWER, 0, null)), pageable, 1);
-        when(projectService.listProjects(pageable)).thenReturn(page);
+        when(projectService.listProjects(pageable, "proje")).thenReturn(page);
 
-        ResponseEntity<Page<ProjectListResponse>> response = projectController.listProjects(pageable);
+        ResponseEntity<Page<ProjectListResponse>> response = projectController.listProjects(
+                pageable, "proje");
 
         assertEquals(1, response.getBody().getTotalElements());
-        verify(projectService).listProjects(pageable);
+        verify(projectService).listProjects(pageable, "proje");
+    }
+
+    @Test
+    void listProjectsForwardsOptionalSearchParameter() throws Exception {
+        when(projectService.listProjects(any(org.springframework.data.domain.Pageable.class),
+                eq("teknokent")))
+                .thenReturn(Page.empty());
+
+        securedMockMvc.perform(get("/api/projects")
+                        .param("search", "teknokent")
+                        .with(user("user@example.com").roles("USER")))
+                .andExpect(status().isOk());
+
+        verify(projectService).listProjects(any(org.springframework.data.domain.Pageable.class),
+                eq("teknokent"));
     }
 
     @Test
@@ -310,6 +382,42 @@ class ProjectControllerTest {
                 .andExpect(jsonPath("$.fieldErrors.uploadId").exists())
                 .andExpect(jsonPath("$.fieldErrors.companyId").exists())
                 .andExpect(jsonPath("$.fieldErrors.name").exists());
+    }
+
+    @Test
+    void rejectsManualRequestWithMissingRequiredFields() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(projectController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        mockMvc.perform(post("/api/projects/manual")
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.companyId").exists())
+                .andExpect(jsonPath("$.fieldErrors.name").exists())
+                .andExpect(jsonPath("$.fieldErrors.startDate").exists())
+                .andExpect(jsonPath("$.fieldErrors.durationMonths").exists());
+    }
+
+    @Test
+    void rejectsManualRequestWithNonPositiveDuration() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(projectController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        mockMvc.perform(post("/api/projects/manual")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "companyId": 2,
+                                  "name": "Manuel Proje",
+                                  "startDate": "2026-01-01",
+                                  "durationMonths": 0
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.durationMonths").exists());
     }
 
     @Test
