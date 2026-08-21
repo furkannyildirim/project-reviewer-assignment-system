@@ -6,6 +6,7 @@ import com.sakaryateknokent.reviewerassignment.dto.ExportSelectionRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyImportResultResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyImportPreviewResponse;
+import com.sakaryateknokent.reviewerassignment.dto.CompanyProjectSummaryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateCompanyRequest;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
@@ -164,6 +165,13 @@ public class CompanyController {
             @PathVariable Long id
     ) {
         return ResponseEntity.ok(companyService.getCompanyById(id));
+    }
+
+    @GetMapping("/{companyId}/project-summary")
+    public ResponseEntity<CompanyProjectSummaryResponse> getProjectSummary(
+            @PathVariable Long companyId
+    ) {
+        return ResponseEntity.ok(companyService.getProjectSummary(companyId));
     }
 
     @PutMapping("/{id}")

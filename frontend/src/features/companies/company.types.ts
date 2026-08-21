@@ -51,6 +51,14 @@ export type CompanyDetail = {
     contacts: CompanyContact[];
 };
 
+export type CompanyProjectSummary = {
+    companyId: number;
+    totalProjectCount: number;
+    awaitingReviewerProjectCount: number;
+    activeProjectCount: number;
+    completedProjectCount: number;
+};
+
 export type Company = CompanyListItem;
 
 export type CompanyNameWarningResponse = {

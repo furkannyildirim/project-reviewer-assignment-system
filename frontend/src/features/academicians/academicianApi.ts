@@ -8,9 +8,26 @@ import type {
     AcademicianImportPreviewResponse,
     AcademicianImportResultResponse,
     AcademicianPageParams,
+    AcademicianProjectSummary,
     CreateAcademicianRequest,
     UpdateAcademicianRequest,
 } from './academician.types';
+
+export async function getAcademicianById(id: number): Promise<Academician> {
+    const response = await httpClient.get<Academician>(`/academicians/${id}`);
+
+    return response.data;
+}
+
+export async function getAcademicianProjectSummary(
+    id: number,
+): Promise<AcademicianProjectSummary> {
+    const response = await httpClient.get<AcademicianProjectSummary>(
+        `/academicians/${id}/project-summary`,
+    );
+
+    return response.data;
+}
 
 export async function getAcademicians(
     params: AcademicianPageParams,

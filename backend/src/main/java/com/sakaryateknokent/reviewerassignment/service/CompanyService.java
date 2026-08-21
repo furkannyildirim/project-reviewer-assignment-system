@@ -6,6 +6,7 @@ import com.sakaryateknokent.reviewerassignment.dto.CompanyContactResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyListResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyNameWarningResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CompanyResponse;
+import com.sakaryateknokent.reviewerassignment.dto.CompanyProjectSummaryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyContactRequest;
 import com.sakaryateknokent.reviewerassignment.dto.CreateCompanyRequest;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
@@ -16,12 +17,14 @@ import com.sakaryateknokent.reviewerassignment.entity.CompanyContact;
 import com.sakaryateknokent.reviewerassignment.entity.CompanyContactMethod;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyContactMethodType;
 import com.sakaryateknokent.reviewerassignment.enums.CompanyType;
+import com.sakaryateknokent.reviewerassignment.enums.ProjectStatus;
 import com.sakaryateknokent.reviewerassignment.exception.DuplicateResourceException;
 import com.sakaryateknokent.reviewerassignment.exception.InvalidRequestException;
 import com.sakaryateknokent.reviewerassignment.exception.ResourceNotFoundException;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyContactMethodRepository;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyContactRepository;
 import com.sakaryateknokent.reviewerassignment.repository.CompanyRepository;
+import com.sakaryateknokent.reviewerassignment.repository.ProjectRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -71,6 +74,7 @@ public class CompanyService {
     private final CompanyRepository companyRepository;
     private final CompanyContactRepository companyContactRepository;
     private final CompanyContactMethodRepository companyContactMethodRepository;
+    private final ProjectRepository projectRepository;
 
     public CompanyResponse createCompany(CreateCompanyRequest request) {
         String companyName = request.name().trim();
@@ -244,6 +248,32 @@ public class CompanyService {
     @Transactional(readOnly = true)
     public CompanyResponse getCompanyById(Long id) {
         return toResponse(findCompanyById(id));
+    }
+
+    @Transactional(readOnly = true)
+    public CompanyProjectSummaryResponse getProjectSummary(Long companyId) {
+        if (!companyRepository.existsById(companyId)) {
+            throw new ResourceNotFoundException(
+                    "Sirket bulunamadi: " + companyId
+            );
+        }
+
+        return projectRepository.findCompanyProjectSummary(
+                        companyId,
+                        ProjectStatus.AWAITING_REVIEWER,
+                        ProjectStatus.ACTIVE,
+                        ProjectStatus.COMPLETED
+                )
+                .map(summary -> new CompanyProjectSummaryResponse(
+                        companyId,
+                        summary.getTotalProjectCount(),
+                        summary.getAwaitingReviewerProjectCount(),
+                        summary.getActiveProjectCount(),
+                        summary.getCompletedProjectCount()
+                ))
+                .orElseGet(() -> new CompanyProjectSummaryResponse(
+                        companyId, 0, 0, 0, 0
+                ));
     }
 
     public CompanyResponse updateCompany(

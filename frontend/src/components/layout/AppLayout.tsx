@@ -23,6 +23,7 @@ import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
+import TopicOutlinedIcon from '@mui/icons-material/TopicOutlined';
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../features/auth/useAuth';
@@ -42,6 +43,11 @@ const navigationItems: NavigationItem[] = [
         label: 'Akademisyenler',
         path: '/academicians',
         icon: <SchoolOutlinedIcon />,
+    },
+    {
+        label: 'Projeler',
+        path: '/projects',
+        icon: <TopicOutlinedIcon />,
     },
     {
         label: 'TGB Şirketleri',
@@ -72,8 +78,11 @@ export function AppLayout() {
         '/academicians',
         '/profile',
         '/users',
+        '/projects',
     ].includes(location.pathname)
-        || location.pathname.startsWith('/companies/');
+        || location.pathname.startsWith('/academicians/')
+        || location.pathname.startsWith('/companies/')
+        || location.pathname.startsWith('/projects/');
 
     const visibleNavigationItems = navigationItems.filter(
         (item) => !item.adminOnly || role === 'ADMIN',
@@ -122,7 +131,8 @@ export function AppLayout() {
             <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                 <List sx={{ px: 1.5, py: 2 }}>
                     {visibleNavigationItems.map((item) => {
-                        const selected = location.pathname === item.path;
+                        const selected = location.pathname === item.path
+                            || location.pathname.startsWith(`${item.path}/`);
 
                         return (
                             <ListItemButton

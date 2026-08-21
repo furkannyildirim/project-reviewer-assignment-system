@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
@@ -94,6 +95,7 @@ function getFullName(academician: Academician) {
 }
 
 export function AcademiciansPage() {
+    const navigate = useNavigate();
     const { role } = useAuth();
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
@@ -651,6 +653,7 @@ export function AcademiciansPage() {
                         onPageChange={setPage}
                         onToggleAll={() => void handleToggleAll()}
                         onToggleOne={handleToggleOne}
+                        onView={(academician) => navigate(`/academicians/${academician.id}`)}
                         onEdit={(academician) => setFormMode({
                             type: 'edit',
                             academician,

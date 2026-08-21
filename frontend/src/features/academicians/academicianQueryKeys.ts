@@ -10,6 +10,16 @@ export const academicianQueryKeys = {
         'list',
         params,
     ] as const,
+    detail: (id: number) => [
+        ...academicianQueryKeys.all,
+        'detail',
+        id,
+    ] as const,
+    projectSummary: (id: number) => [
+        ...academicianQueryKeys.all,
+        'project-summary',
+        id,
+    ] as const,
     count: () => [
         ...academicianQueryKeys.all,
         'count',

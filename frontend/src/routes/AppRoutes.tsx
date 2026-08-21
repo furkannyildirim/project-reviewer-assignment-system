@@ -1,11 +1,14 @@
 import { Navigate, Route, Routes } from 'react-router';
 import { AppLayout } from '../components/layout/AppLayout';
 import { AcademiciansPage } from '../features/academicians/AcademiciansPage';
+import { AcademicianDetailPage } from '../features/academicians/AcademicianDetailPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { useAuth } from '../features/auth/useAuth';
 import { CompaniesPage } from '../features/companies/CompaniesPage';
 import { CompanyDetailPage } from '../features/companies/CompanyDetailPage';
 import { AdminProfilePage } from '../features/profile/AdminProfilePage';
+import { ProjectsPage } from '../features/projects/ProjectsPage';
+import { ProjectDetailPage } from '../features/projects/ProjectDetailPage';
 import { UsersPage } from '../features/users/UsersPage';
 import { AdminRoute } from './AdminRoute';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -44,6 +47,12 @@ export function AppRoutes() {
                         path="/academicians"
                         element={<AcademiciansPage />}
                     />
+                    <Route
+                        path="/academicians/:academicianId"
+                        element={<AcademicianDetailPage />}
+                    />
+                    <Route path="/projects" element={<ProjectsPage />} />
+                    <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
                     <Route
                         path="/companies"
                         element={<Navigate to="/companies/tgb" replace />}

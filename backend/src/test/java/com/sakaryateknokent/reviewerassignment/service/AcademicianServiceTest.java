@@ -7,7 +7,11 @@ import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.entity.Academician;
 import com.sakaryateknokent.reviewerassignment.exception.DuplicateResourceException;
+import com.sakaryateknokent.reviewerassignment.exception.ResourceNotFoundException;
+import com.sakaryateknokent.reviewerassignment.enums.AssignmentStatus;
+import com.sakaryateknokent.reviewerassignment.repository.AcademicianProjectSummary;
 import com.sakaryateknokent.reviewerassignment.repository.AcademicianRepository;
+import com.sakaryateknokent.reviewerassignment.repository.ProjectReviewerAssignmentRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -38,8 +42,62 @@ class AcademicianServiceTest {
 
     private final AcademicianRepository academicianRepository =
             mock(AcademicianRepository.class);
+    private final ProjectReviewerAssignmentRepository assignmentRepository =
+            mock(ProjectReviewerAssignmentRepository.class);
     private final AcademicianService academicianService =
-            new AcademicianService(academicianRepository);
+            new AcademicianService(academicianRepository, assignmentRepository);
+
+    @Test
+    void returnsAggregatedProjectSummary() {
+        AcademicianProjectSummary summary = mock(AcademicianProjectSummary.class);
+        when(academicianRepository.existsById(7L)).thenReturn(true);
+        when(summary.getActiveProjectCount()).thenReturn(2L);
+        when(summary.getCompletedProjectCount()).thenReturn(3L);
+        when(summary.getTotalProjectCount()).thenReturn(5L);
+        when(assignmentRepository.findProjectSummary(
+                7L,
+                AssignmentStatus.ACTIVE,
+                AssignmentStatus.COMPLETED
+        )).thenReturn(Optional.of(summary));
+
+        var response = academicianService.getProjectSummary(7L);
+
+        assertEquals(7L, response.academicianId());
+        assertEquals(2L, response.activeProjectCount());
+        assertEquals(3L, response.completedProjectCount());
+        assertEquals(5L, response.totalProjectCount());
+    }
+
+    @Test
+    void projectSummaryWithoutAssignmentsReturnsZeros() {
+        when(academicianRepository.existsById(7L)).thenReturn(true);
+        when(assignmentRepository.findProjectSummary(
+                7L,
+                AssignmentStatus.ACTIVE,
+                AssignmentStatus.COMPLETED
+        )).thenReturn(Optional.empty());
+
+        var response = academicianService.getProjectSummary(7L);
+
+        assertEquals(0L, response.activeProjectCount());
+        assertEquals(0L, response.completedProjectCount());
+        assertEquals(0L, response.totalProjectCount());
+    }
+
+    @Test
+    void projectSummaryForMissingAcademicianReturnsNotFoundWithoutAggregation() {
+        when(academicianRepository.existsById(99L)).thenReturn(false);
+
+        assertThrows(
+                ResourceNotFoundException.class,
+                () -> academicianService.getProjectSummary(99L)
+        );
+        verify(assignmentRepository, never()).findProjectSummary(
+                any(),
+                any(),
+                any()
+        );
+    }
 
     @Test
     void createsAcademicianWithNormalizedOptionalFieldsAndKeywords() {

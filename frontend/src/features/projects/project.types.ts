@@ -1,0 +1,217 @@
+export type ProjectCompanyType = 'TGB' | 'EXTERNAL';
+
+export type ProjectStatus =
+    | 'AWAITING_REVIEWER'
+    | 'ACTIVE'
+    | 'COMPLETED';
+
+export type ProjectListItem = {
+    id: number;
+    name: string;
+    companyId: number;
+    companyName: string;
+    companyType: ProjectCompanyType;
+    category: string | null;
+    sector: string | null;
+    startDate: string | null;
+    endDate: string | null;
+    status: ProjectStatus;
+    activeReviewerCount: number;
+    createdAt: string;
+};
+
+export type ProjectPageParams = {
+    page: number;
+    size: number;
+    search?: string;
+};
+
+export type ProjectUploadResponse = {
+    uploadId: string;
+    originalFileName: string;
+    contentType: string;
+    fileSize: number;
+    expiresAt: string;
+};
+
+export type ProjectFormField =
+    | 'COMPANY_NAME'
+    | 'NAME'
+    | 'PROJECT_MANAGER'
+    | 'START_DATE'
+    | 'DURATION_MONTHS'
+    | 'CATEGORY'
+    | 'SECTOR'
+    | 'SUMMARY'
+    | 'RESEARCH_AND_DEVELOPMENT_NATURE'
+    | 'INNOVATIVE_ASPECT'
+    | 'MAIN_TECHNOLOGY_AREA'
+    | 'PROJECT_DETAIL'
+    | 'KEYWORDS';
+
+export type ProjectCompanyMatchStatus =
+    | 'UNIQUE_MATCH'
+    | 'AMBIGUOUS'
+    | 'NOT_FOUND'
+    | 'COMPANY_NAME_MISSING';
+
+export type ProjectCompanyCandidate = {
+    id: number;
+    name: string;
+    companyType: ProjectCompanyType;
+};
+
+export type ProjectCompanyMatch = {
+    status: ProjectCompanyMatchStatus;
+    matchedCompany: ProjectCompanyCandidate | null;
+    candidates: ProjectCompanyCandidate[];
+    message: string;
+};
+
+export type ProjectDocumentPreviewResponse = {
+    uploadId: string;
+    originalFileName: string;
+    contentType: string;
+    fileSize: number;
+    expiresAt: string;
+    templateCode: string | null;
+    companyName: string | null;
+    name: string | null;
+    projectManager: string | null;
+    startDate: string | null;
+    durationMonths: number | null;
+    endDate: string | null;
+    category: string | null;
+    sector: string | null;
+    summary: string | null;
+    researchAndDevelopmentNature: string | null;
+    innovativeAspect: string | null;
+    mainTechnologyArea: string | null;
+    projectDetail: string | null;
+    keywords: string[];
+    missingFields: ProjectFormField[];
+    reviewRequiredFields: ProjectFormField[];
+    warnings: string[];
+    companyMatch: ProjectCompanyMatch;
+};
+
+export type ProjectDocumentPreviewDraft = {
+    name: string;
+    projectManager: string;
+    startDate: string;
+    durationMonths: string;
+    category: string;
+    sector: string;
+    summary: string;
+    researchAndDevelopmentNature: string;
+    innovativeAspect: string;
+    mainTechnologyArea: string;
+    projectDetail: string;
+    keywords: string[];
+};
+
+export type CreateProjectFromUploadRequest = {
+    uploadId: string;
+    companyId: number;
+    name: string;
+    projectManager: string | null;
+    startDate: string;
+    durationMonths: number;
+    category: string | null;
+    sector: string | null;
+    summary: string | null;
+    researchAndDevelopmentNature: string | null;
+    innovativeAspect: string | null;
+    mainTechnologyArea: string | null;
+    projectDetail: string | null;
+    keywords: string[];
+};
+
+export type CreateManualProjectRequest = {
+    companyId: number;
+    name: string;
+    startDate: string;
+    durationMonths: number;
+    projectManager?: string;
+    category?: string;
+    sector?: string;
+    summary?: string;
+    researchAndDevelopmentNature?: string;
+    innovativeAspect?: string;
+    mainTechnologyArea?: string;
+    projectDetail?: string;
+    keywords?: string[];
+};
+
+export type ProjectResponse = {
+    id: number;
+    companyId: number;
+    companyName: string;
+    companyType: ProjectCompanyType;
+    createdById: number;
+    createdByName: string;
+    name: string;
+    projectManager: string | null;
+    startDate: string;
+    durationMonths: number;
+    endDate: string;
+    category: string | null;
+    sector: string | null;
+    summary: string | null;
+    researchAndDevelopmentNature: string | null;
+    innovativeAspect: string | null;
+    mainTechnologyArea: string | null;
+    projectDetail: string | null;
+    keywords: string[];
+    status: ProjectStatus;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type ReviewerRecommendationLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type ReviewerRecommendation = {
+    academicianId: number;
+    firstName: string;
+    lastName: string;
+    title: string | null;
+    level: ReviewerRecommendationLevel;
+    matchedKeywords: string[];
+    activeProjectCount: number;
+    totalProjectCount: number;
+};
+
+export type ProjectReviewerRecommendationsResponse = {
+    projectId: number;
+    strongRecommendationAvailable: boolean;
+    recommendations: ReviewerRecommendation[];
+};
+
+export type ProjectReviewerAssignmentStatus = 'ACTIVE' | 'COMPLETED' | 'REMOVED';
+
+export type ProjectReviewerAssignment = {
+    assignmentId: number;
+    projectId: number;
+    academicianId: number;
+    academicianName: string;
+    academicianTitle: string | null;
+    status: ProjectReviewerAssignmentStatus;
+    assignedAt: string;
+    assignedByName: string;
+};
+
+export type ProjectReviewerAssignmentHistoryStatus = 'REMOVED' | 'COMPLETED';
+
+export type ProjectReviewerAssignmentHistory = {
+    assignmentId: number;
+    projectId: number;
+    academicianId: number;
+    academicianName: string;
+    academicianTitle: string | null;
+    status: ProjectReviewerAssignmentHistoryStatus;
+    assignedAt: string;
+    endedAt: string | null;
+    assignedByName: string;
+};
+
+export const projectPageSizes = [10, 15, 20, 25] as const;

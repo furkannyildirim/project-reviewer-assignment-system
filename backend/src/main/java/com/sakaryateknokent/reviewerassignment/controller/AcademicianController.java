@@ -4,6 +4,7 @@ import com.sakaryateknokent.reviewerassignment.dto.AcademicianResponse;
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianIdentityWarningResponse;
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportPreviewResponse;
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianImportResultResponse;
+import com.sakaryateknokent.reviewerassignment.dto.AcademicianProjectSummaryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.CreateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.dto.ExportSelectionRequest;
 import com.sakaryateknokent.reviewerassignment.dto.PageResponse;
@@ -142,6 +143,15 @@ public class AcademicianController {
     ) {
         return ResponseEntity.ok(
                 academicianService.getAcademicianById(id)
+        );
+    }
+
+    @GetMapping("/{academicianId}/project-summary")
+    public ResponseEntity<AcademicianProjectSummaryResponse> getProjectSummary(
+            @PathVariable Long academicianId
+    ) {
+        return ResponseEntity.ok(
+                academicianService.getProjectSummary(academicianId)
         );
     }
 

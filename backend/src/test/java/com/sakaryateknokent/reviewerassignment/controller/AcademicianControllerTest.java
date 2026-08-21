@@ -1,6 +1,7 @@
 package com.sakaryateknokent.reviewerassignment.controller;
 
 import com.sakaryateknokent.reviewerassignment.dto.AcademicianResponse;
+import com.sakaryateknokent.reviewerassignment.dto.AcademicianProjectSummaryResponse;
 import com.sakaryateknokent.reviewerassignment.dto.ExportSelectionRequest;
 import com.sakaryateknokent.reviewerassignment.dto.UpdateAcademicianRequest;
 import com.sakaryateknokent.reviewerassignment.entity.Academician;
@@ -29,6 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -45,6 +47,41 @@ class AcademicianControllerTest {
                     mock(AcademicianImportPreviewService.class),
                     mock(AcademicianImportService.class)
             );
+
+    @Test
+    void projectSummaryReturnsOnlySafeCountFields() throws Exception {
+        when(academicianService.getProjectSummary(7L)).thenReturn(
+                new AcademicianProjectSummaryResponse(7L, 2, 3, 5)
+        );
+        MockMvc mockMvc = MockMvcBuilders
+                .standaloneSetup(academicianController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        mockMvc.perform(get("/api/academicians/7/project-summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.academicianId").value(7))
+                .andExpect(jsonPath("$.activeProjectCount").value(2))
+                .andExpect(jsonPath("$.completedProjectCount").value(3))
+                .andExpect(jsonPath("$.totalProjectCount").value(5))
+                .andExpect(jsonPath("$.email").doesNotExist())
+                .andExpect(jsonPath("$.assignments").doesNotExist());
+    }
+
+    @Test
+    void projectSummaryReturnsNotFoundForMissingAcademician() throws Exception {
+        when(academicianService.getProjectSummary(99L)).thenThrow(
+                new com.sakaryateknokent.reviewerassignment.exception
+                        .ResourceNotFoundException("Akademisyen bulunamadı: 99")
+        );
+        MockMvc mockMvc = MockMvcBuilders
+                .standaloneSetup(academicianController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        mockMvc.perform(get("/api/academicians/99/project-summary"))
+                .andExpect(status().isNotFound());
+    }
 
     @Test
     void countAcademiciansReturnsTotalAcademicianCount() {
