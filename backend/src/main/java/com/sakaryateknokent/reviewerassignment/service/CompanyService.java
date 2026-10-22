@@ -614,7 +614,7 @@ public class CompanyService {
     private void validateContactListExists(List<?> contacts) {
         if (contacts == null || contacts.isEmpty()) {
             throw new InvalidRequestException(
-                    "En az bir muhatap kisi eklenmelidir"
+                    "En az bir yetkili kisi eklenmelidir"
             );
         }
     }
@@ -622,7 +622,7 @@ public class CompanyService {
     private String normalizeRequiredContactName(String fullName) {
         if (fullName == null || fullName.isBlank()) {
             throw new InvalidRequestException(
-                    "Muhatap adi soyadi bos birakilamaz"
+                    "Yetkili kişi adi soyadi bos birakilamaz"
             );
         }
 
@@ -638,7 +638,7 @@ public class CompanyService {
 
         if (primaryCount != 1) {
             throw new InvalidRequestException(
-                    "Tam olarak bir muhatap kisi birincil olarak secilmelidir"
+                    "Tam olarak bir yetkili kisi birincil olarak secilmelidir"
             );
         }
     }
